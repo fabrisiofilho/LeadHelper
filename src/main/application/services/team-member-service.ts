@@ -25,6 +25,7 @@ export interface TeamMember {
   email: string;
   role: TeamMemberRole;
   isActive: boolean;
+  teams?: { id: number; name: string; isActive: boolean }[];
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -148,6 +149,11 @@ export class TeamMemberService {
       email: entity.email,
       role: entity.role,
       isActive: entity.isActive,
+      teams: entity.teams?.map((t) => ({
+        id: t.id,
+        name: t.name,
+        isActive: t.isActive,
+      })),
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
     };

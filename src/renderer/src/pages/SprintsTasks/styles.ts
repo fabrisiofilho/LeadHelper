@@ -6,62 +6,31 @@ export const PageContainer = styled(Box)(({ theme }) => ({
   margin: '0 auto',
   width: '100%',
   height: '100%',
-}));
-
-export const ContentContainer = styled(Box)(({ theme }) => ({
-  display: 'flex',
-  gap: theme.spacing(3),
-  height: 'calc(100vh - 180px)',
-  [theme.breakpoints.down('md')]: {
-    flexDirection: 'column',
-    height: 'auto',
-  },
-}));
-
-export const LeftPanel = styled(Box)(({ theme }) => ({
-  width: '30%',
-  minWidth: 280,
-  maxWidth: 400,
   display: 'flex',
   flexDirection: 'column',
-  backgroundColor: theme.palette.background.paper,
-  borderRadius: Number(theme.shape.borderRadius) * 2,
-  border: `1px solid ${theme.palette.divider}`,
-  overflow: 'hidden',
-  [theme.breakpoints.down('md')]: {
-    width: '100%',
-    maxWidth: 'none',
-    minHeight: 300,
-  },
 }));
 
-export const RightPanel = styled(Box)(({ theme }) => ({
-  flex: 1,
-  display: 'flex',
-  flexDirection: 'column',
-  backgroundColor: theme.palette.background.paper,
-  borderRadius: Number(theme.shape.borderRadius) * 2,
-  border: `1px solid ${theme.palette.divider}`,
-  overflow: 'hidden',
-  [theme.breakpoints.down('md')]: {
-    width: '100%',
-    minHeight: 400,
-  },
-}));
-
-export const PanelHeader = styled(Box)(({ theme }) => ({
-  padding: theme.spacing(2),
-  borderBottom: `1px solid ${theme.palette.divider}`,
+export const TopSelectorBar = styled(Box)(({ theme }) => ({
   display: 'flex',
   alignItems: 'center',
-  justifyContent: 'space-between',
   gap: theme.spacing(2),
+  padding: theme.spacing(1.5, 2),
+  backgroundColor: theme.palette.background.paper,
+  borderRadius: Number(theme.shape.borderRadius) * 2,
+  border: `1px solid ${theme.palette.divider}`,
+  marginBottom: theme.spacing(2),
+  flexWrap: 'wrap',
 }));
 
-export const PanelContent = styled(Box)(({ theme }) => ({
+export const ContentArea = styled(Box)(({ theme }) => ({
   flex: 1,
-  overflow: 'auto',
-  padding: theme.spacing(2),
+  display: 'flex',
+  flexDirection: 'column',
+  backgroundColor: theme.palette.background.paper,
+  borderRadius: Number(theme.shape.borderRadius) * 2,
+  border: `1px solid ${theme.palette.divider}`,
+  overflow: 'hidden',
+  minHeight: 0,
 }));
 
 export const PlaceholderContent = styled(Box)(({ theme }) => ({

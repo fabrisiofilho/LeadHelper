@@ -148,6 +148,10 @@ export const CONTROLLER_CONFIG = {
     prefix: 'task-status-config',
     methods: ['findAll', 'findKanban', 'create', 'update', 'delete'] as const,
   },
+  taskComment: {
+    prefix: 'task-comment',
+    methods: ['findByTask', 'create', 'update', 'delete'] as const,
+  },
 } as const;
 
 export type ControllerConfigType = typeof CONTROLLER_CONFIG;

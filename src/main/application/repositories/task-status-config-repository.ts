@@ -10,6 +10,10 @@ export class TaskStatusConfigRepository extends BaseRepository<TaskStatusConfigE
     return this.repository.find({ order: { order: 'ASC' } });
   }
 
+  async count(): Promise<number> {
+    return this.repository.count();
+  }
+
   async findById(id: number): Promise<TaskStatusConfigEntity | null> {
     return this.repository.findOneBy({ id });
   }

@@ -17,7 +17,7 @@ import {
 import type {
   Sprint,
   Task,
-  TaskStatus,
+  TaskStatusConfig,
 } from '@shared/interfaces/config/index.types';
 import {
   TaskListContainer,
@@ -30,37 +30,30 @@ import {
 export interface TaskListProps {
   sprint: Sprint;
   tasks: Task[];
+  statuses: TaskStatusConfig[];
   loading: boolean;
   onNewTask: () => void;
   onEditTask: (task: Task) => void;
   onRemoveTask: (task: Task) => void;
 }
 
-const statusLabels: Record<TaskStatus, string> = {
-  pending: 'Pendente',
-  in_progress: 'Em Andamento',
-  completed: 'Concluída',
-  cancelled: 'Cancelada',
-};
-
-const statusColors: Record<
-  TaskStatus,
-  'default' | 'primary' | 'success' | 'error'
-> = {
-  pending: 'default',
-  in_progress: 'primary',
-  completed: 'success',
-  cancelled: 'error',
-};
-
 export function TaskList({
   sprint,
   tasks,
+  statuses,
   loading,
   onNewTask,
   onEditTask,
   onRemoveTask,
 }: TaskListProps) {
+  const getStatusLabel = (status: string) => {
+    return statuses.find((s) => s.name === status)?.label ?? status;
+  };
+
+  const getStatusColor = (status: string) => {
+    return statuses.find((s) => s.name === status)?.color ?? '#9e9e9e';
+  };
+
   // Format date for display
   const formatDate = (date: Date | string | undefined) => {
     if (!date) return '';
@@ -146,10 +139,15 @@ export function TaskList({
                         {task.title}
                       </Typography>
                       <Chip
-                        label={statusLabels[task.status]}
+                        label={getStatusLabel(task.status)}
                         size="small"
-                        color={statusColors[task.status]}
-                        sx={{ height: 20, fontSize: '0.7rem' }}
+                        sx={{
+                          height: 20,
+                          fontSize: '0.7rem',
+                          backgroundColor: getStatusColor(task.status) + '20',
+                          color: getStatusColor(task.status),
+                          fontWeight: 500,
+                        }}
                       />
                     </Stack>
 

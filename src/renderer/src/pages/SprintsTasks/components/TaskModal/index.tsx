@@ -17,7 +17,6 @@ import { useForm, Controller } from 'react-hook-form';
 import { Modal } from '@renderer/components/Modal';
 import type {
   Task,
-  TaskStatus,
   Sprint,
   CreateTaskInput,
   UpdateTaskInput,
@@ -32,20 +31,13 @@ interface TaskFormData {
   endDate: Date | null;
 }
 
-const DEFAULT_STATUS_OPTIONS: { value: string; label: string }[] = [
-  { value: 'pending', label: 'Pendente' },
-  { value: 'in_progress', label: 'Em Andamento' },
-  { value: 'completed', label: 'Concluída' },
-  { value: 'cancelled', label: 'Cancelada' },
-];
-
 export interface TaskModalProps {
   open: boolean;
   task?: Task | null;
   sprint: Sprint | null;
   loading: boolean;
   error: string | null;
-  statusOptions?: TaskStatusConfig[];
+  statusOptions: TaskStatusConfig[];
   onClose: () => void;
   onSave: (data: CreateTaskInput | UpdateTaskInput) => Promise<void>;
 }
@@ -60,6 +52,11 @@ export function TaskModal({
   onClose,
   onSave,
 }: TaskModalProps) {
+  const defaultStatus =
+    statusOptions.find((s) => s.isDefault)?.name ??
+    statusOptions[0]?.name ??
+    '';
+
   const {
     control,
     handleSubmit,
@@ -70,7 +67,7 @@ export function TaskModal({
     defaultValues: {
       title: '',
       description: '',
-      status: 'pending',
+      status: defaultStatus,
       startDate: null,
       endDate: null,
     },
@@ -84,7 +81,7 @@ export function TaskModal({
       reset({
         title: task?.title ?? '',
         description: task?.description ?? '',
-        status: task?.status ?? 'pending',
+        status: task?.status ?? defaultStatus,
         startDate: task?.startDate ? new Date(task.startDate) : null,
         endDate: task?.endDate ? new Date(task.endDate) : null,
       });
@@ -92,12 +89,12 @@ export function TaskModal({
       reset({
         title: '',
         description: '',
-        status: 'pending',
+        status: defaultStatus,
         startDate: null,
         endDate: null,
       });
     }
-  }, [open, task, reset]);
+  }, [open, task, reset, defaultStatus]);
 
   const onSubmit = async (data: TaskFormData) => {
     if (task) {
@@ -184,11 +181,8 @@ export function TaskModal({
               <FormControl fullWidth error={!!errors.status} disabled={loading}>
                 <InputLabel id="task-status-label">Status</InputLabel>
                 <Select {...field} labelId="task-status-label" label="Status">
-                  {(statusOptions && statusOptions.length > 0
-                    ? statusOptions.map((s) => ({ value: s.name, label: s.label }))
-                    : DEFAULT_STATUS_OPTIONS
-                  ).map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
+                  {statusOptions.map((option) => (
+                    <MenuItem key={option.name} value={option.name}>
                       {option.label}
                     </MenuItem>
                   ))}

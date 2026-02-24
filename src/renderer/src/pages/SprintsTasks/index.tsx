@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -14,22 +14,30 @@ import {
 } from '@mui/icons-material';
 import { useSprints } from '@renderer/hooks/useSprints';
 import { useTasks } from '@renderer/hooks/useTasks';
+import { useTeams } from '@renderer/hooks/useTeams';
+import { useTeamMembers } from '@renderer/hooks/useTeamMembers';
 import { useTaskStatusConfig } from '@renderer/hooks/useTaskStatusConfig';
+import { useAllocations } from '@renderer/hooks/useAllocations';
 import {
   PageContainer,
-  ContentContainer,
-  LeftPanel,
-  RightPanel,
+  TopSelectorBar,
+  ContentArea,
   PlaceholderContent,
 } from './styles';
-import { SprintList } from './components/SprintList';
+import { SprintSelector } from './components/SprintSelector';
 import { KanbanBoard } from './components/KanbanBoard';
+import {
+  KanbanFilters,
+  EMPTY_FILTERS,
+  type KanbanFiltersState,
+} from './components/KanbanFilters';
 import { SprintModal } from './components/SprintModal';
-import { TaskModal } from './components/TaskModal';
+import { TaskModal } from '@renderer/components/TaskModal';
 import { StatusManagerModal } from './components/StatusManagerModal';
 import type {
   Sprint,
   Task,
+  TaskStatusConfig,
   CreateSprintInput,
   UpdateSprintInput,
   CreateTaskInput,
@@ -45,6 +53,11 @@ export function SprintsTasksPage() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [taskModalLoading, setTaskModalLoading] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+  const [kanbanStatuses, setKanbanStatuses] = useState<TaskStatusConfig[]>([]);
+  const [allStatuses, setAllStatuses] = useState<TaskStatusConfig[]>([]);
+  const [optimisticTasks, setOptimisticTasks] = useState<Task[] | null>(null);
+  const [kanbanFilters, setKanbanFilters] =
+    useState<KanbanFiltersState>(EMPTY_FILTERS);
 
   // Hooks
   const {
@@ -68,28 +81,42 @@ export function SprintsTasksPage() {
   } = useTasks();
 
   const {
-    statuses,
     loading: statusesLoading,
-    findAll: findAllStatuses,
-    findKanban: findKanbanStatuses,
+    findAll: fetchAllStatuses,
+    findKanban: fetchKanbanStatuses,
     create: createStatus,
     update: updateStatus,
     delete: deleteStatus,
   } = useTaskStatusConfig();
 
-  // Load sprints and statuses on mount
+  const { teams, findAll: findAllTeams } = useTeams();
+  const { teamMembers, findAll: findAllTeamMembers } = useTeamMembers();
+  const {
+    create: createAllocation,
+    delete: deleteAllocation,
+    findByTask: findAllocationsByTask,
+  } = useAllocations();
+
+  // Load functions
   const loadSprints = useCallback(async () => {
     await findAllSprints();
   }, [findAllSprints]);
 
   const loadStatuses = useCallback(async () => {
-    await findKanbanStatuses();
-  }, [findKanbanStatuses]);
+    const [kanban, all] = await Promise.all([
+      fetchKanbanStatuses(),
+      fetchAllStatuses(),
+    ]);
+    setKanbanStatuses(kanban);
+    setAllStatuses(all);
+  }, [fetchKanbanStatuses, fetchAllStatuses]);
 
   useEffect(() => {
     loadSprints();
     loadStatuses();
-  }, [loadSprints, loadStatuses]);
+    findAllTeams({ isActive: true });
+    findAllTeamMembers({ isActive: true });
+  }, [loadSprints, loadStatuses, findAllTeams, findAllTeamMembers]);
 
   // Load tasks when sprint is selected
   useEffect(() => {
@@ -99,8 +126,9 @@ export function SprintsTasksPage() {
   }, [selectedSprint, findAllTasks]);
 
   // Sprint handlers
-  const handleSelectSprint = (sprint: Sprint) => {
+  const handleSelectSprint = (sprint: Sprint | null) => {
     setSelectedSprint(sprint);
+    setKanbanFilters(EMPTY_FILTERS);
   };
 
   const handleNewSprint = () => {
@@ -189,23 +217,55 @@ export function SprintsTasksPage() {
     console.log('Remove task:', task.id);
   };
 
-  // Kanban drag handler - update task status
+  // Assign task to a team member via allocations table
+  const handleAssignTask = async (taskId: number, memberId: number | null) => {
+    // First, remove any existing allocation for this task
+    const existingAllocations = await findAllocationsByTask(taskId);
+    for (const alloc of existingAllocations) {
+      await deleteAllocation(alloc.id);
+    }
+
+    // If assigning (not removing), create a new allocation
+    if (memberId !== null) {
+      const task = tasks.find((t) => t.id === taskId);
+      const today = new Date();
+      await createAllocation({
+        teamMemberId: memberId,
+        taskId,
+        startDate: task?.startDate ?? today,
+        endDate: task?.endDate ?? today,
+      });
+    }
+
+    // Reload tasks so the derived assignee updates
+    if (selectedSprint) {
+      await findAllTasks({ sprintId: selectedSprint.id });
+    }
+  };
+
+  // Kanban drag handler — optimistic update to avoid flash
   const handleStatusChange = async (taskId: number, newStatus: string) => {
+    // Optimistically update the local tasks so the card moves instantly without flash
+    setOptimisticTasks((prev) => {
+      const base = prev ?? tasks;
+      return base.map((t) =>
+        t.id === taskId ? { ...t, status: newStatus } : t,
+      );
+    });
     await updateTask(taskId, {
       status: newStatus as UpdateTaskInput['status'],
     });
+    // Clear optimistic override so we use the real data from the hook
+    setOptimisticTasks(null);
   };
 
   // Status manager handlers
   const handleManageStatuses = () => {
-    // Load all statuses (including hidden ones) for the manager
-    findAllStatuses();
     setIsStatusModalOpen(true);
   };
 
   const handleCloseStatusModal = () => {
     setIsStatusModalOpen(false);
-    // Reload kanban statuses after changes
     loadStatuses();
   };
 
@@ -216,6 +276,33 @@ export function SprintsTasksPage() {
       await findAllTasks({ sprintId: selectedSprint.id });
     }
   };
+
+  // Client-side filtering for the Kanban
+  const baseTasks = optimisticTasks ?? tasks;
+  const filteredTasks = useMemo(() => {
+    let result = baseTasks;
+
+    if (kanbanFilters.search.trim()) {
+      const term = kanbanFilters.search.trim().toLowerCase();
+      result = result.filter(
+        (t) =>
+          t.title.toLowerCase().includes(term) ||
+          t.description?.toLowerCase().includes(term),
+      );
+    }
+
+    if (kanbanFilters.priorities.length > 0) {
+      result = result.filter((t) =>
+        kanbanFilters.priorities.includes(t.priority as any),
+      );
+    }
+
+    if (kanbanFilters.teamId) {
+      result = result.filter((t) => t.teamId === kanbanFilters.teamId);
+    }
+
+    return result;
+  }, [baseTasks, kanbanFilters]);
 
   // Loading state
   const isLoading = sprintsLoading && sprints.length === 0;
@@ -252,12 +339,11 @@ export function SprintsTasksPage() {
 
   return (
     <PageContainer>
-      {/* Page Header */}
       <Stack
         direction="row"
         justifyContent="space-between"
         alignItems="center"
-        mb={3}
+        mb={2}
       >
         <Box>
           <Typography variant="h4" fontWeight={700}>
@@ -267,61 +353,62 @@ export function SprintsTasksPage() {
             Gerencie sprints e suas tarefas no Kanban
           </Typography>
         </Box>
-        <Stack direction="row" spacing={1}>
-          <Tooltip title="Atualizar">
-            <IconButton onClick={handleRefresh} size="small">
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
-        </Stack>
+        <Tooltip title="Atualizar">
+          <IconButton onClick={handleRefresh} size="small">
+            <RefreshIcon />
+          </IconButton>
+        </Tooltip>
       </Stack>
 
-      {/* Two-Panel Layout */}
-      <ContentContainer>
-        {/* Left Panel - Sprint List (30%) */}
-        <LeftPanel>
-          <SprintList
-            sprints={sprints}
-            selectedSprint={selectedSprint}
-            loading={sprintsLoading}
-            onSelectSprint={handleSelectSprint}
-            onNewSprint={handleNewSprint}
-            onEditSprint={handleEditSprint}
-          />
-        </LeftPanel>
+      <TopSelectorBar>
+        <SprintSelector
+          sprints={sprints}
+          selectedSprint={selectedSprint}
+          loading={sprintsLoading}
+          onSelectSprint={handleSelectSprint}
+          onNewSprint={handleNewSprint}
+          onEditSprint={handleEditSprint}
+        />
+      </TopSelectorBar>
 
-        {/* Right Panel - Kanban Board (70%) */}
-        <RightPanel>
-          {selectedSprint ? (
+      <ContentArea>
+        {selectedSprint ? (
+          <>
+            <KanbanFilters
+              filters={kanbanFilters}
+              teams={teams}
+              onChange={setKanbanFilters}
+            />
             <KanbanBoard
               sprint={selectedSprint}
-              tasks={tasks}
-              statuses={statuses}
+              tasks={filteredTasks}
+              statuses={kanbanStatuses}
+              teamMembers={teamMembers}
               loading={tasksLoading}
               onNewTask={handleNewTask}
               onEditTask={handleEditTask}
               onRemoveTask={handleRemoveTask}
               onStatusChange={handleStatusChange}
+              onAssignTask={handleAssignTask}
               onManageStatuses={handleManageStatuses}
             />
-          ) : (
-            <PlaceholderContent>
-              <ViewKanbanIcon
-                sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }}
-              />
-              <Typography variant="h6" color="text.secondary" gutterBottom>
-                Selecione uma sprint
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Escolha uma sprint na lista à esquerda para visualizar e
-                gerenciar suas tarefas no Kanban
-              </Typography>
-            </PlaceholderContent>
-          )}
-        </RightPanel>
-      </ContentContainer>
+          </>
+        ) : (
+          <PlaceholderContent>
+            <ViewKanbanIcon
+              sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }}
+            />
+            <Typography variant="h6" color="text.secondary" gutterBottom>
+              Selecione uma sprint
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Escolha uma sprint no seletor acima para visualizar e gerenciar
+              suas tarefas no Kanban
+            </Typography>
+          </PlaceholderContent>
+        )}
+      </ContentArea>
 
-      {/* Sprint Modal */}
       <SprintModal
         open={isSprintModalOpen}
         sprint={editingSprint}
@@ -331,27 +418,27 @@ export function SprintsTasksPage() {
         onSave={handleSaveSprint}
       />
 
-      {/* Task Modal */}
       <TaskModal
         open={isTaskModalOpen}
         task={editingTask}
-        sprint={selectedSprint}
+        fixedSprint={selectedSprint}
+        teams={teams}
+        statusOptions={allStatuses}
         loading={taskModalLoading}
         error={tasksError}
-        statusOptions={statuses}
         onClose={handleCloseTaskModal}
         onSave={handleSaveTask}
       />
 
-      {/* Status Manager Modal */}
       <StatusManagerModal
         open={isStatusModalOpen}
-        statuses={statuses}
+        statuses={allStatuses}
         loading={statusesLoading}
         onClose={handleCloseStatusModal}
         onCreate={createStatus}
         onUpdate={updateStatus}
         onDelete={deleteStatus}
+        onRefresh={loadStatuses}
       />
     </PageContainer>
   );

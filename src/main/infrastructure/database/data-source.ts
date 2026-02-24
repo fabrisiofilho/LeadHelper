@@ -15,6 +15,7 @@ import { PositionEntity } from '@main/application/entities/position.entity';
 import { TeamEntity } from '@main/application/entities/team.entity';
 import { SprintEntity } from '@main/application/entities/sprint.entity';
 import { TaskStatusConfigEntity } from '@main/application/entities/task-status-config.entity';
+import { TaskCommentEntity } from '@main/application/entities/task-comment.entity';
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -64,6 +65,7 @@ function createDataSource(): DataSource {
       TeamEntity,
       SprintEntity,
       TaskStatusConfigEntity,
+      TaskCommentEntity,
     ],
     migrations: [],
     subscribers: [],

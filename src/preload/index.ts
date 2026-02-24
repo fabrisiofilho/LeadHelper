@@ -12,6 +12,8 @@ import {
   ITeamMemberAllocationController,
   IDashboardController,
   IAzureDevOpsController,
+  ITaskStatusConfigController,
+  ITaskCommentController,
 } from '@shared/interfaces/config/index.types';
 import {
   IAutoUpdaterController,
@@ -92,6 +94,12 @@ const autoUpdaterController = createControllerFromConfig(
 const authController = createControllerFromConfig(
   'auth',
 ) as unknown as IAuthController;
+const taskStatusConfigController = createControllerFromConfig(
+  'taskStatusConfig',
+) as unknown as ITaskStatusConfigController;
+const taskCommentController = createControllerFromConfig(
+  'taskComment',
+) as unknown as ITaskCommentController;
 
 const api: CustomElectronAPI = {
   // Team Management Controllers
@@ -106,6 +114,8 @@ const api: CustomElectronAPI = {
   azureDevOps: azureDevOpsController,
   autoUpdater: autoUpdaterController,
   auth: authController,
+  taskStatusConfig: taskStatusConfigController,
+  taskComment: taskCommentController,
 
   // Utility methods
   openExternalUrl: (url: string) => {

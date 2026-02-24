@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef, useCallback, useState } from 'react';
 import {
   Typography,
   Button,
@@ -8,6 +8,12 @@ import {
   Tooltip,
   Chip,
   Box,
+  Avatar,
+  Menu,
+  MenuItem,
+  ListItemAvatar,
+  ListItemText,
+  Divider,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -15,15 +21,28 @@ import {
   Delete as DeleteIcon,
   Assignment as AssignmentIcon,
   Settings as SettingsIcon,
+  Timer as TimerIcon,
+  Speed as SpeedIcon,
+  CalendarMonth as CalendarIcon,
+  Group as GroupIcon,
+  FiberManualRecord as DotIcon,
+  PersonAdd as PersonAddIcon,
+  PersonOff as PersonOffIcon,
 } from '@mui/icons-material';
 import {
   DragDropContext,
   Droppable,
   Draggable,
   type DropResult,
+  type DraggableProvided,
+  type DraggableStateSnapshot,
 } from '@hello-pangea/dnd';
-import type { Sprint, Task } from '@shared/interfaces/config/index.types';
-import type { TaskStatusConfig } from '@shared/interfaces/config/index.types';
+import type {
+  Sprint,
+  Task,
+  TaskStatusConfig,
+  TeamMember,
+} from '@shared/interfaces/config/index.types';
 import {
   KanbanContainer,
   KanbanColumn,
@@ -37,13 +56,22 @@ export interface KanbanBoardProps {
   sprint: Sprint;
   tasks: Task[];
   statuses: TaskStatusConfig[];
+  teamMembers: TeamMember[];
   loading: boolean;
   onNewTask: () => void;
   onEditTask: (task: Task) => void;
   onRemoveTask: (task: Task) => void;
   onStatusChange: (taskId: number, newStatus: string) => void;
+  onAssignTask: (taskId: number, assigneeId: number | null) => void;
   onManageStatuses: () => void;
 }
+
+const PRIORITY_MAP: Record<string, { label: string; color: string }> = {
+  low: { label: 'Baixa', color: '#4caf50' },
+  medium: { label: 'Média', color: '#ff9800' },
+  high: { label: 'Alta', color: '#f44336' },
+  critical: { label: 'Crítica', color: '#9c27b0' },
+};
 
 const formatDate = (date: Date | string | undefined) => {
   if (!date) return '';
@@ -51,18 +79,301 @@ const formatDate = (date: Date | string | undefined) => {
   return d.toLocaleDateString('pt-BR');
 };
 
+/** Get initials from a name (up to 2 chars) */
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2)
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return name.substring(0, 2).toUpperCase();
+}
+
+/** Deterministic color from a string */
+function stringToColor(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const colors = [
+    '#1976d2',
+    '#388e3c',
+    '#f57c00',
+    '#7b1fa2',
+    '#c62828',
+    '#00838f',
+    '#4e342e',
+    '#455a64',
+  ];
+  return colors[Math.abs(hash) % colors.length];
+}
+
+/** Card content shared between normal and clone renders */
+function CardContent({
+  task,
+  priority,
+  onEditTask,
+  onRemoveTask,
+  onAssignClick,
+}: {
+  task: Task;
+  priority: { label: string; color: string };
+  onEditTask: (task: Task) => void;
+  onRemoveTask: (task: Task) => void;
+  onAssignClick: (e: React.MouseEvent<HTMLElement>, task: Task) => void;
+}) {
+  return (
+    <Stack spacing={1}>
+      {/* Title + Actions */}
+      <Stack
+        direction="row"
+        justifyContent="space-between"
+        alignItems="flex-start"
+      >
+        <Typography
+          variant="body1"
+          fontWeight={600}
+          sx={{ flex: 1, minWidth: 0, lineHeight: 1.4, fontSize: '0.9rem' }}
+        >
+          {task.title}
+        </Typography>
+        <Stack direction="row" spacing={0.25} ml={1} flexShrink={0}>
+          <Tooltip title="Editar">
+            <IconButton
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEditTask(task);
+              }}
+              sx={{ p: 0.5 }}
+            >
+              <EditIcon sx={{ fontSize: 18 }} />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Remover">
+            <IconButton
+              size="small"
+              color="error"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemoveTask(task);
+              }}
+              sx={{ p: 0.5 }}
+            >
+              <DeleteIcon sx={{ fontSize: 18 }} />
+            </IconButton>
+          </Tooltip>
+        </Stack>
+      </Stack>
+
+      {/* Description */}
+      {task.description && (
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          sx={{
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            lineHeight: 1.4,
+          }}
+        >
+          {task.description}
+        </Typography>
+      )}
+
+      {/* Tags row: priority + estimation */}
+      <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+        <Chip
+          icon={
+            <DotIcon
+              sx={{
+                fontSize: '10px !important',
+                color: `${priority.color} !important`,
+              }}
+            />
+          }
+          label={priority.label}
+          size="small"
+          sx={{
+            height: 24,
+            fontSize: '0.75rem',
+            backgroundColor: priority.color + '15',
+            color: priority.color,
+            '& .MuiChip-icon': { ml: '4px' },
+          }}
+        />
+        {task.estimationType === 'points' && task.estimationPoints && (
+          <Chip
+            icon={<SpeedIcon sx={{ fontSize: '14px !important' }} />}
+            label={`${task.estimationPoints} pts`}
+            size="small"
+            variant="outlined"
+            sx={{ height: 24, fontSize: '0.75rem' }}
+          />
+        )}
+        {task.estimationType === 'hours' && task.estimationHours && (
+          <Chip
+            icon={<TimerIcon sx={{ fontSize: '14px !important' }} />}
+            label={`${task.estimationHours}h`}
+            size="small"
+            variant="outlined"
+            sx={{ height: 24, fontSize: '0.75rem' }}
+          />
+        )}
+      </Stack>
+
+      {/* Footer: assignee + dates + team */}
+      <Stack spacing={0.5}>
+        {/* Assignee row */}
+        <Stack direction="row" alignItems="center" spacing={0.75}>
+          {task.assignee ? (
+            <Tooltip title={`Responsável: ${task.assignee.name}`}>
+              <Chip
+                avatar={
+                  <Avatar
+                    sx={{
+                      width: 22,
+                      height: 22,
+                      fontSize: '0.65rem',
+                      bgcolor: stringToColor(task.assignee.name),
+                    }}
+                  >
+                    {getInitials(task.assignee.name)}
+                  </Avatar>
+                }
+                label={task.assignee.name}
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAssignClick(e, task);
+                }}
+                sx={{
+                  height: 26,
+                  fontSize: '0.75rem',
+                  maxWidth: '100%',
+                  cursor: 'pointer',
+                  '& .MuiChip-label': {
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  },
+                }}
+              />
+            </Tooltip>
+          ) : (
+            <Tooltip title="Atribuir responsável">
+              <Chip
+                icon={<PersonAddIcon sx={{ fontSize: '14px !important' }} />}
+                label="Atribuir"
+                size="small"
+                variant="outlined"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAssignClick(e, task);
+                }}
+                sx={{
+                  height: 26,
+                  fontSize: '0.75rem',
+                  cursor: 'pointer',
+                  borderStyle: 'dashed',
+                }}
+              />
+            </Tooltip>
+          )}
+        </Stack>
+
+        {/* Dates + team row */}
+        <Stack
+          direction="row"
+          justifyContent="space-between"
+          alignItems="center"
+        >
+          {task.startDate || task.endDate ? (
+            <Stack direction="row" alignItems="center" spacing={0.5}>
+              <CalendarIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ fontSize: '0.75rem' }}
+              >
+                {formatDate(task.startDate)}
+                {task.startDate && task.endDate && ' - '}
+                {formatDate(task.endDate)}
+              </Typography>
+            </Stack>
+          ) : (
+            <Box />
+          )}
+          {task.team && (
+            <Stack direction="row" alignItems="center" spacing={0.5}>
+              <GroupIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ fontSize: '0.75rem' }}
+                noWrap
+              >
+                {task.team.name}
+              </Typography>
+            </Stack>
+          )}
+        </Stack>
+      </Stack>
+    </Stack>
+  );
+}
+
 export function KanbanBoard({
   sprint,
   tasks,
   statuses,
+  teamMembers,
   loading,
   onNewTask,
   onEditTask,
   onRemoveTask,
   onStatusChange,
+  onAssignTask,
   onManageStatuses,
 }: KanbanBoardProps) {
-  // Group tasks by status
+  const dragWidthRef = useRef<number>(0);
+
+  // Assignee menu state
+  const [assignMenuAnchor, setAssignMenuAnchor] = useState<HTMLElement | null>(
+    null,
+  );
+  const [assignMenuTask, setAssignMenuTask] = useState<Task | null>(null);
+
+  const handleAssignClick = useCallback(
+    (e: React.MouseEvent<HTMLElement>, task: Task) => {
+      setAssignMenuAnchor(e.currentTarget);
+      setAssignMenuTask(task);
+    },
+    [],
+  );
+
+  const handleAssignClose = useCallback(() => {
+    setAssignMenuAnchor(null);
+    setAssignMenuTask(null);
+  }, []);
+
+  const handleAssignMember = useCallback(
+    (memberId: number | null) => {
+      if (assignMenuTask) {
+        onAssignTask(assignMenuTask.id, memberId);
+      }
+      handleAssignClose();
+    },
+    [assignMenuTask, onAssignTask, handleAssignClose],
+  );
+
+  // Filter team members by the task's team
+  const availableMembers = useMemo(() => {
+    if (!assignMenuTask?.teamId) return teamMembers;
+    return teamMembers.filter((m) =>
+      m.teams?.some((t) => t.id === assignMenuTask.teamId),
+    );
+  }, [assignMenuTask, teamMembers]);
+
   const tasksByStatus = useMemo(() => {
     const grouped: Record<string, Task[]> = {};
     statuses.forEach((s) => {
@@ -72,7 +383,6 @@ export function KanbanBoard({
       if (grouped[task.status]) {
         grouped[task.status].push(task);
       } else {
-        // Task has a status not in kanban columns - put in first column
         const firstStatus = statuses[0]?.name;
         if (firstStatus && grouped[firstStatus]) {
           grouped[firstStatus].push(task);
@@ -82,17 +392,62 @@ export function KanbanBoard({
     return grouped;
   }, [tasks, statuses]);
 
+  const handleBeforeDragStart = useCallback(
+    (start: { draggableId: string }) => {
+      const el = document.querySelector(
+        `[data-rfd-draggable-id="${start.draggableId}"]`,
+      );
+      if (el) {
+        dragWidthRef.current = (
+          el as HTMLElement
+        ).getBoundingClientRect().width;
+      }
+    },
+    [],
+  );
+
   const handleDragEnd = (result: DropResult) => {
     const { destination, draggableId } = result;
     if (!destination) return;
-
     const newStatus = destination.droppableId;
     const taskId = parseInt(draggableId.replace('task-', ''), 10);
     const task = tasks.find((t) => t.id === taskId);
-
     if (task && task.status !== newStatus) {
       onStatusChange(taskId, newStatus);
     }
+  };
+
+  const renderCard = (
+    task: Task,
+    provided: DraggableProvided,
+    snapshot: DraggableStateSnapshot,
+  ) => {
+    const priority = PRIORITY_MAP[task.priority] ?? PRIORITY_MAP.medium;
+    const style = {
+      ...provided.draggableProps.style,
+      ...(snapshot.isDragging && dragWidthRef.current
+        ? { width: dragWidthRef.current }
+        : {}),
+    };
+
+    return (
+      <KanbanCard
+        ref={provided.innerRef}
+        {...provided.draggableProps}
+        {...provided.dragHandleProps}
+        isDragging={snapshot.isDragging}
+        elevation={snapshot.isDragging ? 8 : 1}
+        style={style}
+      >
+        <CardContent
+          task={task}
+          priority={priority}
+          onEditTask={onEditTask}
+          onRemoveTask={onRemoveTask}
+          onAssignClick={handleAssignClick}
+        />
+      </KanbanCard>
+    );
   };
 
   if (loading && tasks.length === 0) {
@@ -160,142 +515,125 @@ export function KanbanBoard({
           </Button>
         </Stack>
       ) : (
-        <DragDropContext onDragEnd={handleDragEnd}>
+        <DragDropContext
+          onBeforeDragStart={handleBeforeDragStart}
+          onDragEnd={handleDragEnd}
+        >
           <KanbanContainer>
-            {statuses.map((status) => (
-              <KanbanColumn key={status.name}>
-                <ColumnHeader bordercolor={status.color}>
-                  <Stack direction="row" alignItems="center" spacing={1}>
-                    <Typography variant="subtitle2" fontWeight={600}>
-                      {status.label}
-                    </Typography>
-                    <Chip
-                      label={tasksByStatus[status.name]?.length ?? 0}
-                      size="small"
-                      sx={{
-                        height: 20,
-                        fontSize: '0.7rem',
-                        backgroundColor: status.color + '20',
-                        color: status.color,
-                        fontWeight: 600,
-                      }}
-                    />
-                  </Stack>
-                </ColumnHeader>
-                <Droppable droppableId={status.name}>
-                  {(provided, snapshot) => (
-                    <ColumnContent
-                      ref={provided.innerRef}
-                      {...provided.droppableProps}
-                      sx={{
-                        backgroundColor: snapshot.isDraggingOver
-                          ? (theme) =>
-                              theme.palette.mode === 'dark'
-                                ? 'rgba(255,255,255,0.05)'
-                                : 'rgba(0,0,0,0.04)'
-                          : undefined,
-                        transition: 'background-color 0.2s ease',
-                      }}
-                    >
-                      {(tasksByStatus[status.name] ?? []).map((task, index) => (
-                        <Draggable
-                          key={task.id}
-                          draggableId={`task-${task.id}`}
-                          index={index}
-                        >
-                          {(provided, snapshot) => (
-                            <KanbanCard
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              {...provided.dragHandleProps}
-                              elevation={snapshot.isDragging ? 6 : 1}
-                              sx={{
-                                transform: snapshot.isDragging
-                                  ? 'rotate(2deg)'
-                                  : undefined,
-                              }}
-                            >
-                              <Stack
-                                direction="row"
-                                justifyContent="space-between"
-                                alignItems="flex-start"
-                              >
-                                <Box flex={1} minWidth={0}>
-                                  <Typography
-                                    variant="body2"
-                                    fontWeight={500}
-                                    noWrap
-                                  >
-                                    {task.title}
-                                  </Typography>
-                                  {task.description && (
-                                    <Typography
-                                      variant="caption"
-                                      color="text.secondary"
-                                      sx={{
-                                        display: '-webkit-box',
-                                        WebkitLineClamp: 2,
-                                        WebkitBoxOrient: 'vertical',
-                                        overflow: 'hidden',
-                                        mt: 0.5,
-                                      }}
-                                    >
-                                      {task.description}
-                                    </Typography>
-                                  )}
-                                  {(task.startDate || task.endDate) && (
-                                    <Typography
-                                      variant="caption"
-                                      color="text.secondary"
-                                      sx={{ mt: 0.5, display: 'block' }}
-                                    >
-                                      {formatDate(task.startDate)}
-                                      {task.startDate && task.endDate && ' - '}
-                                      {formatDate(task.endDate)}
-                                    </Typography>
-                                  )}
-                                </Box>
-                                <Stack direction="row" spacing={0} ml={0.5}>
-                                  <Tooltip title="Editar">
-                                    <IconButton
-                                      size="small"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        onEditTask(task);
-                                      }}
-                                      sx={{ p: 0.5 }}
-                                    >
-                                      <EditIcon sx={{ fontSize: 16 }} />
-                                    </IconButton>
-                                  </Tooltip>
-                                  <Tooltip title="Remover">
-                                    <IconButton
-                                      size="small"
-                                      color="error"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        onRemoveTask(task);
-                                      }}
-                                      sx={{ p: 0.5 }}
-                                    >
-                                      <DeleteIcon sx={{ fontSize: 16 }} />
-                                    </IconButton>
-                                  </Tooltip>
-                                </Stack>
-                              </Stack>
-                            </KanbanCard>
-                          )}
-                        </Draggable>
-                      ))}
-                      {provided.placeholder}
-                    </ColumnContent>
-                  )}
-                </Droppable>
-              </KanbanColumn>
-            ))}
+            {statuses.map((status) => {
+              const columnTasks = tasksByStatus[status.name] ?? [];
+              return (
+                <KanbanColumn key={status.name}>
+                  <ColumnHeader bordercolor={status.color}>
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                      <Typography variant="subtitle2" fontWeight={600}>
+                        {status.label}
+                      </Typography>
+                      <Chip
+                        label={columnTasks.length}
+                        size="small"
+                        sx={{
+                          height: 20,
+                          fontSize: '0.7rem',
+                          backgroundColor: status.color + '20',
+                          color: status.color,
+                          fontWeight: 600,
+                        }}
+                      />
+                    </Stack>
+                  </ColumnHeader>
+                  <Droppable
+                    droppableId={status.name}
+                    renderClone={(provided, snapshot, rubric) => {
+                      const task = columnTasks[rubric.source.index];
+                      if (!task) return <div ref={provided.innerRef} />;
+                      return renderCard(task, provided, snapshot);
+                    }}
+                  >
+                    {(provided, snapshot) => (
+                      <ColumnContent
+                        ref={provided.innerRef}
+                        {...provided.droppableProps}
+                        isDragOver={snapshot.isDraggingOver}
+                      >
+                        {columnTasks.map((task, index) => (
+                          <Draggable
+                            key={task.id}
+                            draggableId={`task-${task.id}`}
+                            index={index}
+                          >
+                            {(provided, snapshot) =>
+                              renderCard(task, provided, snapshot)
+                            }
+                          </Draggable>
+                        ))}
+                        {provided.placeholder}
+                      </ColumnContent>
+                    )}
+                  </Droppable>
+                </KanbanColumn>
+              );
+            })}
           </KanbanContainer>
         </DragDropContext>
       )}
+
+      {/* Assignee selection menu */}
+      <Menu
+        anchorEl={assignMenuAnchor}
+        open={Boolean(assignMenuAnchor)}
+        onClose={handleAssignClose}
+        slotProps={{ paper: { sx: { maxHeight: 320, minWidth: 220 } } }}
+      >
+        {assignMenuTask?.assignee && (
+          <MenuItem onClick={() => handleAssignMember(null)}>
+            <ListItemAvatar sx={{ minWidth: 36 }}>
+              <PersonOffIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
+            </ListItemAvatar>
+            <ListItemText
+              primary="Remover responsável"
+              primaryTypographyProps={{
+                variant: 'body2',
+                color: 'text.secondary',
+              }}
+            />
+          </MenuItem>
+        )}
+        {assignMenuTask?.assignee && <Divider />}
+        {availableMembers.length === 0 ? (
+          <MenuItem disabled>
+            <ListItemText
+              primary="Nenhum membro disponível"
+              primaryTypographyProps={{ variant: 'body2' }}
+            />
+          </MenuItem>
+        ) : (
+          availableMembers.map((member) => (
+            <MenuItem
+              key={member.id}
+              selected={member.id === assignMenuTask?.assignee?.id}
+              onClick={() => handleAssignMember(member.id)}
+            >
+              <ListItemAvatar sx={{ minWidth: 36 }}>
+                <Avatar
+                  sx={{
+                    width: 26,
+                    height: 26,
+                    fontSize: '0.7rem',
+                    bgcolor: stringToColor(member.name),
+                  }}
+                >
+                  {getInitials(member.name)}
+                </Avatar>
+              </ListItemAvatar>
+              <ListItemText
+                primary={member.name}
+                primaryTypographyProps={{ variant: 'body2' }}
+              />
+            </MenuItem>
+          ))
+        )}
+      </Menu>
     </Box>
   );
 }

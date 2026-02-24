@@ -27,7 +27,14 @@ type CustomDialogContentProps = {
 
 export const CustomDialog = styled(Dialog, {
   shouldForwardProp: (prop) =>
-    !['setMaxWidth', 'setMaxHeight', 'disableMargin'].includes(prop as string),
+    ![
+      'setMaxWidth',
+      'setMaxHeight',
+      'disableMargin',
+      'width',
+      'height',
+      'backgroundColor',
+    ].includes(prop as string),
 })<CustomDialogProps>(
   ({
     theme,
@@ -46,7 +53,11 @@ export const CustomDialog = styled(Dialog, {
       backgroundColor: backgroundColor || theme.palette.background.paper,
       backgroundImage: 'none',
       ...(width && { width }),
-      ...(height && { height }),
+      ...(height && {
+        height,
+        display: 'flex',
+        flexDirection: 'column' as const,
+      }),
       ...(setMaxHeight && { maxHeight: setMaxHeight }),
       [`@media (max-width: 480px)`]: {
         minWidth: 'calc(100vw - 2rem)',
@@ -55,6 +66,7 @@ export const CustomDialog = styled(Dialog, {
     },
     'div.MuiDialogContent-root': {
       padding: '1.5rem',
+      ...(height && { flex: 1, minHeight: 0, overflow: 'hidden' }),
     },
     'div.MuiDialogActions-root': {
       padding: '1.5rem',
@@ -75,6 +87,8 @@ export const CustomDialogContent = styled(DialogContent, {
   shouldForwardProp: (props) => props !== 'disablePadding',
 })<CustomDialogContentProps>(({ disablePadding }) => ({
   ...(disablePadding && { padding: '0 !important' }),
+  display: 'flex',
+  flexDirection: 'column',
 }));
 
 export const CustomDialogActions = styled(DialogActions, {

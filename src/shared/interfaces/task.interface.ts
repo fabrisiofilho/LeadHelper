@@ -7,6 +7,7 @@ export type {
   TaskStatus,
   TaskOrigin,
   EstimationType,
+  TaskPriority,
   Task,
   CreateTaskInput,
   UpdateTaskInput,

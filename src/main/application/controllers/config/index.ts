@@ -11,6 +11,7 @@ import { registerTeamController } from '../team-controller';
 import { registerSprintController } from '../sprint-controller';
 import { registerTeamMemberAllocationController } from '../team-member-allocation-controller';
 import { TaskStatusConfigController } from '../task-status-config-controller';
+import { TaskCommentController } from '../task-comment-controller';
 
 // Controllers:
 // - TeamMemberController ✓
@@ -42,6 +43,7 @@ export function loadIpcControllers() {
   registerSprintController();
   registerTeamMemberAllocationController();
   new TaskStatusConfigController();
+  new TaskCommentController();
 
   logger.info('All IPC controllers loaded successfully');
 }

@@ -2,6 +2,7 @@ import {
   TaskEntity,
   TaskStatus,
   TaskOrigin,
+  TaskPriority,
   EstimationType,
 } from '../entities/task.entity';
 import { TaskRepository } from '../repositories/task-repository';
@@ -12,6 +13,7 @@ export interface CreateTaskInput {
   startDate?: Date;
   endDate?: Date;
   status?: TaskStatus;
+  priority?: TaskPriority;
   sprintId?: number;
   teamId?: number;
   estimationPoints?: number;
@@ -25,6 +27,7 @@ export interface UpdateTaskInput {
   startDate?: Date;
   endDate?: Date;
   status?: TaskStatus;
+  priority?: TaskPriority;
   sprintId?: number;
   teamId?: number;
   estimationPoints?: number;
@@ -48,6 +51,7 @@ export interface Task {
   startDate?: Date;
   endDate?: Date;
   status: TaskStatus;
+  priority: TaskPriority;
   origin: TaskOrigin;
   externalId?: string;
   externalSource?: string;
@@ -55,6 +59,7 @@ export interface Task {
   sprint?: { id: number; name: string };
   teamId?: number;
   team?: { id: number; name: string };
+  assignee?: { id: number; name: string };
   estimationPoints?: number;
   estimationHours?: number;
   estimationType?: EstimationType;
@@ -86,6 +91,7 @@ export class TaskService {
       startDate: input.startDate,
       endDate: input.endDate,
       status: input.status ?? 'pending',
+      priority: input.priority ?? 'medium',
       origin: 'manual',
       sprintId: input.sprintId,
       teamId: input.teamId,
@@ -94,7 +100,12 @@ export class TaskService {
       estimationType: input.estimationType,
     });
 
-    return this.mapToDto(entity);
+    const reloaded = await this.repository.findOne({
+      where: { id: entity.id },
+      relations: ['sprint', 'team', 'allocations', 'allocations.teamMember'],
+    });
+
+    return this.mapToDto(reloaded ?? entity);
   }
 
   async update(id: number, input: UpdateTaskInput): Promise<Task> {
@@ -112,73 +123,50 @@ export class TaskService {
       entity.title = trimmedTitle;
     }
 
-    if (input.description !== undefined) {
-      entity.description = input.description;
-    }
+    if (input.description !== undefined) entity.description = input.description;
+    if (input.startDate !== undefined) entity.startDate = input.startDate;
+    if (input.endDate !== undefined) entity.endDate = input.endDate;
 
-    if (input.startDate !== undefined) {
-      entity.startDate = input.startDate;
-    }
-
-    if (input.endDate !== undefined) {
-      entity.endDate = input.endDate;
-    }
-
-    // Validate dates after potential updates (only if both are set)
     if (entity.startDate && entity.endDate) {
       this.validateDates(entity.startDate, entity.endDate);
     }
 
-    if (input.status !== undefined) {
-      entity.status = input.status;
-    }
-
-    if (input.sprintId !== undefined) {
-      entity.sprintId = input.sprintId;
-    }
-
-    if (input.teamId !== undefined) {
-      entity.teamId = input.teamId;
-    }
-
-    if (input.estimationPoints !== undefined) {
+    if (input.status !== undefined) entity.status = input.status;
+    if (input.priority !== undefined) entity.priority = input.priority;
+    if (input.sprintId !== undefined) entity.sprintId = input.sprintId;
+    if (input.teamId !== undefined) entity.teamId = input.teamId;
+    if (input.estimationPoints !== undefined)
       entity.estimationPoints = input.estimationPoints;
-    }
-
-    if (input.estimationHours !== undefined) {
+    if (input.estimationHours !== undefined)
       entity.estimationHours = input.estimationHours;
-    }
-
-    if (input.estimationType !== undefined) {
+    if (input.estimationType !== undefined)
       entity.estimationType = input.estimationType;
-    }
 
     const updated = await this.repository.save(entity);
-    return this.mapToDto(updated);
+
+    const reloaded = await this.repository.findOne({
+      where: { id: updated.id },
+      relations: ['sprint', 'team', 'allocations', 'allocations.teamMember'],
+    });
+
+    return this.mapToDto(reloaded ?? updated);
   }
 
   async findById(id: number): Promise<Task | null> {
     const entity = await this.repository.findOne({
       where: { id },
-      relations: ['sprint', 'team'],
+      relations: ['sprint', 'team', 'allocations', 'allocations.teamMember'],
     });
 
-    if (!entity) {
-      return null;
-    }
-
+    if (!entity) return null;
     return this.mapToDto(entity);
   }
 
   async delete(id: number): Promise<void> {
     const entity = await this.repository.findOneBy({ id });
-
-    if (!entity) {
-      throw new Error('Tarefa não encontrada');
-    }
+    if (!entity) throw new Error('Tarefa não encontrada');
 
     const hasAllocations = await this.repository.hasAllocations(id);
-
     if (hasAllocations) {
       throw new Error('Não é possível excluir tarefa com alocações vinculadas');
     }
@@ -222,74 +210,60 @@ export class TaskService {
   }
 
   private async findWithFilters(filters: TaskFilters): Promise<TaskEntity[]> {
-    // If filtering by period, use the repository method
     if (filters.startDate && filters.endDate) {
       let entities = await this.repository.findByPeriod(
         filters.startDate,
         filters.endDate,
       );
-
-      // Apply additional filters
-      if (filters.status) {
+      if (filters.status)
         entities = entities.filter((e) => e.status === filters.status);
-      }
-      if (filters.origin) {
+      if (filters.origin)
         entities = entities.filter((e) => e.origin === filters.origin);
-      }
-      if (filters.sprintId) {
+      if (filters.sprintId)
         entities = entities.filter((e) => e.sprintId === filters.sprintId);
-      }
-      if (filters.teamId) {
+      if (filters.teamId)
         entities = entities.filter((e) => e.teamId === filters.teamId);
-      }
-
       return entities;
     }
 
-    // If filtering by status only
     if (filters.status) {
       let entities = await this.repository.findByStatus(filters.status);
-
-      if (filters.origin) {
+      if (filters.origin)
         entities = entities.filter((e) => e.origin === filters.origin);
-      }
-      if (filters.sprintId) {
+      if (filters.sprintId)
         entities = entities.filter((e) => e.sprintId === filters.sprintId);
-      }
-      if (filters.teamId) {
+      if (filters.teamId)
         entities = entities.filter((e) => e.teamId === filters.teamId);
-      }
-
       return entities;
     }
 
-    // If filtering by sprint
-    if (filters.sprintId) {
+    if (filters.sprintId)
       return await this.repository.findBySprint(filters.sprintId);
-    }
-
-    // If filtering by origin only
-    if (filters.origin) {
+    if (filters.origin)
       return await this.repository.findByOrigin(filters.origin);
-    }
-
     return await this.repository.find();
   }
 
   private validateDates(startDate: Date, endDate: Date): void {
     const start = new Date(startDate);
     const end = new Date(endDate);
-
-    // Normalize to compare only dates (ignore time)
     start.setHours(0, 0, 0, 0);
     end.setHours(0, 0, 0, 0);
-
     if (end < start) {
       throw new Error('Data fim deve ser posterior ou igual à data início');
     }
   }
 
   private mapToDto(entity: TaskEntity): Task {
+    // Derive assignee from the first allocation (if any)
+    const firstAllocation = entity.allocations?.[0];
+    const assignee = firstAllocation?.teamMember
+      ? {
+          id: firstAllocation.teamMember.id,
+          name: firstAllocation.teamMember.name,
+        }
+      : undefined;
+
     return {
       id: entity.id,
       title: entity.title,
@@ -297,6 +271,7 @@ export class TaskService {
       startDate: entity.startDate,
       endDate: entity.endDate,
       status: entity.status,
+      priority: entity.priority,
       origin: entity.origin,
       externalId: entity.externalId,
       externalSource: entity.externalSource,
@@ -308,6 +283,7 @@ export class TaskService {
       team: entity.team
         ? { id: entity.team.id, name: entity.team.name }
         : undefined,
+      assignee,
       estimationPoints: entity.estimationPoints,
       estimationHours: entity.estimationHours,
       estimationType: entity.estimationType,

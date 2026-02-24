@@ -36,6 +36,7 @@ export interface StatusManagerModalProps {
     data: UpdateTaskStatusConfigInput,
   ) => Promise<TaskStatusConfig | null>;
   onDelete: (id: number) => Promise<boolean>;
+  onRefresh: () => Promise<void>;
 }
 
 export function StatusManagerModal({
@@ -46,6 +47,7 @@ export function StatusManagerModal({
   onCreate,
   onUpdate,
   onDelete,
+  onRefresh,
 }: StatusManagerModalProps) {
   const [newName, setNewName] = useState('');
   const [newLabel, setNewLabel] = useState('');
@@ -74,20 +76,24 @@ export function StatusManagerModal({
       setNewLabel('');
       setNewColor('#1976d2');
       setAdding(false);
+      await onRefresh();
     }
   };
 
   const handleToggleKanban = async (status: TaskStatusConfig) => {
     await onUpdate(status.id, { showInKanban: !status.showInKanban });
+    await onRefresh();
   };
 
   const handleColorChange = async (status: TaskStatusConfig, color: string) => {
     await onUpdate(status.id, { color });
+    await onRefresh();
   };
 
   const handleLabelChange = async (status: TaskStatusConfig, label: string) => {
     if (label.trim()) {
       await onUpdate(status.id, { label: label.trim() });
+      await onRefresh();
     }
   };
 
@@ -144,7 +150,10 @@ export function StatusManagerModal({
                       <IconButton
                         size="small"
                         color="error"
-                        onClick={() => onDelete(status.id)}
+                        onClick={async () => {
+                          await onDelete(status.id);
+                          await onRefresh();
+                        }}
                       >
                         <DeleteIcon fontSize="small" />
                       </IconButton>

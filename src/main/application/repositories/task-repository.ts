@@ -9,7 +9,12 @@ import { dateLte, dateGte } from '@main/infrastructure/utils/date-utils';
  * Relations padrão para queries de tasks.
  * Sempre incluir sprint e team para evitar colunas vazias na UI.
  */
-const TASK_RELATIONS = ['sprint', 'team'] as const;
+const TASK_RELATIONS = [
+  'sprint',
+  'team',
+  'allocations',
+  'allocations.teamMember',
+] as const;
 
 export class TaskRepository extends BaseRepository<TaskEntity> {
   constructor(manager?: EntityManager) {

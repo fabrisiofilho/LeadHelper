@@ -168,9 +168,15 @@ export interface TeamMemberFilters {
 // Task Types
 // ============================================================================
 
-export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled' | (string & {});
+export type TaskStatus =
+  | 'pending'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled'
+  | (string & {});
 export type TaskOrigin = 'manual' | 'azure_devops';
 export type EstimationType = 'points' | 'hours';
+export type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
 
 export interface Task {
   id: number;
@@ -179,6 +185,7 @@ export interface Task {
   startDate?: Date;
   endDate?: Date;
   status: TaskStatus;
+  priority: TaskPriority;
   origin: TaskOrigin;
   externalId?: string;
   externalSource?: string;
@@ -186,6 +193,7 @@ export interface Task {
   sprint?: Sprint;
   teamId?: number;
   team?: Team;
+  assignee?: { id: number; name: string };
   estimationPoints?: number;
   estimationHours?: number;
   estimationType?: EstimationType;
@@ -199,6 +207,7 @@ export interface CreateTaskInput {
   startDate?: Date;
   endDate?: Date;
   status?: TaskStatus;
+  priority?: TaskPriority;
   sprintId?: number;
   teamId?: number;
   estimationPoints?: number;
@@ -212,6 +221,7 @@ export interface UpdateTaskInput {
   startDate?: Date;
   endDate?: Date;
   status?: TaskStatus;
+  priority?: TaskPriority;
   sprintId?: number;
   teamId?: number;
   estimationPoints?: number;
@@ -595,6 +605,39 @@ export interface ITaskStatusConfigController {
 }
 
 // ============================================================================
+// Task Comment Types
+// ============================================================================
+
+export interface TaskComment {
+  id: number;
+  content: string;
+  author?: string;
+  taskId: number;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface CreateTaskCommentInput {
+  content: string;
+  author?: string;
+  taskId: number;
+}
+
+export interface UpdateTaskCommentInput {
+  content?: string;
+}
+
+export interface ITaskCommentController {
+  findByTask(taskId: number): Promise<ApiResponse<TaskComment[]>>;
+  create(data: CreateTaskCommentInput): Promise<ApiResponse<TaskComment>>;
+  update(
+    id: number,
+    data: UpdateTaskCommentInput,
+  ): Promise<ApiResponse<TaskComment>>;
+  delete(id: number): Promise<ApiResponse<void>>;
+}
+
+// ============================================================================
 // Custom Electron API
 // ============================================================================
 
@@ -612,6 +655,7 @@ export interface CustomElectronAPI {
   autoUpdater: IAutoUpdaterController;
   auth: IAuthController;
   taskStatusConfig: ITaskStatusConfigController;
+  taskComment: ITaskCommentController;
 
   // Utility methods
   openExternalUrl: (url: string) => void;

@@ -10,11 +10,18 @@ import { AuditableEntity } from './config/auditable-entity';
 import type { AllocationEntity } from './allocation.entity';
 import type { SprintEntity } from './sprint.entity';
 import type { TeamEntity } from './team.entity';
+import type { TaskCommentEntity } from './task-comment.entity';
 import { DateTransformer } from '../../infrastructure/database/date-transformer';
 
-export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled' | (string & {});
+export type TaskStatus =
+  | 'pending'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled'
+  | (string & {});
 export type TaskOrigin = 'manual' | 'azure_devops';
 export type EstimationType = 'points' | 'hours';
+export type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
 
 @Entity('tasks')
 export class TaskEntity extends AuditableEntity {
@@ -45,6 +52,9 @@ export class TaskEntity extends AuditableEntity {
 
   @Column({ type: 'text', default: 'pending' })
   status!: TaskStatus;
+
+  @Column({ type: 'text', default: 'medium' })
+  priority!: TaskPriority;
 
   @Column({ type: 'text', default: 'manual' })
   origin!: TaskOrigin;
@@ -80,4 +90,7 @@ export class TaskEntity extends AuditableEntity {
 
   @OneToMany('AllocationEntity', 'task')
   allocations?: AllocationEntity[];
+
+  @OneToMany('TaskCommentEntity', 'task')
+  comments?: TaskCommentEntity[];
 }

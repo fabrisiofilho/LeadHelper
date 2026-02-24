@@ -17,12 +17,11 @@ import { useTeamMembers } from '@renderer/hooks/useTeamMembers';
 import { useTeamMemberAllocations } from '@renderer/hooks/useTeamMemberAllocations';
 import {
   PageContainer,
-  ContentContainer,
-  LeftPanel,
-  RightPanel,
+  TopSelectorBar,
+  ContentArea,
   PlaceholderContent,
 } from './styles';
-import { TeamList } from './components/TeamList';
+import { TeamSelector } from './components/TeamSelector';
 import { MemberDetails } from './components/MemberDetails';
 import { TeamModal } from './components/TeamModal';
 import { MemberModal } from './components/MemberModal';
@@ -38,7 +37,6 @@ import type {
 } from '@shared/interfaces/config/index.types';
 
 export function TeamAllocationPage() {
-  // State management
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
@@ -79,12 +77,10 @@ export function TeamAllocationPage() {
     clearError: clearMembersError,
   } = useTeamMembers();
 
-  // Load teams on mount
   const loadTeams = useCallback(async () => {
     await findAllTeams();
   }, [findAllTeams]);
 
-  // Load team members on mount
   const loadTeamMembers = useCallback(async () => {
     await findAllMembers();
   }, [findAllMembers]);
@@ -94,7 +90,6 @@ export function TeamAllocationPage() {
     loadTeamMembers();
   }, [loadTeams, loadTeamMembers]);
 
-  // Load allocations when team is selected
   useEffect(() => {
     if (selectedTeam) {
       findActiveByTeam(selectedTeam.id);
@@ -102,7 +97,7 @@ export function TeamAllocationPage() {
   }, [selectedTeam, findActiveByTeam]);
 
   // Handlers
-  const handleSelectTeam = (team: Team) => {
+  const handleSelectTeam = (team: Team | null) => {
     setSelectedTeam(team);
   };
 
@@ -132,7 +127,6 @@ export function TeamAllocationPage() {
         );
         if (result) {
           handleCloseTeamModal();
-          // Update selected team if it was the one being edited
           if (selectedTeam?.id === editingTeam.id) {
             setSelectedTeam(result);
           }
@@ -197,7 +191,6 @@ export function TeamAllocationPage() {
         );
         if (result) {
           handleCloseAllocationModal();
-          // Refresh allocations for the selected team
           if (selectedTeam) {
             await findActiveByTeam(selectedTeam.id);
           }
@@ -208,7 +201,6 @@ export function TeamAllocationPage() {
         );
         if (result) {
           handleCloseAllocationModal();
-          // Refresh allocations for the selected team
           if (selectedTeam) {
             await findActiveByTeam(selectedTeam.id);
           }
@@ -220,8 +212,6 @@ export function TeamAllocationPage() {
   };
 
   const handleRemoveAllocation = (allocation: TeamMemberAllocation) => {
-    // Will be implemented with confirmation dialog in subsequent tasks
-    // For now, just log the action
     console.log('Remove allocation:', allocation.id);
   };
 
@@ -233,7 +223,6 @@ export function TeamAllocationPage() {
     }
   };
 
-  // Loading state
   const isLoading = teamsLoading && teams.length === 0;
   const hasError = (teamsError || allocationsError) && teams.length === 0;
 
@@ -268,12 +257,11 @@ export function TeamAllocationPage() {
 
   return (
     <PageContainer>
-      {/* Page Header */}
       <Stack
         direction="row"
         justifyContent="space-between"
         alignItems="center"
-        mb={3}
+        mb={2}
       >
         <Box>
           <Typography variant="h4" fontWeight={700}>
@@ -283,59 +271,51 @@ export function TeamAllocationPage() {
             Gerencie equipes e alocação de membros
           </Typography>
         </Box>
-        <Stack direction="row" spacing={1}>
-          <Tooltip title="Atualizar">
-            <IconButton onClick={handleRefresh} size="small">
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
-        </Stack>
+        <Tooltip title="Atualizar">
+          <IconButton onClick={handleRefresh} size="small">
+            <RefreshIcon />
+          </IconButton>
+        </Tooltip>
       </Stack>
 
-      {/* Two-Panel Layout */}
-      <ContentContainer>
-        {/* Left Panel - Team List (30%) */}
-        <LeftPanel>
-          <TeamList
-            teams={teams}
-            selectedTeam={selectedTeam}
-            loading={teamsLoading}
-            onSelectTeam={handleSelectTeam}
-            onNewTeam={handleNewTeam}
-            onEditTeam={handleEditTeam}
+      <TopSelectorBar>
+        <TeamSelector
+          teams={teams}
+          selectedTeam={selectedTeam}
+          loading={teamsLoading}
+          onSelectTeam={handleSelectTeam}
+          onNewTeam={handleNewTeam}
+          onEditTeam={handleEditTeam}
+        />
+      </TopSelectorBar>
+
+      <ContentArea>
+        {selectedTeam ? (
+          <MemberDetails
+            team={selectedTeam}
+            allocations={allocations}
+            loading={allocationsLoading}
+            onNewMember={handleNewMember}
+            onNewAllocation={handleNewAllocation}
+            onEditAllocation={handleEditAllocation}
+            onRemoveAllocation={handleRemoveAllocation}
           />
-        </LeftPanel>
-
-        {/* Right Panel - Member Details (70%) */}
-        <RightPanel>
-          {selectedTeam ? (
-            <MemberDetails
-              team={selectedTeam}
-              allocations={allocations}
-              loading={allocationsLoading}
-              onNewMember={handleNewMember}
-              onNewAllocation={handleNewAllocation}
-              onEditAllocation={handleEditAllocation}
-              onRemoveAllocation={handleRemoveAllocation}
+        ) : (
+          <PlaceholderContent>
+            <GroupWorkIcon
+              sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }}
             />
-          ) : (
-            <PlaceholderContent>
-              <GroupWorkIcon
-                sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }}
-              />
-              <Typography variant="h6" color="text.secondary" gutterBottom>
-                Selecione uma equipe
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Escolha uma equipe na lista à esquerda para visualizar e
-                gerenciar seus membros
-              </Typography>
-            </PlaceholderContent>
-          )}
-        </RightPanel>
-      </ContentContainer>
+            <Typography variant="h6" color="text.secondary" gutterBottom>
+              Selecione uma equipe
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Escolha uma equipe no seletor acima para visualizar e gerenciar
+              seus membros
+            </Typography>
+          </PlaceholderContent>
+        )}
+      </ContentArea>
 
-      {/* TeamModal */}
       <TeamModal
         open={isTeamModalOpen}
         team={editingTeam}
@@ -345,7 +325,6 @@ export function TeamAllocationPage() {
         onSave={handleSaveTeam}
       />
 
-      {/* MemberModal */}
       <MemberModal
         open={isMemberModalOpen}
         loading={memberModalLoading}
@@ -354,7 +333,6 @@ export function TeamAllocationPage() {
         onSave={handleSaveMember}
       />
 
-      {/* AllocationModal */}
       {selectedTeam && (
         <AllocationModal
           open={isAllocationModalOpen}

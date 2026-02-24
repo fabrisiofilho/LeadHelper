@@ -1,0 +1,5 @@
+provider: github
+owner: fabrisiofilho
+repo: LeadHelper
+token: token
+updaterCacheDirName: leadhelper-updater

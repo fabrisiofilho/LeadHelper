@@ -1,0 +1,1 @@
+export type RelationRef<T> = T | Partial<T>;

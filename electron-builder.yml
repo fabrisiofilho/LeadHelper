@@ -1,0 +1,75 @@
+appId: com.electron.leadhelper
+productName: LeadHelper
+
+directories:
+  buildResources: build
+  output: dist
+
+asar: true
+asarUnpack:
+  - node_modules/better-sqlite3/**
+  - node_modules/bindings/**
+  - node_modules/file-uri-to-path/**
+  - database/**
+  - out/main/migrations/**
+
+npmRebuild: true
+buildDependenciesFromSource: true
+
+files:
+  - out/main/**
+  - out/preload/**
+  - out/renderer/**
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{.env,.env.*, .npmrc,pnpm-lock.yaml}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+
+extraResources:
+  - from: out/main/migrations
+    to: migrations
+    filter:
+      - '**/*.sql'
+
+# ----------- WINDOWS -----------
+win:
+  executableName: leadhelper
+  icon: build/icon.ico
+  target: nsis
+  defaultArch: x64
+
+nsis:
+  artifactName: ${productName}-setup-${version}.${ext}
+  shortcutName: ${productName}
+  uninstallDisplayName: ${productName}
+  createDesktopShortcut: always
+  oneClick: false
+  perMachine: true
+  allowToChangeInstallationDirectory: true
+
+# ----------- MAC -----------
+mac:
+  target: dmg
+  notarize: false
+  icon: build/icon.icns
+
+# ----------- LINUX -----------
+linux:
+  target:
+    - appImage
+    - deb
+    - snap
+  icon: build/icon.png
+  maintainer: 'LeadHelper'
+  category: Utility
+  artifactName: ${productName}-${version}.${ext}
+  synopsis: 'Gestão de equipes para Tech Leads'
+  description: 'Aplicação desktop para gestão de equipes, membros, tarefas, sprints e alocações.'
+# ----------- AUTO UPDATE / PUBLISH -----------
+publish:
+  provider: github
+  owner: fabrisiofilho
+  repo: LeadHelper
+  releaseType: release

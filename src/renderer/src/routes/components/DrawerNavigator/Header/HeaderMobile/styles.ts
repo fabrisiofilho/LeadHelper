@@ -10,5 +10,5 @@ export const Container = styled.header`
   padding: 0rem 1.4rem;
 
   border-bottom: ${({ theme }) => theme.BORDERS.b_01};
-  background-color: ${({ theme }) => theme.COLORS.white};
+  background-color: ${({ theme }) => theme.COLORS.surface};
 `;

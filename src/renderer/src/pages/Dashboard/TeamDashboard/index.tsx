@@ -577,7 +577,10 @@ export function TeamDashboardPage() {
                               sx={{
                                 height: 4,
                                 borderRadius: 2,
-                                bgcolor: 'grey.200',
+                                bgcolor: (theme) =>
+                                  theme.palette.mode === 'dark'
+                                    ? 'rgba(255,255,255,0.08)'
+                                    : 'grey.200',
                                 '& .MuiLinearProgress-bar': {
                                   borderRadius: 2,
                                   bgcolor:
@@ -664,7 +667,10 @@ export function TeamDashboardPage() {
                             sx={{
                               height: 4,
                               borderRadius: 2,
-                              bgcolor: 'grey.200',
+                              bgcolor: (theme) =>
+                                theme.palette.mode === 'dark'
+                                  ? 'rgba(255,255,255,0.08)'
+                                  : 'grey.200',
                               '& .MuiLinearProgress-bar': {
                                 borderRadius: 2,
                                 bgcolor: roleColors[role],

@@ -4,7 +4,7 @@ import formAlertIcon from '../assets/form-alert.svg';
 import { styledTheme, getStyledTheme, ThemeMode } from './styledTheme';
 
 function createMuiTheme(colors: typeof styledTheme): Theme {
-  const isDark = colors.COLORS.background === '#080b10';
+  const isDark = colors.COLORS.background !== '#f6f6f8';
 
   return createTheme({
     palette: {
@@ -66,6 +66,15 @@ function createMuiTheme(colors: typeof styledTheme): Theme {
         disabled: colors.COLORS.grey_500,
       },
       divider: colors.COLORS.divider,
+      ...(isDark && {
+        action: {
+          hover: 'rgba(255, 255, 255, 0.08)',
+          selected: 'rgba(255, 255, 255, 0.12)',
+          disabled: 'rgba(255, 255, 255, 0.26)',
+          disabledBackground: 'rgba(255, 255, 255, 0.12)',
+          focus: 'rgba(255, 255, 255, 0.12)',
+        },
+      }),
     },
     components: {
       MuiCssBaseline: {
@@ -478,11 +487,31 @@ function createMuiTheme(colors: typeof styledTheme): Theme {
           },
         },
       },
+      MuiTabs: {
+        styleOverrides: {
+          indicator: {
+            backgroundColor: colors.COLORS.primary,
+          },
+        },
+      },
+      MuiTab: {
+        styleOverrides: {
+          root: {
+            color: colors.COLORS.textSecondary,
+            textTransform: 'none',
+            fontWeight: 500,
+            '&.Mui-selected': {
+              color: colors.COLORS.primary,
+              fontWeight: 600,
+            },
+          },
+        },
+      },
       MuiTooltip: {
         styleOverrides: {
           tooltip: {
-            backgroundColor: colors.COLORS.grey_800,
-            color: isDark ? colors.COLORS.grey_100 : '#FFFFFF',
+            backgroundColor: isDark ? '#404040' : colors.COLORS.grey_800,
+            color: '#FFFFFF',
             fontSize: '0.75rem',
             borderRadius: '0.375rem',
           },
@@ -526,6 +555,15 @@ function createMuiTheme(colors: typeof styledTheme): Theme {
           },
           track: {
             backgroundColor: colors.COLORS.grey_400,
+          },
+        },
+      },
+      MuiLinearProgress: {
+        styleOverrides: {
+          root: {
+            backgroundColor: isDark
+              ? 'rgba(255,255,255,0.08)'
+              : colors.COLORS.grey_200,
           },
         },
       },

@@ -580,6 +580,7 @@ export function TeamMemberAllocationsPage() {
         teams={teams}
         allocation={selectedAllocation}
         teamMembers={teamMembers}
+        existingAllocations={allocations}
         loading={formLoading}
         error={allocationsError}
         onClose={handleCloseForm}

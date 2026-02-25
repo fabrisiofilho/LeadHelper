@@ -24,7 +24,7 @@ export const KanbanContainer = styled(Box)(() => ({
   },
   '&::-webkit-scrollbar-thumb': {
     borderRadius: 3,
-    backgroundColor: 'rgba(0,0,0,0.15)',
+    backgroundColor: 'rgba(128,128,128,0.3)',
   },
 }));
 
@@ -77,7 +77,7 @@ export const ColumnContent = styled(Box, {
   },
   '&::-webkit-scrollbar-thumb': {
     borderRadius: 2,
-    backgroundColor: 'rgba(0,0,0,0.1)',
+    backgroundColor: 'rgba(128,128,128,0.3)',
   },
 }));
 

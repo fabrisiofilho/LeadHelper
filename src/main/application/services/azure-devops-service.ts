@@ -484,27 +484,43 @@ export class AzureDevOpsService {
   ): 'pending' | 'in_progress' | 'completed' | 'cancelled' {
     const normalizedState = state.toLowerCase();
 
+    // Completed states
     if (
       normalizedState === 'done' ||
       normalizedState === 'closed' ||
-      normalizedState === 'resolved'
+      normalizedState === 'resolved' ||
+      normalizedState === 'finalizado'
     ) {
       return 'completed';
     }
 
+    // In-progress states
     if (
       normalizedState === 'active' ||
       normalizedState === 'in progress' ||
-      normalizedState === 'committed'
+      normalizedState === 'committed' ||
+      normalizedState === 'em andamento' ||
+      normalizedState === 'em desenvolvimento' ||
+      normalizedState === 'em auditoria' ||
+      normalizedState === 'em homologação' ||
+      normalizedState === 'aguardando auditoria' ||
+      normalizedState === 'aguardando validação' ||
+      normalizedState === 'aguardando implantação' ||
+      normalizedState === 'preparando para dev'
     ) {
       return 'in_progress';
     }
 
-    if (normalizedState === 'removed' || normalizedState === 'cut') {
+    // Cancelled states
+    if (
+      normalizedState === 'removed' ||
+      normalizedState === 'cut' ||
+      normalizedState === 'cancelado'
+    ) {
       return 'cancelled';
     }
 
-    // Default to pending for New, To Do, etc.
+    // Default to pending for Novo, Em levantamento, Backlog comprometido, etc.
     return 'pending';
   }
 

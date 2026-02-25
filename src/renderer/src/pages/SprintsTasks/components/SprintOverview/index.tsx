@@ -38,11 +38,11 @@ const getSprintStatus = (sprint: Sprint): SprintStatus => {
   end.setHours(0, 0, 0, 0);
 
   if (today >= start && today <= end) {
-    return { label: 'Em Andamento', color: '#2e7d32', bgColor: '#e8f5e9' };
+    return { label: 'Em Andamento', color: '#2e7d32', bgColor: '#2e7d3220' };
   } else if (today < start) {
-    return { label: 'Futura', color: '#1565c0', bgColor: '#e3f2fd' };
+    return { label: 'Futura', color: '#1565c0', bgColor: '#1565c020' };
   }
-  return { label: 'Finalizada', color: '#757575', bgColor: '#f5f5f5' };
+  return { label: 'Finalizada', color: '#757575', bgColor: '#75757520' };
 };
 
 const formatDate = (date: Date | string | undefined): string => {
@@ -84,7 +84,7 @@ export function SprintOverview({
         '&::-webkit-scrollbar': { height: 4 },
         '&::-webkit-scrollbar-thumb': {
           borderRadius: 2,
-          bgcolor: 'rgba(0,0,0,0.1)',
+          bgcolor: 'rgba(128,128,128,0.3)',
         },
       }}
     >
@@ -216,34 +216,51 @@ export function SprintOverview({
         );
       })}
 
-      {/* Add new sprint card */}
-      <Paper
-        variant="outlined"
-        onClick={onNewSprint}
+      {/* Add new sprint card — sticky on the right */}
+      <Box
         sx={{
-          p: 1.5,
-          minWidth: 120,
-          cursor: 'pointer',
-          borderStyle: 'dashed',
-          borderColor: 'divider',
-          borderRadius: 2,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
+          position: 'sticky',
+          right: 0,
           flexShrink: 0,
-          transition: 'all 0.2s',
-          '&:hover': {
-            borderColor: 'primary.main',
-            bgcolor: 'action.hover',
-          },
+          display: 'flex',
+          alignItems: 'stretch',
+          pl: 1.5,
+          background: (theme) =>
+            `linear-gradient(to right, transparent, ${theme.palette.background.default} 12px)`,
         }}
       >
-        <AddIcon sx={{ color: 'text.secondary', mb: 0.5 }} />
-        <Typography variant="caption" color="text.secondary" fontWeight={500}>
-          Nova Sprint
-        </Typography>
-      </Paper>
+        <Paper
+          variant="outlined"
+          onClick={onNewSprint}
+          sx={{
+            p: 1.5,
+            minWidth: 120,
+            cursor: 'pointer',
+            borderStyle: 'dashed',
+            borderColor: 'divider',
+            borderRadius: 2,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            transition: 'all 0.2s',
+            '&:hover': {
+              borderColor: 'primary.main',
+              bgcolor: 'action.hover',
+            },
+          }}
+        >
+          <AddIcon sx={{ color: 'text.secondary', mb: 0.5 }} />
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            fontWeight={500}
+          >
+            Nova Sprint
+          </Typography>
+        </Paper>
+      </Box>
     </Box>
   );
 }

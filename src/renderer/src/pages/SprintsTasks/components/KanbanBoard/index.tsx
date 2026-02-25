@@ -28,6 +28,7 @@ import {
   FiberManualRecord as DotIcon,
   PersonAdd as PersonAddIcon,
   PersonOff as PersonOffIcon,
+  Link as LinkIcon,
 } from '@mui/icons-material';
 import {
   DragDropContext,
@@ -61,6 +62,7 @@ export interface KanbanBoardProps {
   teamMembers: TeamMember[];
   loading: boolean;
   onNewTask: () => void;
+  onLinkTask: () => void;
   onEditTask: (task: Task) => void;
   onRemoveTask: (task: Task) => void;
   onStatusChange: (taskId: number, newStatus: string) => void;
@@ -322,6 +324,7 @@ export function KanbanBoard({
   teamMembers,
   loading,
   onNewTask,
+  onLinkTask,
   onEditTask,
   onRemoveTask,
   onStatusChange,
@@ -502,6 +505,17 @@ export function KanbanBoard({
             <IconButton size="small" onClick={onManageStatuses}>
               <SettingsIcon fontSize="small" />
             </IconButton>
+          </Tooltip>
+          <Tooltip title="Vincular tarefa existente à sprint">
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<LinkIcon />}
+              onClick={onLinkTask}
+              sx={{ borderRadius: '0.5rem' }}
+            >
+              Vincular Tarefa
+            </Button>
           </Tooltip>
           <Button
             variant="contained"

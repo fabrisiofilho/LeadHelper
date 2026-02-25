@@ -380,6 +380,7 @@ export function TeamAllocationPage() {
           fixedTeam={selectedTeam}
           allocation={editingAllocation}
           teamMembers={teamMembers}
+          existingAllocations={allAllocations}
           loading={allocationModalLoading}
           error={allocationsError}
           onClose={handleCloseAllocationModal}

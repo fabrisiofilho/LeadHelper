@@ -53,7 +53,7 @@ export function TeamOverview({
         '&::-webkit-scrollbar': { height: 4 },
         '&::-webkit-scrollbar-thumb': {
           borderRadius: 2,
-          bgcolor: 'rgba(0,0,0,0.1)',
+          bgcolor: 'rgba(128,128,128,0.3)',
         },
       }}
     >

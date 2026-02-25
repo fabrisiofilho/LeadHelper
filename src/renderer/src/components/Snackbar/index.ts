@@ -8,12 +8,12 @@ export const CustomMaterialDesignContent = styled(MaterialDesignContent)(({
   const isDark = theme.palette.mode === 'dark';
 
   const baseStyle = {
-    backgroundColor: isDark ? '#1a1f2e' : theme.palette.grey[800],
+    backgroundColor: isDark ? '#282828' : theme.palette.grey[800],
     borderRadius: '0.5rem',
     padding: '0.25rem 1.5rem 0.25rem 0.625rem',
     fontWeight: 600,
     color: '#FFFFFF',
-    border: isDark ? '1px solid #2d3748' : 'none',
+    border: isDark ? '1px solid #404040' : 'none',
   };
 
   const baseSvgStyle = {

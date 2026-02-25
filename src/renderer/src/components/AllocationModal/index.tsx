@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   TextField,
   Typography,
@@ -8,7 +8,11 @@ import {
   Autocomplete,
   Avatar,
   LinearProgress,
+  Chip,
 } from '@mui/material';
+import {
+  Warning as WarningIcon,
+} from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -42,6 +46,8 @@ export interface AllocationModalProps {
   teams?: Team[];
   allocation?: TeamMemberAllocation | null;
   teamMembers: TeamMember[];
+  /** Todas as alocações ativas — usado para mostrar status de alocação no dropdown */
+  existingAllocations?: TeamMemberAllocation[];
   loading: boolean;
   error: string | null;
   onClose: () => void;
@@ -70,6 +76,7 @@ export function AllocationModal({
   teams = [],
   allocation,
   teamMembers,
+  existingAllocations = [],
   loading,
   error,
   onClose,
@@ -169,9 +176,55 @@ export function AllocationModal({
     }
   };
 
-  const availableMembers = teamMembers.filter((m) => m.isActive);
+  const activeMembers = teamMembers.filter((m) => m.isActive);
   const availableTeams = teams.filter((t) => t.isActive);
   const maxDedication = isEditing ? 100 : Math.max(memberAvailability, 1);
+
+  // Build allocation info per member
+  const memberAllocationInfo = useMemo(() => {
+    const info = new Map<
+      number,
+      { teams: { name: string; dedication: number }[]; totalDedication: number; isInCurrentTeam: boolean }
+    >();
+    const currentTeamId = fixedTeam?.id ?? null;
+
+    for (const alloc of existingAllocations) {
+      if (!alloc.isActive) continue;
+      const existing = info.get(alloc.teamMemberId) || {
+        teams: [],
+        totalDedication: 0,
+        isInCurrentTeam: false,
+      };
+      existing.teams.push({
+        name: alloc.teamName || `Equipe #${alloc.teamId}`,
+        dedication: alloc.dedicationPercentage,
+      });
+      existing.totalDedication += alloc.dedicationPercentage;
+      if (currentTeamId && alloc.teamId === currentTeamId) {
+        existing.isInCurrentTeam = true;
+      }
+      info.set(alloc.teamMemberId, existing);
+    }
+    return info;
+  }, [existingAllocations, fixedTeam]);
+
+  // Sort members: available first, then allocated elsewhere, then already in current team
+  const sortedMembers = useMemo(() => {
+    return [...activeMembers].sort((a, b) => {
+      const infoA = memberAllocationInfo.get(a.id);
+      const infoB = memberAllocationInfo.get(b.id);
+      const aInCurrent = infoA?.isInCurrentTeam ?? false;
+      const bInCurrent = infoB?.isInCurrentTeam ?? false;
+      const aAllocated = !!infoA;
+      const bAllocated = !!infoB;
+
+      // Already in current team goes last
+      if (aInCurrent !== bInCurrent) return aInCurrent ? 1 : -1;
+      // Unallocated first
+      if (aAllocated !== bAllocated) return aAllocated ? 1 : -1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [activeMembers, memberAllocationInfo]);
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ptBR}>
@@ -237,9 +290,20 @@ export function AllocationModal({
             rules={{ required: !isEditing ? 'Membro é obrigatório' : false }}
             render={({ field: { onChange, value } }) => (
               <Autocomplete
-                options={availableMembers}
+                options={sortedMembers}
                 getOptionLabel={(option) => option.name}
-                value={availableMembers.find((m) => m.id === value) || null}
+                getOptionDisabled={(option) => {
+                  const info = memberAllocationInfo.get(option.id);
+                  return !!info?.isInCurrentTeam;
+                }}
+                groupBy={(option) => {
+                  if (existingAllocations.length === 0) return '';
+                  const info = memberAllocationInfo.get(option.id);
+                  if (!info) return 'Disponíveis';
+                  if (info.isInCurrentTeam) return 'Já alocados nesta equipe';
+                  return 'Alocados em outras equipes';
+                }}
+                value={sortedMembers.find((m) => m.id === value) || null}
                 onChange={(_, newValue) => onChange(newValue?.id || null)}
                 disabled={isEditing || loading}
                 renderInput={(params) => (
@@ -252,28 +316,62 @@ export function AllocationModal({
                     helperText={errors.teamMemberId?.message}
                   />
                 )}
-                renderOption={(props, option) => (
-                  <li {...props} key={option.id}>
-                    <Stack direction="row" spacing={1.5} alignItems="center">
-                      <Avatar
+                renderOption={(props, option) => {
+                  const info = memberAllocationInfo.get(option.id);
+                  const isDisabled = !!info?.isInCurrentTeam;
+                  return (
+                    <li {...props} key={option.id}>
+                      <Stack
+                        direction="row"
+                        spacing={1.5}
+                        alignItems="center"
                         sx={{
-                          bgcolor: roleColors[option.role],
-                          width: 32,
-                          height: 32,
-                          fontSize: '0.75rem',
+                          width: '100%',
+                          opacity: isDisabled ? 0.5 : 1,
                         }}
                       >
-                        {getInitials(option.name)}
-                      </Avatar>
-                      <Box>
-                        <Typography variant="body2">{option.name}</Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {roleLabels[option.role]} • {option.email}
-                        </Typography>
-                      </Box>
-                    </Stack>
-                  </li>
-                )}
+                        <Avatar
+                          sx={{
+                            bgcolor: roleColors[option.role],
+                            width: 32,
+                            height: 32,
+                            fontSize: '0.75rem',
+                          }}
+                        >
+                          {getInitials(option.name)}
+                        </Avatar>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography variant="body2">{option.name}</Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {roleLabels[option.role]} • {option.email}
+                          </Typography>
+                        </Box>
+                        {info && (
+                          <Stack direction="row" spacing={0.5} flexShrink={0} alignItems="center">
+                            {info.isInCurrentTeam ? (
+                              <Chip
+                                label="Já alocado"
+                                size="small"
+                                color="error"
+                                variant="outlined"
+                                sx={{ height: 22, fontSize: '0.65rem' }}
+                              />
+                            ) : (
+                              <Chip
+                                icon={<WarningIcon sx={{ fontSize: '14px !important' }} />}
+                                label={`${info.totalDedication}% alocado`}
+                                size="small"
+                                color={info.totalDedication >= 100 ? 'error' : 'warning'}
+                                variant="outlined"
+                                sx={{ height: 22, fontSize: '0.65rem' }}
+                              />
+                            )}
+                          </Stack>
+                        )}
+                      </Stack>
+                    </li>
+                  );
+                }}
               />
             )}
           />

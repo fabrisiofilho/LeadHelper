@@ -16,7 +16,7 @@ export function ListTableHeaderTabs({
   if (!tabsConfig) return null;
 
   return (
-    <Stack direction="row" bgcolor="grey.200" px="1.5rem" overflow="auto">
+    <Stack direction="row" bgcolor="grey.100" px="1.5rem" overflow="auto">
       {tabsConfig.map((tabConfig) => (
         <TabFilterItem
           key={tabConfig.id}

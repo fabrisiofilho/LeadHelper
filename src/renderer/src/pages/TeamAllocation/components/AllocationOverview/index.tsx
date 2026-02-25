@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Typography,
   Stack,
@@ -9,11 +9,14 @@ import {
   LinearProgress,
   Paper,
   Button,
+  Collapse,
 } from '@mui/material';
 import {
   Groups as GroupsIcon,
   PersonOff as PersonOffIcon,
   Add as AddIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
 } from '@mui/icons-material';
 import type {
   Team,
@@ -43,6 +46,163 @@ const roleLabels: Record<TeamMemberRole, string> = {
 };
 
 const roleColors = ROLE_COLORS;
+
+function UnallocatedMembersByRole({
+  members,
+  roleLabels,
+  roleColors: colors,
+}: {
+  members: TeamMember[];
+  roleLabels: Record<TeamMemberRole, string>;
+  roleColors: Record<TeamMemberRole, string>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  const grouped = useMemo(() => {
+    const map = new Map<TeamMemberRole, TeamMember[]>();
+    for (const m of members) {
+      const list = map.get(m.role) || [];
+      list.push(m);
+      map.set(m.role, list);
+    }
+    return Array.from(map.entries()).sort((a, b) => b[1].length - a[1].length);
+  }, [members]);
+
+  return (
+    <Paper
+      variant="outlined"
+      sx={{
+        p: 1.5,
+        borderColor: 'warning.light',
+        borderRadius: 2,
+      }}
+    >
+      <Stack
+        direction="row"
+        alignItems="center"
+        justifyContent="space-between"
+        sx={{ cursor: 'pointer' }}
+        onClick={() => setExpanded((prev) => !prev)}
+      >
+        <Stack direction="row" alignItems="center" spacing={1}>
+          <PersonOffIcon fontSize="small" sx={{ color: 'warning.main' }} />
+          <Typography variant="subtitle2" fontWeight={600} color="warning.dark">
+            Membros sem alocação ({members.length})
+          </Typography>
+          {!expanded &&
+            grouped.map(([role, roleMembers]) => (
+              <Chip
+                key={role}
+                label={`${roleLabels[role]}: ${roleMembers.length}`}
+                size="small"
+                sx={{
+                  height: 20,
+                  fontSize: '0.65rem',
+                  fontWeight: 600,
+                  bgcolor: colors[role] + '15',
+                  color: colors[role],
+                  border: '1px solid',
+                  borderColor: colors[role] + '40',
+                }}
+              />
+            ))}
+        </Stack>
+        <Button
+          size="small"
+          endIcon={expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+          sx={{ textTransform: 'none', minWidth: 'auto' }}
+        >
+          {expanded ? 'Ver menos' : 'Ver mais'}
+        </Button>
+      </Stack>
+
+      <Collapse in={expanded}>
+        <Box
+          sx={{
+            display: 'flex',
+            gap: 1.5,
+            overflowX: 'auto',
+            pt: 1.5,
+            pb: 0.5,
+            '&::-webkit-scrollbar': { height: 4 },
+            '&::-webkit-scrollbar-thumb': {
+              borderRadius: 2,
+              bgcolor: 'rgba(128,128,128,0.3)',
+            },
+          }}
+        >
+          {grouped.map(([role, roleMembers]) => (
+            <Paper
+              key={role}
+              variant="outlined"
+              sx={{
+                p: 1.5,
+                minWidth: 180,
+                maxWidth: 260,
+                borderColor: colors[role] + '60',
+                borderRadius: 2,
+                flexShrink: 0,
+              }}
+            >
+              <Stack direction="row" alignItems="center" spacing={1} mb={1}>
+                <Box
+                  sx={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    bgcolor: colors[role],
+                    flexShrink: 0,
+                  }}
+                />
+                <Typography variant="caption" fontWeight={600} noWrap>
+                  {roleLabels[role]}
+                </Typography>
+                <Chip
+                  label={roleMembers.length}
+                  size="small"
+                  sx={{
+                    height: 18,
+                    fontSize: '0.65rem',
+                    fontWeight: 600,
+                    bgcolor: colors[role] + '20',
+                    color: colors[role],
+                  }}
+                />
+              </Stack>
+              <Stack direction="row" flexWrap="wrap" gap={0.5}>
+                {roleMembers.map((member) => (
+                  <Chip
+                    key={member.id}
+                    icon={
+                      <Avatar
+                        sx={{
+                          width: 18,
+                          height: 18,
+                          fontSize: '0.55rem',
+                          bgcolor: colors[role],
+                        }}
+                      >
+                        {getInitials(member.name)}
+                      </Avatar>
+                    }
+                    label={member.name}
+                    variant="outlined"
+                    size="small"
+                    sx={{
+                      height: 24,
+                      fontSize: '0.7rem',
+                      '& .MuiChip-icon': { ml: 0.5 },
+                    }}
+                  />
+                ))}
+              </Stack>
+            </Paper>
+          ))}
+        </Box>
+      </Collapse>
+    </Paper>
+  );
+}
 
 export function AllocationOverview({
   teams,
@@ -99,7 +259,7 @@ export function AllocationOverview({
           '&::-webkit-scrollbar': { height: 4 },
           '&::-webkit-scrollbar-thumb': {
             borderRadius: 2,
-            bgcolor: 'rgba(0,0,0,0.1)',
+            bgcolor: 'rgba(128,128,128,0.3)',
           },
         }}
       >
@@ -183,7 +343,7 @@ export function AllocationOverview({
                             : 'background.paper',
                           bgcolor: isSelected
                             ? 'rgba(255,255,255,0.3)'
-                            : 'grey.400',
+                            : 'grey.500',
                           color: '#fff',
                         }}
                       >
@@ -268,95 +428,60 @@ export function AllocationOverview({
           },
         )}
 
-        {/* Add new team card */}
-        <Paper
-          variant="outlined"
-          onClick={onNewTeam}
+        {/* Add new team card — sticky on the right */}
+        <Box
           sx={{
-            p: 1.5,
-            minWidth: 120,
-            cursor: 'pointer',
-            borderStyle: 'dashed',
-            borderColor: 'divider',
-            borderRadius: 2,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
+            position: 'sticky',
+            right: 0,
             flexShrink: 0,
-            transition: 'all 0.2s',
-            '&:hover': {
-              borderColor: 'primary.main',
-              bgcolor: 'action.hover',
-            },
+            display: 'flex',
+            alignItems: 'stretch',
+            pl: 1.5,
+            background: (theme) =>
+              `linear-gradient(to right, transparent, ${theme.palette.background.default} 12px)`,
           }}
         >
-          <AddIcon sx={{ color: 'text.secondary', mb: 0.5 }} />
-          <Typography variant="caption" color="text.secondary" fontWeight={500}>
-            Nova Equipe
-          </Typography>
-        </Paper>
+          <Paper
+            variant="outlined"
+            onClick={onNewTeam}
+            sx={{
+              p: 1.5,
+              minWidth: 120,
+              cursor: 'pointer',
+              borderStyle: 'dashed',
+              borderColor: 'divider',
+              borderRadius: 2,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              transition: 'all 0.2s',
+              '&:hover': {
+                borderColor: 'primary.main',
+                bgcolor: 'action.hover',
+              },
+            }}
+          >
+            <AddIcon sx={{ color: 'text.secondary', mb: 0.5 }} />
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              fontWeight={500}
+            >
+              Nova Equipe
+            </Typography>
+          </Paper>
+        </Box>
       </Box>
 
-      {/* Unallocated members */}
+      {/* Unallocated members grouped by role */}
       {unallocatedMembers.length > 0 && (
-        <Paper
-          variant="outlined"
-          sx={{
-            p: 1.5,
-            borderColor: 'warning.light',
-            bgcolor: 'warning.50',
-            borderRadius: 2,
-          }}
-        >
-          <Stack direction="row" alignItems="center" spacing={1} mb={1}>
-            <PersonOffIcon fontSize="small" sx={{ color: 'warning.main' }} />
-            <Typography
-              variant="subtitle2"
-              fontWeight={600}
-              color="warning.dark"
-            >
-              Membros sem alocação ({unallocatedMembers.length})
-            </Typography>
-          </Stack>
-          <Stack direction="row" flexWrap="wrap" gap={0.75}>
-            {unallocatedMembers.map((member) => (
-              <Chip
-                key={member.id}
-                icon={
-                  <Avatar
-                    sx={{
-                      width: 20,
-                      height: 20,
-                      fontSize: '0.6rem',
-                      bgcolor: roleColors[member.role],
-                    }}
-                  >
-                    {getInitials(member.name)}
-                  </Avatar>
-                }
-                label={
-                  <Stack direction="row" alignItems="center" spacing={0.5}>
-                    <span>{member.name}</span>
-                    <Typography
-                      component="span"
-                      variant="caption"
-                      sx={{ color: 'text.secondary' }}
-                    >
-                      {roleLabels[member.role]}
-                    </Typography>
-                  </Stack>
-                }
-                variant="outlined"
-                size="small"
-                sx={{
-                  height: 28,
-                  '& .MuiChip-icon': { ml: 0.5 },
-                }}
-              />
-            ))}
-          </Stack>
-        </Paper>
+        <UnallocatedMembersByRole
+          members={unallocatedMembers}
+          roleLabels={roleLabels}
+          roleColors={roleColors}
+        />
       )}
     </Stack>
   );

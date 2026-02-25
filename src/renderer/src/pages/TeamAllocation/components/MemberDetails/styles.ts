@@ -40,7 +40,10 @@ export const MemberItem = styled(Box)(({ theme }) => ({
 export const DedicationProgress = styled(LinearProgress)(({ theme }) => ({
   height: 8,
   borderRadius: 4,
-  backgroundColor: theme.palette.grey[200],
+  backgroundColor:
+    theme.palette.mode === 'dark'
+      ? 'rgba(255,255,255,0.08)'
+      : theme.palette.grey[200],
   '& .MuiLinearProgress-bar': {
     borderRadius: 4,
   },

@@ -6,7 +6,6 @@ import {
   Tooltip,
   CircularProgress,
   Stack,
-  Button,
 } from '@mui/material';
 import {
   ViewKanban as ViewKanbanIcon,
@@ -403,17 +402,6 @@ export function SprintsTasksPage() {
           </Typography>
         </Box>
         <Stack direction="row" spacing={1}>
-          {selectedSprint && (
-            <Tooltip title="Vincular tarefa existente à sprint">
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={handleOpenLinkTask}
-              >
-                Vincular Tarefa
-              </Button>
-            </Tooltip>
-          )}
           <Tooltip title="Atualizar">
             <IconButton onClick={handleRefresh} size="small">
               <RefreshIcon />
@@ -445,6 +433,7 @@ export function SprintsTasksPage() {
               teamMembers={teamMembers}
               loading={tasksLoading}
               onNewTask={handleNewTask}
+              onLinkTask={handleOpenLinkTask}
               onEditTask={handleEditTask}
               onRemoveTask={handleRemoveTask}
               onStatusChange={handleStatusChange}

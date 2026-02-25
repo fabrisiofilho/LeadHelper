@@ -3,6 +3,7 @@ import {
   TaskStatus,
   TaskOrigin,
   TaskPriority,
+  TaskType,
   EstimationType,
 } from '../entities/task.entity';
 import { TaskRepository } from '../repositories/task-repository';
@@ -14,6 +15,7 @@ export interface CreateTaskInput {
   endDate?: Date;
   status?: TaskStatus;
   priority?: TaskPriority;
+  type?: TaskType;
   sprintId?: number;
   teamId?: number;
   estimationPoints?: number;
@@ -28,6 +30,7 @@ export interface UpdateTaskInput {
   endDate?: Date;
   status?: TaskStatus;
   priority?: TaskPriority;
+  type?: TaskType;
   sprintId?: number;
   teamId?: number;
   estimationPoints?: number;
@@ -52,6 +55,7 @@ export interface Task {
   endDate?: Date;
   status: TaskStatus;
   priority: TaskPriority;
+  type: TaskType;
   origin: TaskOrigin;
   externalId?: string;
   externalSource?: string;
@@ -92,6 +96,7 @@ export class TaskService {
       endDate: input.endDate,
       status: input.status ?? 'pending',
       priority: input.priority ?? 'medium',
+      type: input.type ?? 'task',
       origin: 'manual',
       sprintId: input.sprintId,
       teamId: input.teamId,
@@ -133,6 +138,7 @@ export class TaskService {
 
     if (input.status !== undefined) entity.status = input.status;
     if (input.priority !== undefined) entity.priority = input.priority;
+    if (input.type !== undefined) entity.type = input.type;
     if (input.sprintId !== undefined) entity.sprintId = input.sprintId;
     if (input.teamId !== undefined) entity.teamId = input.teamId;
     if (input.estimationPoints !== undefined)
@@ -272,6 +278,7 @@ export class TaskService {
       endDate: entity.endDate,
       status: entity.status,
       priority: entity.priority,
+      type: entity.type ?? 'task',
       origin: entity.origin,
       externalId: entity.externalId,
       externalSource: entity.externalSource,

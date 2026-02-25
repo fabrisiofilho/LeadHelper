@@ -74,7 +74,7 @@ export function KanbanFilters({
   };
 
   return (
-    <Stack spacing={1} sx={{ px: 2, pt: 1.5, pb: 0.5 }}>
+    <Stack spacing={1} sx={{ px: 2, pt: 1.5, pb: 0.5, flexShrink: 0 }}>
       {/* Search + filter toggle row */}
       <Stack direction="row" spacing={1} alignItems="center">
         <TextField

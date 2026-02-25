@@ -22,6 +22,13 @@ export type TaskStatus =
 export type TaskOrigin = 'manual' | 'azure_devops';
 export type EstimationType = 'points' | 'hours';
 export type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
+export type TaskType =
+  | 'task'
+  | 'bug'
+  | 'feature'
+  | 'improvement'
+  | 'support'
+  | (string & {});
 
 @Entity('tasks')
 export class TaskEntity extends AuditableEntity {
@@ -55,6 +62,9 @@ export class TaskEntity extends AuditableEntity {
 
   @Column({ type: 'text', default: 'medium' })
   priority!: TaskPriority;
+
+  @Column({ type: 'text', default: 'task' })
+  type!: TaskType;
 
   @Column({ type: 'text', default: 'manual' })
   origin!: TaskOrigin;

@@ -119,4 +119,20 @@ export class TaskController extends BaseHandler {
       return { success: false, error: message };
     }
   }
+  @IpcMethod('task:findBySprint')
+  async findBySprint(
+    sprintId: number,
+  ): Promise<ApiResponse<taskService.Task[]>> {
+    try {
+      const result = await this.service.findBySprint(sprintId);
+      return { success: true, data: result };
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Erro ao buscar tarefas da sprint';
+      logger.error('TaskController.findBySprint error:', error);
+      return { success: false, error: message };
+    }
+  }
 }

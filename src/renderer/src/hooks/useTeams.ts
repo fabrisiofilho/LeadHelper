@@ -188,6 +188,50 @@ export function useTeams() {
     [],
   );
 
+  const activate = useCallback(async (id: number): Promise<Team | null> => {
+    setLoading(true);
+    try {
+      const response = await window.electronAPI.team.activate(id);
+      if (!response.success) {
+        setError(response.error || 'Erro ao ativar equipe');
+        return null;
+      }
+      setState((prev) => ({
+        ...prev,
+        loading: false,
+        teams: prev.teams.map((t) =>
+          t.id === id && response.data ? response.data : t,
+        ),
+      }));
+      return response.data || null;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro de comunicação');
+      return null;
+    }
+  }, []);
+
+  const deactivate = useCallback(async (id: number): Promise<Team | null> => {
+    setLoading(true);
+    try {
+      const response = await window.electronAPI.team.deactivate(id);
+      if (!response.success) {
+        setError(response.error || 'Erro ao desativar equipe');
+        return null;
+      }
+      setState((prev) => ({
+        ...prev,
+        loading: false,
+        teams: prev.teams.map((t) =>
+          t.id === id && response.data ? response.data : t,
+        ),
+      }));
+      return response.data || null;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro de comunicação');
+      return null;
+    }
+  }, []);
+
   const clearError = useCallback(() => {
     setState((prev) => ({ ...prev, error: null }));
   }, []);
@@ -201,6 +245,8 @@ export function useTeams() {
     findById,
     addMember,
     removeMember,
+    activate,
+    deactivate,
     clearError,
   };
 }

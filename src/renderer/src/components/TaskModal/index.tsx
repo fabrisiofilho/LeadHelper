@@ -38,16 +38,19 @@ import type {
   Team,
   TaskStatusConfig,
   TaskPriority,
+  TaskType,
   EstimationType,
   CreateTaskInput,
   UpdateTaskInput,
 } from '@shared/interfaces/config/index.types';
+import { TASK_TYPE_OPTIONS } from '@renderer/utils/task-type';
 
 interface TaskFormData {
   title: string;
   description: string;
   status: string;
   priority: TaskPriority;
+  type: TaskType;
   startDate: Date | null;
   endDate: Date | null;
   sprintId: number | null;
@@ -134,6 +137,7 @@ export function TaskModal({
       description: '',
       status: defaultStatus,
       priority: 'medium',
+      type: 'task',
       startDate: null,
       endDate: null,
       sprintId: fixedSprint?.id ?? null,
@@ -156,6 +160,7 @@ export function TaskModal({
         description: task?.description ?? '',
         status: task?.status ?? defaultStatus,
         priority: (task?.priority as TaskPriority) ?? 'medium',
+        type: (task?.type as TaskType) ?? 'task',
         startDate: task?.startDate ? new Date(task.startDate) : null,
         endDate: task?.endDate ? new Date(task.endDate) : null,
         sprintId: task?.sprintId ?? fixedSprint?.id ?? null,
@@ -176,6 +181,7 @@ export function TaskModal({
       description: data.description || undefined,
       status: data.status,
       priority: data.priority,
+      type: data.type,
       startDate: data.startDate || undefined,
       endDate: data.endDate || undefined,
       sprintId: data.sprintId ?? undefined,
@@ -362,6 +368,41 @@ export function TaskModal({
                   )}
                 />
               </Stack>
+
+              <Controller
+                name="type"
+                control={control}
+                render={({ field }) => (
+                  <FormControl fullWidth disabled={loading}>
+                    <InputLabel id="task-type-label">Tipo</InputLabel>
+                    <Select
+                      {...field}
+                      labelId="task-type-label"
+                      label="Tipo"
+                    >
+                      {TASK_TYPE_OPTIONS.map((option) => (
+                        <MenuItem key={option.value} value={option.value}>
+                          <Stack
+                            direction="row"
+                            alignItems="center"
+                            spacing={1}
+                          >
+                            <Box
+                              sx={{
+                                width: 10,
+                                height: 10,
+                                borderRadius: '50%',
+                                backgroundColor: option.color,
+                              }}
+                            />
+                            <span>{option.label}</span>
+                          </Stack>
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                )}
+              />
 
               <Stack direction="row" spacing={2}>
                 {hasSprintSelector && (

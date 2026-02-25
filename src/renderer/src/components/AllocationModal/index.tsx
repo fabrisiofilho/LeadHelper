@@ -23,6 +23,7 @@ import type {
   CreateTeamMemberAllocationInput,
   UpdateTeamMemberAllocationInput,
 } from '@shared/interfaces/config/index.types';
+import { getInitials, ROLE_COLORS } from '@renderer/utils/member';
 
 interface AllocationFormData {
   teamMemberId: number | null;
@@ -61,24 +62,7 @@ const roleLabels: Record<TeamMemberRole, string> = {
   product_owner: 'Product Owner',
 };
 
-const roleColors: Record<TeamMemberRole, string> = {
-  developer: '#1976d2',
-  analyst: '#9c27b0',
-  qa: '#2e7d32',
-  tech_lead: '#ed6c02',
-  devops: '#0288d1',
-  designer: '#d32f2f',
-  product_owner: '#7b1fa2',
-};
-
-function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
-}
+const roleColors = ROLE_COLORS;
 
 export function AllocationModal({
   open,

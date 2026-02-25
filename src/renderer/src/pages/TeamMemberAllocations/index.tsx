@@ -51,6 +51,7 @@ import type {
   TeamMember,
   TeamMemberRole,
 } from '@shared/interfaces/config/index.types';
+import { getInitials, ROLE_COLORS } from '@renderer/utils/member';
 
 const roleLabels: Record<TeamMemberRole, string> = {
   developer: 'Desenvolvedor',
@@ -62,29 +63,12 @@ const roleLabels: Record<TeamMemberRole, string> = {
   product_owner: 'Product Owner',
 };
 
-const roleColors: Record<TeamMemberRole, string> = {
-  developer: '#2196F3',
-  analyst: '#9C27B0',
-  qa: '#4CAF50',
-  tech_lead: '#FF9800',
-  devops: '#00BCD4',
-  designer: '#E91E63',
-  product_owner: '#673AB7',
-};
+const roleColors = ROLE_COLORS;
 
 const formatDate = (date: Date | string | undefined): string => {
   if (!date) return 'Indefinido';
   const d = typeof date === 'string' ? new Date(date) : date;
   return d.toLocaleDateString('pt-BR');
-};
-
-const getInitials = (name: string): string => {
-  return name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
 };
 
 export function TeamMemberAllocationsPage() {

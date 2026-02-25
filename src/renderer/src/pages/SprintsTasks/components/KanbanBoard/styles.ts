@@ -14,6 +14,7 @@ export const KanbanContainer = styled(Box)(() => ({
   display: 'flex',
   gap: 12,
   flex: 1,
+  minHeight: 0,
   overflowX: 'auto',
   overflowY: 'hidden',
   padding: '4px 4px 8px',
@@ -33,6 +34,7 @@ export const KanbanColumn = styled(Box)(() => ({
   minWidth: 270,
   maxWidth: 320,
   flex: '1 1 270px',
+  minHeight: 0,
   height: '100%',
   animation: `${fadeIn} 0.3s ease-out`,
 }));
@@ -47,6 +49,7 @@ export const ColumnHeader = styled(Box)<{ bordercolor: string }>(
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: theme.spacing(1),
+    flexShrink: 0,
   }),
 );
 
@@ -54,6 +57,7 @@ export const ColumnContent = styled(Box, {
   shouldForwardProp: (prop) => prop !== 'isDragOver',
 })<{ isDragOver?: boolean }>(({ theme, isDragOver }) => ({
   flex: 1,
+  minHeight: 0,
   overflowY: 'auto',
   padding: theme.spacing(1),
   backgroundColor: isDragOver
@@ -64,7 +68,6 @@ export const ColumnContent = styled(Box, {
       ? 'rgba(255,255,255,0.02)'
       : 'rgba(0,0,0,0.02)',
   borderRadius: `0 0 ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px`,
-  minHeight: 100,
   transition: 'background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
   border: isDragOver
     ? `1px dashed ${theme.palette.primary.main}40`
@@ -112,4 +115,5 @@ export const HeaderContainer = styled(Box)(({ theme }) => ({
   alignItems: 'center',
   justifyContent: 'space-between',
   gap: theme.spacing(2),
+  flexShrink: 0,
 }));

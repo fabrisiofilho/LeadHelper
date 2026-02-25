@@ -15,16 +15,12 @@ import {
 import { useTeams } from '@renderer/hooks/useTeams';
 import { useTeamMembers } from '@renderer/hooks/useTeamMembers';
 import { useTeamMemberAllocations } from '@renderer/hooks/useTeamMemberAllocations';
-import {
-  PageContainer,
-  TopSelectorBar,
-  ContentArea,
-  PlaceholderContent,
-} from './styles';
-import { TeamSelector } from './components/TeamSelector';
+import { PageContainer, ContentArea, PlaceholderContent } from './styles';
 import { MemberDetails } from './components/MemberDetails';
+import { AllocationOverview } from './components/AllocationOverview';
 import { TeamModal } from './components/TeamModal';
 import { MemberModal } from './components/MemberModal';
+import { Modal } from '@renderer/components/Modal';
 import { AllocationModal } from '@renderer/components/AllocationModal';
 import type {
   Team,
@@ -45,6 +41,12 @@ export function TeamAllocationPage() {
   const [memberModalLoading, setMemberModalLoading] = useState(false);
   const [isAllocationModalOpen, setIsAllocationModalOpen] = useState(false);
   const [allocationModalLoading, setAllocationModalLoading] = useState(false);
+  const [isRemoveAllocationModalOpen, setIsRemoveAllocationModalOpen] =
+    useState(false);
+  const [allocationToRemove, setAllocationToRemove] =
+    useState<TeamMemberAllocation | null>(null);
+  const [removeAllocationLoading, setRemoveAllocationLoading] = useState(false);
+
   const [editingAllocation, setEditingAllocation] =
     useState<TeamMemberAllocation | null>(null);
 
@@ -66,8 +68,14 @@ export function TeamAllocationPage() {
     findActiveByTeam,
     create: createAllocation,
     update: updateAllocation,
+    delete: deleteAllocation,
+    getMemberAvailability,
     clearError: clearAllocationsError,
   } = useTeamMemberAllocations();
+
+  // Second hook instance for all active allocations (overview)
+  const { allocations: allAllocations, findAll: findAllAllocations } =
+    useTeamMemberAllocations();
 
   const {
     teamMembers,
@@ -88,7 +96,8 @@ export function TeamAllocationPage() {
   useEffect(() => {
     loadTeams();
     loadTeamMembers();
-  }, [loadTeams, loadTeamMembers]);
+    findAllAllocations({ isActive: true });
+  }, [loadTeams, loadTeamMembers, findAllAllocations]);
 
   useEffect(() => {
     if (selectedTeam) {
@@ -194,6 +203,7 @@ export function TeamAllocationPage() {
           if (selectedTeam) {
             await findActiveByTeam(selectedTeam.id);
           }
+          await findAllAllocations({ isActive: true });
         }
       } else {
         const result = await createAllocation(
@@ -204,6 +214,7 @@ export function TeamAllocationPage() {
           if (selectedTeam) {
             await findActiveByTeam(selectedTeam.id);
           }
+          await findAllAllocations({ isActive: true });
         }
       }
     } finally {
@@ -212,12 +223,32 @@ export function TeamAllocationPage() {
   };
 
   const handleRemoveAllocation = (allocation: TeamMemberAllocation) => {
-    console.log('Remove allocation:', allocation.id);
+    setAllocationToRemove(allocation);
+    setIsRemoveAllocationModalOpen(true);
+  };
+
+  const handleConfirmRemoveAllocation = async () => {
+    if (!allocationToRemove) return;
+    setRemoveAllocationLoading(true);
+    try {
+      const success = await deleteAllocation(allocationToRemove.id);
+      if (success) {
+        setIsRemoveAllocationModalOpen(false);
+        setAllocationToRemove(null);
+        if (selectedTeam) {
+          await findActiveByTeam(selectedTeam.id);
+        }
+        await findAllAllocations({ isActive: true });
+      }
+    } finally {
+      setRemoveAllocationLoading(false);
+    }
   };
 
   const handleRefresh = async () => {
     await loadTeams();
     await loadTeamMembers();
+    await findAllAllocations({ isActive: true });
     if (selectedTeam) {
       await findActiveByTeam(selectedTeam.id);
     }
@@ -271,25 +302,35 @@ export function TeamAllocationPage() {
             Gerencie equipes e alocação de membros
           </Typography>
         </Box>
-        <Tooltip title="Atualizar">
-          <IconButton onClick={handleRefresh} size="small">
-            <RefreshIcon />
-          </IconButton>
-        </Tooltip>
+        <Stack direction="row" spacing={1}>
+          <Tooltip title="Atualizar">
+            <IconButton onClick={handleRefresh} size="small">
+              <RefreshIcon />
+            </IconButton>
+          </Tooltip>
+          {selectedTeam && (
+            <Tooltip title="Editar equipe">
+              <IconButton
+                size="small"
+                onClick={() => handleEditTeam(selectedTeam)}
+              >
+                <GroupWorkIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+        </Stack>
       </Stack>
 
-      <TopSelectorBar>
-        <TeamSelector
-          teams={teams}
-          selectedTeam={selectedTeam}
-          loading={teamsLoading}
-          onSelectTeam={handleSelectTeam}
-          onNewTeam={handleNewTeam}
-          onEditTeam={handleEditTeam}
-        />
-      </TopSelectorBar>
+      <AllocationOverview
+        teams={teams}
+        teamMembers={teamMembers}
+        allAllocations={allAllocations}
+        selectedTeam={selectedTeam}
+        onSelectTeam={(team) => handleSelectTeam(team)}
+        onNewTeam={handleNewTeam}
+      />
 
-      <ContentArea>
+      <ContentArea sx={{ mt: 2 }}>
         {selectedTeam ? (
           <MemberDetails
             team={selectedTeam}
@@ -309,8 +350,8 @@ export function TeamAllocationPage() {
               Selecione uma equipe
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Escolha uma equipe no seletor acima para visualizar e gerenciar
-              seus membros
+              Clique em uma equipe acima para visualizar e gerenciar seus
+              membros
             </Typography>
           </PlaceholderContent>
         )}
@@ -343,8 +384,31 @@ export function TeamAllocationPage() {
           error={allocationsError}
           onClose={handleCloseAllocationModal}
           onSave={handleSaveAllocation}
+          getMemberAvailability={getMemberAvailability}
         />
       )}
+
+      <Modal
+        variant="danger"
+        open={isRemoveAllocationModalOpen}
+        title="Remover Alocação"
+        handleClose={() => {
+          setIsRemoveAllocationModalOpen(false);
+          setAllocationToRemove(null);
+        }}
+        handleConfirm={handleConfirmRemoveAllocation}
+        confirmLabel="Remover"
+        cancelLabel="Cancelar"
+        loading={removeAllocationLoading}
+      >
+        <Typography>
+          Tem certeza que deseja remover a alocação de{' '}
+          <strong>{allocationToRemove?.teamMemberName}</strong> desta equipe?
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+          Esta ação não pode ser desfeita.
+        </Typography>
+      </Modal>
     </PageContainer>
   );
 }

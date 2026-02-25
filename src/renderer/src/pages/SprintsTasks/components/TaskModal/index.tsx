@@ -8,6 +8,7 @@ import {
   Select,
   MenuItem,
   FormHelperText,
+  Box,
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -21,12 +22,15 @@ import type {
   CreateTaskInput,
   UpdateTaskInput,
   TaskStatusConfig,
+  TaskType,
 } from '@shared/interfaces/config/index.types';
+import { TASK_TYPE_OPTIONS } from '@renderer/utils/task-type';
 
 interface TaskFormData {
   title: string;
   description: string;
   status: string;
+  type: TaskType;
   startDate: Date | null;
   endDate: Date | null;
 }
@@ -68,6 +72,7 @@ export function TaskModal({
       title: '',
       description: '',
       status: defaultStatus,
+      type: 'task',
       startDate: null,
       endDate: null,
     },
@@ -82,6 +87,7 @@ export function TaskModal({
         title: task?.title ?? '',
         description: task?.description ?? '',
         status: task?.status ?? defaultStatus,
+        type: (task?.type as TaskType) ?? 'task',
         startDate: task?.startDate ? new Date(task.startDate) : null,
         endDate: task?.endDate ? new Date(task.endDate) : null,
       });
@@ -90,6 +96,7 @@ export function TaskModal({
         title: '',
         description: '',
         status: defaultStatus,
+        type: 'task',
         startDate: null,
         endDate: null,
       });
@@ -102,6 +109,7 @@ export function TaskModal({
         title: data.title,
         description: data.description || undefined,
         status: data.status,
+        type: data.type,
         startDate: data.startDate || undefined,
         endDate: data.endDate || undefined,
         sprintId: sprint?.id,
@@ -112,6 +120,7 @@ export function TaskModal({
         title: data.title,
         description: data.description || undefined,
         status: data.status,
+        type: data.type,
         startDate: data.startDate || undefined,
         endDate: data.endDate || undefined,
         sprintId: sprint?.id,
@@ -190,6 +199,32 @@ export function TaskModal({
                 {errors.status && (
                   <FormHelperText>{errors.status.message}</FormHelperText>
                 )}
+              </FormControl>
+            )}
+          />
+          <Controller
+            name="type"
+            control={control}
+            render={({ field }) => (
+              <FormControl fullWidth disabled={loading}>
+                <InputLabel id="task-type-label">Tipo</InputLabel>
+                <Select {...field} labelId="task-type-label" label="Tipo">
+                  {TASK_TYPE_OPTIONS.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      <Stack direction="row" alignItems="center" spacing={1}>
+                        <Box
+                          sx={{
+                            width: 10,
+                            height: 10,
+                            borderRadius: '50%',
+                            backgroundColor: option.color,
+                          }}
+                        />
+                        <span>{option.label}</span>
+                      </Stack>
+                    </MenuItem>
+                  ))}
+                </Select>
               </FormControl>
             )}
           />

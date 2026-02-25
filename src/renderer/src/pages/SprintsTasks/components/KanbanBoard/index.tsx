@@ -43,6 +43,8 @@ import type {
   TaskStatusConfig,
   TeamMember,
 } from '@shared/interfaces/config/index.types';
+import { getInitials, getRoleColor } from '@renderer/utils/member';
+import { getTaskTypeOption } from '@renderer/utils/task-type';
 import {
   KanbanContainer,
   KanbanColumn,
@@ -79,43 +81,18 @@ const formatDate = (date: Date | string | undefined) => {
   return d.toLocaleDateString('pt-BR');
 };
 
-/** Get initials from a name (up to 2 chars) */
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2)
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  return name.substring(0, 2).toUpperCase();
-}
-
-/** Deterministic color from a string */
-function stringToColor(str: string): string {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const colors = [
-    '#1976d2',
-    '#388e3c',
-    '#f57c00',
-    '#7b1fa2',
-    '#c62828',
-    '#00838f',
-    '#4e342e',
-    '#455a64',
-  ];
-  return colors[Math.abs(hash) % colors.length];
-}
-
 /** Card content shared between normal and clone renders */
 function CardContent({
   task,
   priority,
+  assigneeColor,
   onEditTask,
   onRemoveTask,
   onAssignClick,
 }: {
   task: Task;
   priority: { label: string; color: string };
+  assigneeColor: string;
   onEditTask: (task: Task) => void;
   onRemoveTask: (task: Task) => void;
   onAssignClick: (e: React.MouseEvent<HTMLElement>, task: Task) => void;
@@ -181,8 +158,24 @@ function CardContent({
         </Typography>
       )}
 
-      {/* Tags row: priority + estimation */}
+      {/* Tags row: type + priority + estimation */}
       <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+        {(() => {
+          const typeOpt = getTaskTypeOption(task.type);
+          return (
+            <Chip
+              label={typeOpt.label}
+              size="small"
+              sx={{
+                height: 24,
+                fontSize: '0.75rem',
+                bgcolor: typeOpt.color + '18',
+                color: typeOpt.color,
+                fontWeight: 600,
+              }}
+            />
+          );
+        })()}
         <Chip
           icon={
             <DotIcon
@@ -235,7 +228,7 @@ function CardContent({
                       width: 22,
                       height: 22,
                       fontSize: '0.65rem',
-                      bgcolor: stringToColor(task.assignee.name),
+                      bgcolor: assigneeColor,
                     }}
                   >
                     {getInitials(task.assignee.name)}
@@ -353,6 +346,9 @@ export function KanbanBoard({
 
   const handleAssignClose = useCallback(() => {
     setAssignMenuAnchor(null);
+  }, []);
+
+  const handleMenuExited = useCallback(() => {
     setAssignMenuTask(null);
   }, []);
 
@@ -366,13 +362,15 @@ export function KanbanBoard({
     [assignMenuTask, onAssignTask, handleAssignClose],
   );
 
-  // Filter team members by the task's team
-  const availableMembers = useMemo(() => {
-    if (!assignMenuTask?.teamId) return teamMembers;
-    return teamMembers.filter((m) =>
-      m.teams?.some((t) => t.id === assignMenuTask.teamId),
-    );
-  }, [assignMenuTask, teamMembers]);
+  // Show all active team members (teams relation is not always populated from findAll)
+  const availableMembers = teamMembers;
+
+  // Lookup role by member id for avatar colors
+  const memberRoleMap = useMemo(() => {
+    const map: Record<number, string> = {};
+    for (const m of teamMembers) map[m.id] = m.role;
+    return map;
+  }, [teamMembers]);
 
   const tasksByStatus = useMemo(() => {
     const grouped: Record<string, Task[]> = {};
@@ -442,6 +440,9 @@ export function KanbanBoard({
         <CardContent
           task={task}
           priority={priority}
+          assigneeColor={getRoleColor(
+            task.assignee ? memberRoleMap[task.assignee.id] : undefined,
+          )}
           onEditTask={onEditTask}
           onRemoveTask={onRemoveTask}
           onAssignClick={handleAssignClick}
@@ -452,7 +453,13 @@ export function KanbanBoard({
 
   if (loading && tasks.length === 0) {
     return (
-      <Box display="flex" flexDirection="column" height="100%">
+      <Box
+        display="flex"
+        flexDirection="column"
+        height="100%"
+        minHeight={0}
+        overflow="hidden"
+      >
         <HeaderContainer>
           <Box>
             <Typography variant="subtitle1" fontWeight={600}>
@@ -474,7 +481,13 @@ export function KanbanBoard({
   }
 
   return (
-    <Box display="flex" flexDirection="column" height="100%">
+    <Box
+      display="flex"
+      flexDirection="column"
+      height="100%"
+      minHeight={0}
+      overflow="hidden"
+    >
       <HeaderContainer>
         <Box>
           <Typography variant="subtitle1" fontWeight={600}>
@@ -583,6 +596,7 @@ export function KanbanBoard({
         anchorEl={assignMenuAnchor}
         open={Boolean(assignMenuAnchor)}
         onClose={handleAssignClose}
+        TransitionProps={{ onExited: handleMenuExited }}
         slotProps={{ paper: { sx: { maxHeight: 320, minWidth: 220 } } }}
       >
         {assignMenuTask?.assignee && (
@@ -620,7 +634,7 @@ export function KanbanBoard({
                     width: 26,
                     height: 26,
                     fontSize: '0.7rem',
-                    bgcolor: stringToColor(member.name),
+                    bgcolor: getRoleColor(member.role),
                   }}
                 >
                   {getInitials(member.name)}

@@ -177,6 +177,13 @@ export type TaskStatus =
 export type TaskOrigin = 'manual' | 'azure_devops';
 export type EstimationType = 'points' | 'hours';
 export type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
+export type TaskType =
+  | 'task'
+  | 'bug'
+  | 'feature'
+  | 'improvement'
+  | 'support'
+  | (string & {});
 
 export interface Task {
   id: number;
@@ -186,6 +193,7 @@ export interface Task {
   endDate?: Date;
   status: TaskStatus;
   priority: TaskPriority;
+  type: TaskType;
   origin: TaskOrigin;
   externalId?: string;
   externalSource?: string;
@@ -208,6 +216,7 @@ export interface CreateTaskInput {
   endDate?: Date;
   status?: TaskStatus;
   priority?: TaskPriority;
+  type?: TaskType;
   sprintId?: number;
   teamId?: number;
   estimationPoints?: number;
@@ -222,6 +231,7 @@ export interface UpdateTaskInput {
   endDate?: Date;
   status?: TaskStatus;
   priority?: TaskPriority;
+  type?: TaskType;
   sprintId?: number;
   teamId?: number;
   estimationPoints?: number;

@@ -19,6 +19,7 @@ import type {
   Task,
   TaskStatusConfig,
 } from '@shared/interfaces/config/index.types';
+import { getTaskTypeOption } from '@renderer/utils/task-type';
 import {
   TaskListContainer,
   HeaderContainer,
@@ -149,6 +150,22 @@ export function TaskList({
                           fontWeight: 500,
                         }}
                       />
+                      {(() => {
+                        const typeOpt = getTaskTypeOption(task.type);
+                        return (
+                          <Chip
+                            label={typeOpt.label}
+                            size="small"
+                            sx={{
+                              height: 20,
+                              fontSize: '0.7rem',
+                              bgcolor: typeOpt.color + '18',
+                              color: typeOpt.color,
+                              fontWeight: 600,
+                            }}
+                          />
+                        );
+                      })()}
                     </Stack>
 
                     {task.description && (

@@ -10,6 +10,7 @@ import SpeedOutlinedIcon from '@mui/icons-material/SpeedOutlined';
 import PersonAddOutlinedIcon from '@mui/icons-material/PersonAddOutlined';
 import GroupWorkOutlinedIcon from '@mui/icons-material/GroupWorkOutlined';
 import ViewKanbanOutlinedIcon from '@mui/icons-material/ViewKanbanOutlined';
+import TaskAltOutlinedIcon from '@mui/icons-material/TaskAltOutlined';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { DrawerNavigator } from './components/DrawerNavigator';
 import { IDrawerItem } from '@renderer/types/drawer/drawerItem';
@@ -28,6 +29,7 @@ import { TeamsPage } from '@renderer/pages/Teams';
 import { SprintsPage } from '@renderer/pages/Sprints';
 import { TeamAllocationPage } from '@renderer/pages/TeamAllocation';
 import { SprintsTasksPage } from '@renderer/pages/SprintsTasks';
+import { TaskBoardPage } from '@renderer/pages/TaskBoard';
 
 type WithRouteProps<T> = T & {
   routePath: string;
@@ -49,6 +51,12 @@ const GENERAL_SECTION: IDrawerSection = {
       label: 'Alocação de Equipes',
       path: '/panel/team-allocation',
       icon: <GroupWorkOutlinedIcon />,
+      canAccess: true,
+    },
+    {
+      label: 'Gestão de Tarefas',
+      path: '/panel/task-board',
+      icon: <TaskAltOutlinedIcon />,
       canAccess: true,
     },
     {
@@ -144,6 +152,14 @@ const ROUTES_ITEMS: WithRouteProps<IDrawerItem>[] = [
     canAccess: true,
     routeElement: <TeamAllocationPage />,
     routePath: '/team-allocation',
+  },
+  {
+    label: 'Gestão de Tarefas',
+    path: '/panel/task-board',
+    icon: <TaskAltOutlinedIcon />,
+    canAccess: true,
+    routeElement: <TaskBoardPage />,
+    routePath: '/task-board',
   },
   {
     label: 'Sprints e Tarefas',

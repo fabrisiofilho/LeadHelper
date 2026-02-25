@@ -58,6 +58,8 @@ export function TeamsPage() {
     create,
     update,
     delete: deleteTeam,
+    activate,
+    deactivate,
     clearError,
   } = useTeams();
 
@@ -161,6 +163,14 @@ export function TeamsPage() {
       }
     } finally {
       setDeleteLoading(false);
+    }
+  };
+
+  const handleToggleStatus = async (team: Team) => {
+    if (team.isActive) {
+      await deactivate(team.id);
+    } else {
+      await activate(team.id);
     }
   };
 
@@ -310,6 +320,8 @@ export function TeamsPage() {
                         color={team.isActive ? 'success' : 'default'}
                         size="small"
                         variant={team.isActive ? 'filled' : 'outlined'}
+                        onClick={() => handleToggleStatus(team)}
+                        sx={{ cursor: 'pointer' }}
                       />
                     </TableCell>
                     <TableCell align="right">

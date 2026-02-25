@@ -48,8 +48,29 @@ function createControllerFromConfig<T extends keyof typeof CONTROLLER_CONFIG>(
 
   for (const method of config.methods) {
     const channel = `${config.prefix}:${method}`;
-    controller[method] = (...args: unknown[]) =>
-      ipcRenderer.invoke(channel, ...args);
+    controller[method] = async (...args: unknown[]) => {
+      try {
+        const result = await ipcRenderer.invoke(channel, ...args);
+        // Emit IPC result event for toast handler
+        const event: IpcResultEvent = {
+          channel,
+          success: result?.success !== false,
+          error: result?.success === false ? result.error : undefined,
+        };
+        ipcResultListeners.forEach((cb) => cb(event));
+        return result;
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : 'Erro de comunicação';
+        const event: IpcResultEvent = {
+          channel,
+          success: false,
+          error: errorMessage,
+        };
+        ipcResultListeners.forEach((cb) => cb(event));
+        throw err;
+      }
+    };
   }
 
   return controller as Record<

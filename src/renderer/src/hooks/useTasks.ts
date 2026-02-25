@@ -199,6 +199,29 @@ export function useTasks() {
     [],
   );
 
+  const findBySprint = useCallback(
+    async (sprintId: number): Promise<Task[]> => {
+      setLoading(true);
+      try {
+        const response = await window.electronAPI.task.findBySprint(sprintId);
+        if (!response.success) {
+          setError(response.error || 'Erro ao buscar tarefas da sprint');
+          return [];
+        }
+        setState((prev) => ({
+          ...prev,
+          loading: false,
+          tasks: response.data || [],
+        }));
+        return response.data || [];
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erro de comunicação');
+        return [];
+      }
+    },
+    [],
+  );
+
   const clearError = useCallback(() => {
     setState((prev) => ({ ...prev, error: null }));
   }, []);
@@ -216,6 +239,7 @@ export function useTasks() {
     findAll,
     findByStatus,
     findByPeriod,
+    findBySprint,
     clearError,
     clearSelectedTask,
   };

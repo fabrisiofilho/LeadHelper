@@ -8,6 +8,7 @@ export const PageContainer = styled(Box)(({ theme }) => ({
   height: '100%',
   display: 'flex',
   flexDirection: 'column',
+  overflow: 'hidden',
 }));
 
 export const TopSelectorBar = styled(Box)(({ theme }) => ({
@@ -20,6 +21,7 @@ export const TopSelectorBar = styled(Box)(({ theme }) => ({
   border: `1px solid ${theme.palette.divider}`,
   marginBottom: theme.spacing(2),
   flexWrap: 'wrap',
+  flexShrink: 0,
 }));
 
 export const ContentArea = styled(Box)(({ theme }) => ({
@@ -29,8 +31,8 @@ export const ContentArea = styled(Box)(({ theme }) => ({
   backgroundColor: theme.palette.background.paper,
   borderRadius: Number(theme.shape.borderRadius) * 2,
   border: `1px solid ${theme.palette.divider}`,
-  overflow: 'hidden',
   minHeight: 0,
+  overflow: 'hidden',
 }));
 
 export const PlaceholderContent = styled(Box)(({ theme }) => ({

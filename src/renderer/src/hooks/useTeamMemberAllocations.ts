@@ -280,7 +280,6 @@ export function useTeamMemberAllocations() {
       teamId: number,
       referenceDate?: Date,
     ): Promise<TeamCapacitySummary | null> => {
-      setLoading(true);
       try {
         const response =
           await window.electronAPI.teamMemberAllocation.getTeamCapacity(
@@ -288,17 +287,14 @@ export function useTeamMemberAllocations() {
             referenceDate,
           );
         if (!response.success) {
-          setError(response.error || 'Erro ao obter capacidade da equipe');
           return null;
         }
         setState((prev) => ({
           ...prev,
-          loading: false,
           teamCapacity: response.data || null,
         }));
         return response.data || null;
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Erro de comunicação');
+      } catch {
         return null;
       }
     },
@@ -307,7 +303,6 @@ export function useTeamMemberAllocations() {
 
   const getMemberAvailability = useCallback(
     async (teamMemberId: number, referenceDate?: Date): Promise<number> => {
-      setLoading(true);
       try {
         const response =
           await window.electronAPI.teamMemberAllocation.getMemberAvailability(
@@ -315,17 +310,14 @@ export function useTeamMemberAllocations() {
             referenceDate,
           );
         if (!response.success) {
-          setError(response.error || 'Erro ao obter disponibilidade do membro');
           return 0;
         }
         setState((prev) => ({
           ...prev,
-          loading: false,
           memberAvailability: response.data ?? null,
         }));
         return response.data ?? 0;
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Erro de comunicação');
+      } catch {
         return 0;
       }
     },

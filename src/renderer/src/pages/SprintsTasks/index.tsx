@@ -6,6 +6,7 @@ import {
   Tooltip,
   CircularProgress,
   Stack,
+  Button,
 } from '@mui/material';
 import {
   ViewKanban as ViewKanbanIcon,
@@ -18,13 +19,8 @@ import { useTeams } from '@renderer/hooks/useTeams';
 import { useTeamMembers } from '@renderer/hooks/useTeamMembers';
 import { useTaskStatusConfig } from '@renderer/hooks/useTaskStatusConfig';
 import { useAllocations } from '@renderer/hooks/useAllocations';
-import {
-  PageContainer,
-  TopSelectorBar,
-  ContentArea,
-  PlaceholderContent,
-} from './styles';
-import { SprintSelector } from './components/SprintSelector';
+import { PageContainer, ContentArea, PlaceholderContent } from './styles';
+import { SprintOverview } from './components/SprintOverview';
 import { KanbanBoard } from './components/KanbanBoard';
 import {
   KanbanFilters,
@@ -32,8 +28,10 @@ import {
   type KanbanFiltersState,
 } from './components/KanbanFilters';
 import { SprintModal } from './components/SprintModal';
+import { Modal } from '@renderer/components/Modal';
 import { TaskModal } from '@renderer/components/TaskModal';
 import { StatusManagerModal } from './components/StatusManagerModal';
+import { LinkTaskModal } from './components/LinkTaskModal';
 import type {
   Sprint,
   Task,
@@ -58,6 +56,12 @@ export function SprintsTasksPage() {
   const [optimisticTasks, setOptimisticTasks] = useState<Task[] | null>(null);
   const [kanbanFilters, setKanbanFilters] =
     useState<KanbanFiltersState>(EMPTY_FILTERS);
+  const [isRemoveTaskModalOpen, setIsRemoveTaskModalOpen] = useState(false);
+  const [taskToRemove, setTaskToRemove] = useState<Task | null>(null);
+  const [removeTaskLoading, setRemoveTaskLoading] = useState(false);
+  const [isLinkTaskModalOpen, setIsLinkTaskModalOpen] = useState(false);
+  const [linkTaskLoading, setLinkTaskLoading] = useState(false);
+  const [allTasksForLink, setAllTasksForLink] = useState<Task[]>([]);
 
   // Hooks
   const {
@@ -77,6 +81,7 @@ export function SprintsTasksPage() {
     findAll: findAllTasks,
     create: createTask,
     update: updateTask,
+    delete: deleteTask,
     clearError: clearTasksError,
   } = useTasks();
 
@@ -214,7 +219,52 @@ export function SprintsTasksPage() {
   };
 
   const handleRemoveTask = (task: Task) => {
-    console.log('Remove task:', task.id);
+    setTaskToRemove(task);
+    setIsRemoveTaskModalOpen(true);
+  };
+
+  const handleConfirmRemoveTask = async () => {
+    if (!taskToRemove) return;
+    setRemoveTaskLoading(true);
+    try {
+      const success = await deleteTask(taskToRemove.id);
+      if (success) {
+        setIsRemoveTaskModalOpen(false);
+        setTaskToRemove(null);
+      }
+    } finally {
+      setRemoveTaskLoading(false);
+    }
+  };
+
+  // Link existing task handlers
+  const handleOpenLinkTask = async () => {
+    // Load all tasks directly via IPC to avoid overwriting the sprint-filtered tasks state
+    try {
+      const response = await window.electronAPI.task.findAll();
+      if (response.success && response.data) {
+        setAllTasksForLink(response.data);
+      }
+    } catch {
+      // fallback: empty list
+      setAllTasksForLink([]);
+    }
+    setIsLinkTaskModalOpen(true);
+  };
+
+  const handleLinkTasks = async (taskIds: number[]) => {
+    if (!selectedSprint) return;
+    setLinkTaskLoading(true);
+    try {
+      for (const taskId of taskIds) {
+        await updateTask(taskId, { sprintId: selectedSprint.id });
+      }
+      setIsLinkTaskModalOpen(false);
+      // Reload sprint tasks
+      await findAllTasks({ sprintId: selectedSprint.id });
+    } finally {
+      setLinkTaskLoading(false);
+    }
   };
 
   // Assign task to a team member via allocations table
@@ -342,6 +392,7 @@ export function SprintsTasksPage() {
         justifyContent="space-between"
         alignItems="center"
         mb={2}
+        flexShrink={0}
       >
         <Box>
           <Typography variant="h4" fontWeight={700}>
@@ -351,25 +402,35 @@ export function SprintsTasksPage() {
             Gerencie sprints e suas tarefas no Kanban
           </Typography>
         </Box>
-        <Tooltip title="Atualizar">
-          <IconButton onClick={handleRefresh} size="small">
-            <RefreshIcon />
-          </IconButton>
-        </Tooltip>
+        <Stack direction="row" spacing={1}>
+          {selectedSprint && (
+            <Tooltip title="Vincular tarefa existente à sprint">
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={handleOpenLinkTask}
+              >
+                Vincular Tarefa
+              </Button>
+            </Tooltip>
+          )}
+          <Tooltip title="Atualizar">
+            <IconButton onClick={handleRefresh} size="small">
+              <RefreshIcon />
+            </IconButton>
+          </Tooltip>
+        </Stack>
       </Stack>
 
-      <TopSelectorBar>
-        <SprintSelector
-          sprints={sprints}
-          selectedSprint={selectedSprint}
-          loading={sprintsLoading}
-          onSelectSprint={handleSelectSprint}
-          onNewSprint={handleNewSprint}
-          onEditSprint={handleEditSprint}
-        />
-      </TopSelectorBar>
+      <SprintOverview
+        sprints={sprints}
+        selectedSprint={selectedSprint}
+        onSelectSprint={handleSelectSprint}
+        onNewSprint={handleNewSprint}
+        onEditSprint={handleEditSprint}
+      />
 
-      <ContentArea>
+      <ContentArea sx={{ mt: 2 }}>
         {selectedSprint ? (
           <>
             <KanbanFilters
@@ -438,6 +499,40 @@ export function SprintsTasksPage() {
         onDelete={deleteStatus}
         onRefresh={loadStatuses}
       />
+
+      <Modal
+        variant="danger"
+        open={isRemoveTaskModalOpen}
+        title="Excluir Tarefa"
+        handleClose={() => {
+          setIsRemoveTaskModalOpen(false);
+          setTaskToRemove(null);
+        }}
+        handleConfirm={handleConfirmRemoveTask}
+        confirmLabel="Excluir"
+        cancelLabel="Cancelar"
+        loading={removeTaskLoading}
+      >
+        <Typography>
+          Tem certeza que deseja excluir a tarefa{' '}
+          <strong>{taskToRemove?.title}</strong>?
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+          Esta ação não pode ser desfeita.
+        </Typography>
+      </Modal>
+
+      {selectedSprint && (
+        <LinkTaskModal
+          open={isLinkTaskModalOpen}
+          sprint={selectedSprint}
+          allTasks={allTasksForLink}
+          sprintTaskIds={new Set(tasks.map((t) => t.id))}
+          loading={linkTaskLoading}
+          onClose={() => setIsLinkTaskModalOpen(false)}
+          onLink={handleLinkTasks}
+        />
+      )}
     </PageContainer>
   );
 }

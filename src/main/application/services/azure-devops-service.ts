@@ -4,6 +4,7 @@ import { getDataSource } from '@main/infrastructure/database/data-source';
 import { Repository } from 'typeorm';
 import { TaskRepository } from '../repositories/task-repository';
 import { TaskEntity } from '../entities/task.entity';
+import { logger } from '@main/infrastructure/log/logger';
 
 export interface AzureDevOpsConfig {
   organizationUrl: string;
@@ -108,19 +109,12 @@ export class AzureDevOpsService {
       throw new Error('Project Name é obrigatório');
     }
 
-    if (!trimmedPat) {
-      throw new Error('Personal Access Token é obrigatório');
-    }
-
     // Validate URL format
     try {
       new URL(trimmedOrgUrl);
     } catch {
       throw new Error('Organization URL inválida');
     }
-
-    // Encrypt the PAT
-    const encryptedPat = encryptPat(trimmedPat);
 
     const repository = this.getRepository();
 
@@ -131,10 +125,17 @@ export class AzureDevOpsService {
       // Update existing config
       existingConfig.organizationUrl = trimmedOrgUrl;
       existingConfig.projectName = trimmedProjectName;
-      existingConfig.patEncrypted = encryptedPat;
+      // Only update PAT if a new one was provided
+      if (trimmedPat) {
+        existingConfig.patEncrypted = encryptPat(trimmedPat);
+      }
       await repository.save(existingConfig);
     } else {
-      // Create new config
+      // New config requires PAT
+      if (!trimmedPat) {
+        throw new Error('Personal Access Token é obrigatório');
+      }
+      const encryptedPat = encryptPat(trimmedPat);
       const newConfig = repository.create({
         organizationUrl: trimmedOrgUrl,
         projectName: trimmedProjectName,
@@ -171,8 +172,12 @@ export class AzureDevOpsService {
     const pat = decryptPat(config.patEncrypted);
 
     // Build the API URL to get project info
+    // Correct endpoint: {org}/_apis/projects/{project}
     const baseUrl = config.organizationUrl.replace(/\/$/, '');
-    const apiUrl = `${baseUrl}/${encodeURIComponent(config.projectName)}/_apis/projects/${encodeURIComponent(config.projectName)}?api-version=7.0`;
+    const apiUrl = `${baseUrl}/_apis/projects/${encodeURIComponent(config.projectName)}?api-version=7.0`;
+
+    logger.info('Testing Azure DevOps connection...');
+    logger.debug('API URL:', apiUrl);
 
     try {
       const response = await fetch(apiUrl, {
@@ -184,18 +189,27 @@ export class AzureDevOpsService {
       });
 
       if (response.ok) {
+        logger.info('Azure DevOps connection successful');
         return true;
       }
 
       if (response.status === 401) {
+        logger.error('Azure DevOps auth failed: 401 Unauthorized');
         throw new Error('Token de acesso inválido ou expirado');
       }
 
       if (response.status === 404) {
-        throw new Error('Projeto não encontrado');
+        logger.error('Azure DevOps project not found: 404');
+        throw new Error(
+          `Projeto "${config.projectName}" não encontrado. Verifique o nome do projeto.`,
+        );
       }
 
       const errorText = await response.text();
+      logger.error(
+        `Azure DevOps connection failed: ${response.status}`,
+        errorText,
+      );
       throw new Error(
         `Falha na conexão com Azure DevOps: ${response.status} - ${errorText}`,
       );
@@ -204,12 +218,13 @@ export class AzureDevOpsService {
         // Re-throw known errors
         if (
           error.message.includes('Token de acesso') ||
-          error.message.includes('Projeto não encontrado') ||
+          error.message.includes('Projeto') ||
           error.message.includes('Falha na conexão')
         ) {
           throw error;
         }
         // Network or other errors
+        logger.error('Azure DevOps connection error:', error.message);
         throw new Error(`Falha na conexão com Azure DevOps: ${error.message}`);
       }
       throw new Error('Falha na conexão com Azure DevOps');

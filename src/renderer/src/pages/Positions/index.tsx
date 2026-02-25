@@ -31,6 +31,8 @@ import {
 import { useForm, Controller } from 'react-hook-form';
 import { Modal } from '@renderer/components/Modal';
 import { usePositions } from '@renderer/hooks/usePositions';
+import { useTableSort } from '@renderer/hooks/useTableSort';
+import { SortableTableCell } from '@renderer/components/SortableTableCell';
 import {
   PageContainer,
   PlaceholderContent,
@@ -96,7 +98,7 @@ export function PositionsPage() {
     loadPositions();
   }, [loadPositions]);
 
-  const filteredPositions = positions.filter((position) => {
+  const filteredPositionsRaw = positions.filter((position) => {
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
     return (
@@ -104,6 +106,8 @@ export function PositionsPage() {
       (position.description?.toLowerCase().includes(search) ?? false)
     );
   });
+
+  const { sortedItems: filteredPositions, sortConfig, handleSort } = useTableSort(filteredPositionsRaw, { property: 'name', direction: 'asc' });
 
   const handleNewPosition = () => {
     setSelectedPosition(null);
@@ -272,10 +276,10 @@ export function PositionsPage() {
             <Table stickyHeader>
               <TableHead>
                 <TableRow>
-                  <TableCell>Nome</TableCell>
-                  <TableCell>Descrição</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell align="right">Ações</TableCell>
+                  <SortableTableCell id="name" label="Nome" sortConfig={sortConfig} onSort={handleSort} />
+                  <SortableTableCell id="description" label="Descrição" sortConfig={sortConfig} onSort={handleSort} />
+                  <SortableTableCell id="isActive" label="Status" sortConfig={sortConfig} onSort={handleSort} />
+                  <SortableTableCell id="actions" label="Ações" sortConfig={sortConfig} onSort={handleSort} noSort align="right" />
                 </TableRow>
               </TableHead>
               <TableBody>

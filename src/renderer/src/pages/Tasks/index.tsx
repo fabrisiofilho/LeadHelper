@@ -45,6 +45,8 @@ import { useSprints } from '@renderer/hooks/useSprints';
 import { useTeams } from '@renderer/hooks/useTeams';
 import { useAzureDevOps } from '@renderer/hooks/useAzureDevOps';
 import { useTaskStatusConfig } from '@renderer/hooks/useTaskStatusConfig';
+import { useTableSort } from '@renderer/hooks/useTableSort';
+import { SortableTableCell } from '@renderer/components/SortableTableCell';
 import { PageContainer, PlaceholderContent, FiltersContainer } from './styles';
 import type {
   Task,
@@ -172,7 +174,7 @@ export function TasksPage() {
     findAllStatuses();
   }, [loadTasks, findAllSprints, findAllTeams, findAllStatuses]);
 
-  const filteredTasks = tasks.filter((task) => {
+  const filteredTasksRaw = tasks.filter((task) => {
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
     return (
@@ -180,6 +182,8 @@ export function TasksPage() {
       (task.description?.toLowerCase().includes(search) ?? false)
     );
   });
+
+  const { sortedItems: filteredTasks, sortConfig, handleSort: handleSortColumn } = useTableSort(filteredTasksRaw, { property: 'title', direction: 'asc' });
 
   const handleNewTask = () => {
     setSelectedTask(null);
@@ -501,14 +505,14 @@ export function TasksPage() {
               <Table stickyHeader>
                 <TableHead>
                   <TableRow>
-                    <TableCell>Título</TableCell>
-                    <TableCell>Sprint / Equipe</TableCell>
-                    <TableCell>Prioridade</TableCell>
-                    <TableCell>Estimativa</TableCell>
-                    <TableCell>Período</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Origem</TableCell>
-                    <TableCell align="right">Ações</TableCell>
+                    <SortableTableCell id="title" label="Título" sortConfig={sortConfig} onSort={handleSortColumn} />
+                    <SortableTableCell id="sprint.name" label="Sprint / Equipe" sortConfig={sortConfig} onSort={handleSortColumn} />
+                    <SortableTableCell id="priority" label="Prioridade" sortConfig={sortConfig} onSort={handleSortColumn} />
+                    <SortableTableCell id="estimationPoints" label="Estimativa" sortConfig={sortConfig} onSort={handleSortColumn} />
+                    <SortableTableCell id="startDate" label="Período" sortConfig={sortConfig} onSort={handleSortColumn} />
+                    <SortableTableCell id="status" label="Status" sortConfig={sortConfig} onSort={handleSortColumn} />
+                    <SortableTableCell id="origin" label="Origem" sortConfig={sortConfig} onSort={handleSortColumn} />
+                    <SortableTableCell id="actions" label="Ações" sortConfig={sortConfig} onSort={handleSortColumn} noSort align="right" />
                   </TableRow>
                 </TableHead>
                 <TableBody>

@@ -34,6 +34,8 @@ import {
 import { useForm, Controller } from 'react-hook-form';
 import { Modal } from '@renderer/components/Modal';
 import { useTeamMembers } from '@renderer/hooks/useTeamMembers';
+import { useTableSort } from '@renderer/hooks/useTableSort';
+import { SortableTableCell } from '@renderer/components/SortableTableCell';
 import {
   PageContainer,
   PlaceholderContent,
@@ -163,7 +165,7 @@ export function TeamMembersPage() {
   }, [loadTeamMembers]);
 
   // Filter members by search term (client-side)
-  const filteredMembers = teamMembers.filter((member) => {
+  const filteredMembersRaw = teamMembers.filter((member) => {
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
     return (
@@ -171,6 +173,8 @@ export function TeamMembersPage() {
       member.email.toLowerCase().includes(search)
     );
   });
+
+  const { sortedItems: filteredMembers, sortConfig, handleSort } = useTableSort(filteredMembersRaw, { property: 'name', direction: 'asc' });
 
   const handleNewMember = () => {
     setSelectedMember(null);
@@ -411,11 +415,11 @@ export function TeamMembersPage() {
             <Table stickyHeader>
               <TableHead>
                 <TableRow>
-                  <TableCell>Nome</TableCell>
-                  <TableCell>Email</TableCell>
-                  <TableCell>Função</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell align="right">Ações</TableCell>
+                  <SortableTableCell id="name" label="Nome" sortConfig={sortConfig} onSort={handleSort} />
+                  <SortableTableCell id="email" label="Email" sortConfig={sortConfig} onSort={handleSort} />
+                  <SortableTableCell id="role" label="Função" sortConfig={sortConfig} onSort={handleSort} />
+                  <SortableTableCell id="isActive" label="Status" sortConfig={sortConfig} onSort={handleSort} />
+                  <SortableTableCell id="actions" label="Ações" sortConfig={sortConfig} onSort={handleSort} noSort align="right" />
                 </TableRow>
               </TableHead>
               <TableBody>

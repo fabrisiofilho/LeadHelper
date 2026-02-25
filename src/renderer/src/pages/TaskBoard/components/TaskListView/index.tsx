@@ -38,6 +38,8 @@ import type {
 } from '@shared/interfaces/config/index.types';
 import { getInitials, getRoleColor } from '@renderer/utils/member';
 import { getTaskTypeOption } from '@renderer/utils/task-type';
+import { useTableSort } from '@renderer/hooks/useTableSort';
+import { SortableTableCell } from '@renderer/components/SortableTableCell';
 
 interface TaskListViewProps {
   tasks: Task[];
@@ -78,6 +80,8 @@ export function TaskListView({
   const [assignAnchor, setAssignAnchor] = useState<HTMLElement | null>(null);
   const [assignTask, setAssignTask] = useState<Task | null>(null);
 
+  const { sortedItems: sortedTasks, sortConfig, handleSort } = useTableSort(tasks, { property: 'title', direction: 'asc' });
+
   const statusMap = useMemo(() => {
     const map: Record<string, TaskStatusConfig> = {};
     for (const s of statuses) {
@@ -94,8 +98,8 @@ export function TaskListView({
   }, [teamMembers]);
 
   const paginatedTasks = useMemo(() => {
-    return tasks.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-  }, [tasks, page, rowsPerPage]);
+    return sortedTasks.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  }, [sortedTasks, page, rowsPerPage]);
 
   // Show all active team members (teams relation is not always populated)
   const availableMembers = teamMembers;
@@ -166,16 +170,16 @@ export function TaskListView({
         <Table size="small" stickyHeader>
           <TableHead>
             <TableRow>
-              <TableCell>Título</TableCell>
-              <TableCell>Tipo</TableCell>
-              <TableCell>Equipe</TableCell>
-              <TableCell>Sprint</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Prioridade</TableCell>
-              <TableCell>Responsável</TableCell>
-              <TableCell>Estimativa</TableCell>
-              <TableCell>Período</TableCell>
-              <TableCell align="right">Ações</TableCell>
+              <SortableTableCell id="title" label="Título" sortConfig={sortConfig} onSort={handleSort} />
+              <SortableTableCell id="type" label="Tipo" sortConfig={sortConfig} onSort={handleSort} />
+              <SortableTableCell id="team.name" label="Equipe" sortConfig={sortConfig} onSort={handleSort} />
+              <SortableTableCell id="sprint.name" label="Sprint" sortConfig={sortConfig} onSort={handleSort} />
+              <SortableTableCell id="status" label="Status" sortConfig={sortConfig} onSort={handleSort} />
+              <SortableTableCell id="priority" label="Prioridade" sortConfig={sortConfig} onSort={handleSort} />
+              <SortableTableCell id="assignee.name" label="Responsável" sortConfig={sortConfig} onSort={handleSort} />
+              <SortableTableCell id="estimationPoints" label="Estimativa" sortConfig={sortConfig} onSort={handleSort} />
+              <SortableTableCell id="startDate" label="Período" sortConfig={sortConfig} onSort={handleSort} />
+              <SortableTableCell id="actions" label="Ações" sortConfig={sortConfig} onSort={handleSort} noSort align="right" />
             </TableRow>
           </TableHead>
           <TableBody>
@@ -398,7 +402,7 @@ export function TaskListView({
 
       <TablePagination
         component="div"
-        count={tasks.length}
+        count={sortedTasks.length}
         page={page}
         onPageChange={(_, p) => setPage(p)}
         rowsPerPage={rowsPerPage}

@@ -31,6 +31,8 @@ import {
 import { useForm, Controller } from 'react-hook-form';
 import { Modal } from '@renderer/components/Modal';
 import { useTeams } from '@renderer/hooks/useTeams';
+import { useTableSort } from '@renderer/hooks/useTableSort';
+import { SortableTableCell } from '@renderer/components/SortableTableCell';
 import {
   PageContainer,
   PlaceholderContent,
@@ -93,7 +95,7 @@ export function TeamsPage() {
     loadTeams();
   }, [loadTeams]);
 
-  const filteredTeams = teams.filter((team) => {
+  const filteredTeamsRaw = teams.filter((team) => {
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
     return (
@@ -101,6 +103,8 @@ export function TeamsPage() {
       (team.description?.toLowerCase().includes(search) ?? false)
     );
   });
+
+  const { sortedItems: filteredTeams, sortConfig, handleSort } = useTableSort(filteredTeamsRaw, { property: 'name', direction: 'asc' });
 
   const handleNewTeam = () => {
     setSelectedTeam(null);
@@ -269,11 +273,11 @@ export function TeamsPage() {
             <Table stickyHeader>
               <TableHead>
                 <TableRow>
-                  <TableCell>Nome</TableCell>
-                  <TableCell>Descrição</TableCell>
-                  <TableCell>Membros</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell align="right">Ações</TableCell>
+                  <SortableTableCell id="name" label="Nome" sortConfig={sortConfig} onSort={handleSort} />
+                  <SortableTableCell id="description" label="Descrição" sortConfig={sortConfig} onSort={handleSort} />
+                  <SortableTableCell id="members" label="Membros" sortConfig={sortConfig} onSort={handleSort} noSort />
+                  <SortableTableCell id="isActive" label="Status" sortConfig={sortConfig} onSort={handleSort} />
+                  <SortableTableCell id="actions" label="Ações" sortConfig={sortConfig} onSort={handleSort} noSort align="right" />
                 </TableRow>
               </TableHead>
               <TableBody>

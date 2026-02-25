@@ -40,6 +40,8 @@ import { Modal } from '@renderer/components/Modal';
 import { useAllocations } from '@renderer/hooks/useAllocations';
 import { useTeamMembers } from '@renderer/hooks/useTeamMembers';
 import { useTasks } from '@renderer/hooks/useTasks';
+import { useTableSort } from '@renderer/hooks/useTableSort';
+import { SortableTableCell } from '@renderer/components/SortableTableCell';
 import {
   PageContainer,
   PlaceholderContent,
@@ -172,7 +174,7 @@ export function AllocationsPage() {
   }, [allAllocations, memberMap, taskMap]);
 
   // Filter allocations
-  const filteredAllocations = useMemo(() => {
+  const filteredAllocationsRaw = useMemo(() => {
     return enrichedAllocations.filter((allocation) => {
       // Filter by member
       if (memberFilter && allocation.teamMemberId !== memberFilter) {
@@ -201,6 +203,8 @@ export function AllocationsPage() {
       return true;
     });
   }, [enrichedAllocations, memberFilter, taskFilter, searchTerm]);
+
+  const { sortedItems: filteredAllocations, sortConfig, handleSort } = useTableSort(filteredAllocationsRaw, { property: 'startDate', direction: 'desc' });
 
   const handleRefresh = async () => {
     await loadInitialData();
@@ -485,10 +489,10 @@ export function AllocationsPage() {
               <Table stickyHeader>
                 <TableHead>
                   <TableRow>
-                    <TableCell>Membro</TableCell>
-                    <TableCell>Tarefa</TableCell>
-                    <TableCell>Período</TableCell>
-                    <TableCell align="right">Ações</TableCell>
+                    <SortableTableCell id="teamMemberName" label="Membro" sortConfig={sortConfig} onSort={handleSort} />
+                    <SortableTableCell id="taskTitle" label="Tarefa" sortConfig={sortConfig} onSort={handleSort} />
+                    <SortableTableCell id="startDate" label="Período" sortConfig={sortConfig} onSort={handleSort} />
+                    <SortableTableCell id="actions" label="Ações" sortConfig={sortConfig} onSort={handleSort} noSort align="right" />
                   </TableRow>
                 </TableHead>
                 <TableBody>

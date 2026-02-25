@@ -38,6 +38,8 @@ import { useForm, Controller } from 'react-hook-form';
 import { Modal } from '@renderer/components/Modal';
 import { useSprints } from '@renderer/hooks/useSprints';
 import { useTeams } from '@renderer/hooks/useTeams';
+import { useTableSort } from '@renderer/hooks/useTableSort';
+import { SortableTableCell } from '@renderer/components/SortableTableCell';
 import {
   PageContainer,
   PlaceholderContent,
@@ -133,7 +135,7 @@ export function SprintsPage() {
     loadData();
   }, [loadData]);
 
-  const filteredSprints = sprints.filter((sprint) => {
+  const filteredSprintsRaw = sprints.filter((sprint) => {
     if (teamFilter && sprint.teamId !== teamFilter) return false;
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
@@ -142,6 +144,8 @@ export function SprintsPage() {
       (sprint.description?.toLowerCase().includes(search) ?? false)
     );
   });
+
+  const { sortedItems: filteredSprints, sortConfig, handleSort } = useTableSort(filteredSprintsRaw, { property: 'startDate', direction: 'desc' });
 
   const handleNewSprint = () => {
     setSelectedSprint(null);
@@ -346,11 +350,11 @@ export function SprintsPage() {
               <Table stickyHeader>
                 <TableHead>
                   <TableRow>
-                    <TableCell>Nome</TableCell>
-                    <TableCell>Período</TableCell>
-                    <TableCell>Equipe</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell align="right">Ações</TableCell>
+                    <SortableTableCell id="name" label="Nome" sortConfig={sortConfig} onSort={handleSort} />
+                    <SortableTableCell id="startDate" label="Período" sortConfig={sortConfig} onSort={handleSort} />
+                    <SortableTableCell id="team.name" label="Equipe" sortConfig={sortConfig} onSort={handleSort} />
+                    <SortableTableCell id="status" label="Status" sortConfig={sortConfig} onSort={handleSort} noSort />
+                    <SortableTableCell id="actions" label="Ações" sortConfig={sortConfig} onSort={handleSort} noSort align="right" />
                   </TableRow>
                 </TableHead>
                 <TableBody>

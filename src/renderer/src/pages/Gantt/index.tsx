@@ -7,8 +7,6 @@ import {
   Tooltip,
   CircularProgress,
   Stack,
-  ToggleButtonGroup,
-  ToggleButton,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -33,12 +31,9 @@ import {
   Refresh as RefreshIcon,
   Warning as WarningIcon,
   CalendarMonth as CalendarIcon,
-  Person as PersonIcon,
-  Assignment as TaskIcon,
   DateRange as DateRangeIcon,
   ViewWeek as WeekIcon,
   CalendarViewMonth as MonthIcon,
-  FilterList as FilterIcon,
 } from '@mui/icons-material';
 import { useAllocations } from '@renderer/hooks/useAllocations';
 import { useSprints } from '@renderer/hooks/useSprints';
@@ -56,81 +51,46 @@ import type {
   GanttFilters,
 } from '@shared/interfaces/config/index.types';
 
-/**
- * Gantt Chart visualization page
- * Displays team allocations in a timeline view with filters and navigation
- *
- * Requirements: 4.4, 4.8
- * - 4.4: Filtrar o período de visualização (data início e data fim)
- * - 4.8: Navegação por semana, mês ou trimestre
- */
-
-type GroupByType = 'member' | 'task';
-
-/**
- * Get the start and end of the current week (Monday to Sunday)
- */
 const getThisWeek = (): { start: Date; end: Date } => {
   const now = new Date();
   const dayOfWeek = now.getDay();
   const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-
   const start = new Date(now);
   start.setDate(now.getDate() + diffToMonday);
   start.setHours(0, 0, 0, 0);
-
   const end = new Date(start);
   end.setDate(start.getDate() + 6);
   end.setHours(23, 59, 59, 999);
-
   return { start, end };
 };
 
-/**
- * Get the start and end of the current month
- */
 const getThisMonth = (): { start: Date; end: Date } => {
   const now = new Date();
   return { start: startOfMonth(now), end: endOfMonth(now) };
 };
 
-/**
- * Get the start and end of the current quarter
- */
 const getThisQuarter = (): { start: Date; end: Date } => {
   const now = new Date();
   return { start: startOfQuarter(now), end: endOfQuarter(now) };
 };
 
-/**
- * Get the next 3 months from today
- */
 const getNext3Months = (): { start: Date; end: Date } => {
   const now = new Date();
   now.setHours(0, 0, 0, 0);
   return { start: now, end: addMonths(now, 3) };
 };
 
-/**
- * Get the next 6 months from today
- */
 const getNext6Months = (): { start: Date; end: Date } => {
   const now = new Date();
   now.setHours(0, 0, 0, 0);
   return { start: now, end: addMonths(now, 6) };
 };
 
-/**
- * Get the current year
- */
 const getThisYear = (): { start: Date; end: Date } => {
   const now = new Date();
   return { start: startOfYear(now), end: endOfYear(now) };
 };
 
-/**
- * Format date for display
- */
 const formatDateDisplay = (date: Date): string => {
   return date.toLocaleDateString('pt-BR', {
     day: '2-digit',
@@ -145,8 +105,6 @@ export function GanttPage() {
   const { sprints, findAll: findAllSprints } = useSprints();
   const { teams, findAll: findAllTeams } = useTeams();
 
-  // Filter state - default to next 3 months starting from today
-  const [groupBy, setGroupBy] = useState<GroupByType>('member');
   const [startDate, setStartDate] = useState<Date | null>(() => {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
@@ -162,104 +120,78 @@ export function GanttPage() {
   const [selectedItem, setSelectedItem] = useState<GanttItem | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
 
-  // Load sprints and teams
   useEffect(() => {
     findAllSprints();
     findAllTeams();
   }, [findAllSprints, findAllTeams]);
 
-  // Load Gantt data
   const loadGanttData = useCallback(async () => {
     if (!startDate || !endDate) return;
-
     const filters: GanttFilters = {
-      groupBy: groupBy === 'member' ? 'team_member' : 'task',
+      groupBy: 'team_member',
       startDate,
       endDate,
       teamId: teamFilter || undefined,
       sprintId: sprintFilter || undefined,
     };
-
     await getGanttData(filters);
-  }, [startDate, endDate, groupBy, teamFilter, sprintFilter, getGanttData]);
+  }, [startDate, endDate, teamFilter, sprintFilter, getGanttData]);
 
-  // Load data on mount and when filters change
   useEffect(() => {
     loadGanttData();
   }, [loadGanttData]);
 
-  // Handle group by change
-  const handleGroupByChange = (
-    _event: React.MouseEvent<HTMLElement>,
-    newGroupBy: GroupByType | null,
-  ) => {
-    if (newGroupBy !== null) {
-      setGroupBy(newGroupBy);
-    }
-  };
-
-  // Handle quick navigation
   const handleThisWeek = () => {
     const { start, end } = getThisWeek();
     setStartDate(start);
     setEndDate(end);
   };
-
   const handleThisMonth = () => {
     const { start, end } = getThisMonth();
     setStartDate(start);
     setEndDate(end);
   };
-
   const handleThisQuarter = () => {
     const { start, end } = getThisQuarter();
     setStartDate(start);
     setEndDate(end);
   };
-
   const handleNext3Months = () => {
     const { start, end } = getNext3Months();
     setStartDate(start);
     setEndDate(end);
   };
-
   const handleNext6Months = () => {
     const { start, end } = getNext6Months();
     setStartDate(start);
     setEndDate(end);
   };
-
   const handleThisYear = () => {
     const { start, end } = getThisYear();
     setStartDate(start);
     setEndDate(end);
   };
 
-  // Handle refresh
   const handleRefresh = async () => {
     clearError();
     await loadGanttData();
   };
 
-  // Handle item click
   const handleItemClick = (item: GanttItem) => {
     setSelectedItem(item);
     setIsDetailOpen(true);
   };
 
-  // Handle close detail dialog
   const handleCloseDetail = () => {
     setIsDetailOpen(false);
     setSelectedItem(null);
   };
 
-  // Validate date range
   const isDateRangeValid = useMemo(() => {
     if (!startDate || !endDate) return false;
     return startDate <= endDate;
   }, [startDate, endDate]);
 
-  // Loading state
   if (loading && !ganttData) {
     return (
       <PageContainer>
@@ -273,7 +205,6 @@ export function GanttPage() {
     );
   }
 
-  // Error state
   if (error && !ganttData) {
     return (
       <PageContainer>
@@ -310,43 +241,14 @@ export function GanttPage() {
               Gráfico de Gantt
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Visualize as alocações da equipe ao longo do tempo
+              Visualize as alocações dos membros ao longo do tempo
             </Typography>
           </Box>
-          <Stack direction="row" spacing={2} alignItems="center">
-            <Tooltip title="Atualizar">
-              <IconButton
-                onClick={handleRefresh}
-                size="small"
-                disabled={loading}
-              >
-                <RefreshIcon />
-              </IconButton>
-            </Tooltip>
-            <ToggleButtonGroup
-              value={groupBy}
-              exclusive
-              onChange={handleGroupByChange}
-              size="small"
-            >
-              <ToggleButton value="member">
-                <Tooltip title="Agrupar por Membro">
-                  <Stack direction="row" spacing={0.5} alignItems="center">
-                    <PersonIcon fontSize="small" />
-                    <Typography variant="body2">Por Membro</Typography>
-                  </Stack>
-                </Tooltip>
-              </ToggleButton>
-              <ToggleButton value="task">
-                <Tooltip title="Agrupar por Tarefa">
-                  <Stack direction="row" spacing={0.5} alignItems="center">
-                    <TaskIcon fontSize="small" />
-                    <Typography variant="body2">Por Tarefa</Typography>
-                  </Stack>
-                </Tooltip>
-              </ToggleButton>
-            </ToggleButtonGroup>
-          </Stack>
+          <Tooltip title="Atualizar">
+            <IconButton onClick={handleRefresh} size="small" disabled={loading}>
+              <RefreshIcon />
+            </IconButton>
+          </Tooltip>
         </Stack>
 
         {/* Filters */}
@@ -394,9 +296,7 @@ export function GanttPage() {
               onChange={(e) => setTeamFilter(e.target.value as number | '')}
               sx={{ minWidth: 150 }}
               slotProps={{
-                select: {
-                  displayEmpty: true,
-                },
+                select: { displayEmpty: true },
                 inputLabel: { shrink: true },
               }}
             >
@@ -415,9 +315,7 @@ export function GanttPage() {
               onChange={(e) => setSprintFilter(e.target.value as number | '')}
               sx={{ minWidth: 150 }}
               slotProps={{
-                select: {
-                  displayEmpty: true,
-                },
+                select: { displayEmpty: true },
                 inputLabel: { shrink: true },
               }}
             >
@@ -477,7 +375,6 @@ export function GanttPage() {
           </Typography>
         )}
 
-        {/* Loading overlay */}
         {loading && ganttData && (
           <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
             <CircularProgress size={24} />
@@ -492,7 +389,6 @@ export function GanttPage() {
           <GanttWrapper>
             <GanttChart
               data={ganttData}
-              groupBy={groupBy}
               onItemClick={handleItemClick}
               cellWidth={40}
             />

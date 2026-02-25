@@ -27,7 +27,6 @@ import {
 
 export interface GanttChartProps {
   data: GanttData | null;
-  groupBy: 'member' | 'task';
   onItemClick?: (item: GanttItem) => void;
   cellWidth?: number;
 }
@@ -36,53 +35,51 @@ interface GanttRow {
   id: string;
   label: string;
   items: GanttItem[];
+  /** Number of sub-lanes needed to avoid overlapping bars */
+  laneCount: number;
+  /** Lane index assigned to each item (by item id) */
+  laneMap: Map<string, number>;
 }
 
+const BAR_HEIGHT = 28;
+const BAR_GAP = 4;
+const ROW_PADDING = 8;
+
 /**
- * Format date to display string
+ * Compute the pixel height for a row based on how many lanes it needs.
  */
+function rowHeight(laneCount: number): number {
+  return ROW_PADDING * 2 + laneCount * BAR_HEIGHT + (laneCount - 1) * BAR_GAP;
+}
+
 const formatDate = (date: Date): string => {
   const d = new Date(date);
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 };
 
-/**
- * Format date for header display
- */
 const formatHeaderDate = (date: Date): string => {
   const d = new Date(date);
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
 };
 
-/**
- * Get all dates between start and end (inclusive)
- */
 const getDateRange = (start: Date, end: Date): Date[] => {
   const dates: Date[] = [];
   const current = new Date(start);
   current.setHours(0, 0, 0, 0);
   const endDate = new Date(end);
   endDate.setHours(0, 0, 0, 0);
-
   while (current <= endDate) {
     dates.push(new Date(current));
     current.setDate(current.getDate() + 1);
   }
-
   return dates;
 };
 
-/**
- * Check if a date is a weekend
- */
 const isWeekend = (date: Date): boolean => {
   const day = date.getDay();
   return day === 0 || day === 6;
 };
 
-/**
- * Check if a date is today
- */
 const isToday = (date: Date): boolean => {
   const today = new Date();
   return (
@@ -92,9 +89,6 @@ const isToday = (date: Date): boolean => {
   );
 };
 
-/**
- * Calculate the position and width of a bar in pixels
- */
 const calculateBarPosition = (
   itemStart: Date,
   itemEnd: Date,
@@ -104,64 +98,103 @@ const calculateBarPosition = (
   const start = new Date(itemStart);
   const end = new Date(itemEnd);
   const rangeStart = new Date(timelineStart);
-
   start.setHours(0, 0, 0, 0);
   end.setHours(0, 0, 0, 0);
   rangeStart.setHours(0, 0, 0, 0);
-
   const startDiff = Math.floor(
     (start.getTime() - rangeStart.getTime()) / (1000 * 60 * 60 * 24),
   );
   const duration =
     Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-
-  return {
-    left: startDiff * cellWidth,
-    width: duration * cellWidth,
-  };
+  return { left: startDiff * cellWidth, width: duration * cellWidth };
 };
 
 /**
- * Group items by member or task
+ * Check if two items overlap in time.
  */
-const groupItems = (
-  items: GanttItem[],
-  groupBy: 'member' | 'task',
-): GanttRow[] => {
-  const groups = new Map<string, GanttRow>();
+function itemsOverlap(a: GanttItem, b: GanttItem): boolean {
+  const aStart = new Date(a.start).setHours(0, 0, 0, 0);
+  const aEnd = new Date(a.end).setHours(0, 0, 0, 0);
+  const bStart = new Date(b.start).setHours(0, 0, 0, 0);
+  const bEnd = new Date(b.end).setHours(0, 0, 0, 0);
+  return aStart <= bEnd && bStart <= aEnd;
+}
 
-  items.forEach((item) => {
-    const key =
-      groupBy === 'member'
-        ? `member-${item.teamMemberId}`
-        : `task-${item.taskId}`;
+/**
+ * Assign each item in a row to a lane (sub-line) so that overlapping items
+ * are placed on different lanes. Uses a greedy approach.
+ */
+function assignLanes(items: GanttItem[]): {
+  laneCount: number;
+  laneMap: Map<string, number>;
+} {
+  const laneMap = new Map<string, number>();
+  if (items.length === 0) return { laneCount: 1, laneMap };
 
-    const label =
-      groupBy === 'member'
-        ? item.teamMemberName || item.name
-        : item.taskTitle || item.name;
-
-    if (!groups.has(key)) {
-      groups.set(key, {
-        id: key,
-        label,
-        items: [],
-      });
-    }
-
-    groups.get(key)!.items.push(item);
+  // Sort by start date, then by end date
+  const sorted = [...items].sort((a, b) => {
+    const diff = new Date(a.start).getTime() - new Date(b.start).getTime();
+    if (diff !== 0) return diff;
+    return new Date(a.end).getTime() - new Date(b.end).getTime();
   });
 
-  return Array.from(groups.values());
-};
+  // lanes[i] = the last item placed in lane i
+  const lanes: GanttItem[] = [];
+
+  for (const item of sorted) {
+    let placed = false;
+    for (let i = 0; i < lanes.length; i++) {
+      if (!itemsOverlap(lanes[i], item)) {
+        lanes[i] = item;
+        laneMap.set(item.id, i);
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) {
+      laneMap.set(item.id, lanes.length);
+      lanes.push(item);
+    }
+  }
+
+  return { laneCount: Math.max(lanes.length, 1), laneMap };
+}
 
 /**
- * Find today's index in the date range
+ * Group items by team member, always. Each member gets a row with sub-lanes.
  */
+function groupByMember(items: GanttItem[]): GanttRow[] {
+  const groups = new Map<string, { label: string; items: GanttItem[] }>();
+
+  for (const item of items) {
+    const key = `member-${item.teamMemberId}`;
+    const label = item.teamMemberName || `Membro ${item.teamMemberId}`;
+    if (!groups.has(key)) {
+      groups.set(key, { label, items: [] });
+    }
+    groups.get(key)!.items.push(item);
+  }
+
+  const rows: GanttRow[] = [];
+  for (const [id, group] of groups) {
+    const { laneCount, laneMap } = assignLanes(group.items);
+    rows.push({
+      id,
+      label: group.label,
+      items: group.items,
+      laneCount,
+      laneMap,
+    });
+  }
+
+  // Sort rows alphabetically by label
+  rows.sort((a, b) => a.label.localeCompare(b.label));
+  return rows;
+}
+
 const findTodayIndex = (dates: Date[]): number => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-
   return dates.findIndex((date) => {
     const d = new Date(date);
     d.setHours(0, 0, 0, 0);
@@ -171,39 +204,31 @@ const findTodayIndex = (dates: Date[]): number => {
 
 export function GanttChart({
   data,
-  groupBy,
   onItemClick,
   cellWidth = 40,
 }: GanttChartProps) {
   const timelineRef = useRef<HTMLDivElement>(null);
 
-  // Calculate date range and rows
   const { dates, rows } = useMemo(() => {
     if (!data || !data.items.length) {
       return { dates: [], rows: [] };
     }
-
     const dateRange = getDateRange(data.startDate, data.endDate);
-    const groupedRows = groupItems(data.items, groupBy);
-
-    return {
-      dates: dateRange,
-      rows: groupedRows,
-    };
-  }, [data, groupBy]);
+    const groupedRows = groupByMember(data.items);
+    return { dates: dateRange, rows: groupedRows };
+  }, [data]);
 
   // Scroll to today on mount
   useEffect(() => {
     if (timelineRef.current && dates.length > 0) {
       const todayIndex = findTodayIndex(dates);
       if (todayIndex >= 0) {
-        const scrollPosition = todayIndex * cellWidth - 100; // Offset to show some days before
+        const scrollPosition = todayIndex * cellWidth - 100;
         timelineRef.current.scrollLeft = Math.max(0, scrollPosition);
       }
     }
   }, [dates, cellWidth]);
 
-  // Handle empty state
   if (!data || !data.items.length) {
     return (
       <GanttContainer>
@@ -218,9 +243,7 @@ export function GanttChart({
   }
 
   const handleBarClick = (item: GanttItem) => {
-    if (onItemClick) {
-      onItemClick(item);
-    }
+    if (onItemClick) onItemClick(item);
   };
 
   const renderTooltip = (item: GanttItem) => (
@@ -255,21 +278,22 @@ export function GanttChart({
   return (
     <GanttContainer>
       <GanttContent>
-        {/* Row Labels Column */}
+        {/* Row Labels */}
         <RowLabelsContainer>
-          <RowLabelHeader>
-            {groupBy === 'member' ? 'Membro' : 'Tarefa'}
-          </RowLabelHeader>
+          <RowLabelHeader>Membro</RowLabelHeader>
           {rows.map((row) => (
-            <RowLabel key={row.id} title={row.label}>
+            <RowLabel
+              key={row.id}
+              title={row.label}
+              style={{ height: rowHeight(row.laneCount) }}
+            >
               {row.label}
             </RowLabel>
           ))}
         </RowLabelsContainer>
 
-        {/* Timeline Area */}
+        {/* Timeline */}
         <TimelineContainer ref={timelineRef}>
-          {/* Timeline Header with Dates */}
           <TimelineHeader>
             {dates.map((date, index) => (
               <TimelineCell
@@ -282,10 +306,12 @@ export function GanttChart({
             ))}
           </TimelineHeader>
 
-          {/* Timeline Rows with Bars */}
           {rows.map((row) => (
-            <TimelineRow key={row.id}>
-              {/* Grid cells for each day */}
+            <TimelineRow
+              key={row.id}
+              style={{ height: rowHeight(row.laneCount) }}
+            >
+              {/* Grid cells */}
               {dates.map((date, index) => (
                 <TimelineGridCell
                   key={index}
@@ -295,7 +321,7 @@ export function GanttChart({
                 />
               ))}
 
-              {/* Gantt bars for this row */}
+              {/* Bars positioned in their assigned lanes */}
               {row.items.map((item) => {
                 const { left, width } = calculateBarPosition(
                   item.start,
@@ -303,6 +329,8 @@ export function GanttChart({
                   data.startDate,
                   cellWidth,
                 );
+                const lane = row.laneMap.get(item.id) ?? 0;
+                const top = ROW_PADDING + lane * (BAR_HEIGHT + BAR_GAP);
 
                 return (
                   <Tooltip
@@ -315,10 +343,11 @@ export function GanttChart({
                       $color={item.color}
                       $left={left}
                       $width={width}
+                      style={{ top, height: BAR_HEIGHT }}
                       onClick={() => handleBarClick(item)}
                       role="button"
                       tabIndex={0}
-                      aria-label={`${item.name}, de ${formatDate(item.start)} até ${formatDate(item.end)}`}
+                      aria-label={`${item.taskTitle || item.name}, ${item.teamMemberName || ''}, de ${formatDate(item.start)} até ${formatDate(item.end)}`}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                           handleBarClick(item);

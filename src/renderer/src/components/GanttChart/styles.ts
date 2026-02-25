@@ -48,7 +48,7 @@ export const RowLabelHeader = styled(Box)`
 `;
 
 export const RowLabel = styled(Box)`
-  height: 48px;
+  min-height: 48px;
   display: flex;
   align-items: center;
   padding: 0 1rem;
@@ -99,7 +99,7 @@ export const TimelineCell = styled(Box)<{ $width: number; $isToday?: boolean }>`
 
 export const TimelineRow = styled(Box)`
   position: relative;
-  height: 48px;
+  min-height: 48px;
   display: flex;
   border-bottom: 1px solid ${({ theme }) => theme.COLORS.border};
 
@@ -141,10 +141,8 @@ export const GanttBar = styled(Box)<{
   $width: number;
 }>`
   position: absolute;
-  top: 8px;
   left: ${({ $left }) => $left}px;
   width: ${({ $width }) => Math.max($width, 20)}px;
-  height: 32px;
   background-color: ${({ $color }) => $color};
   border-radius: 4px;
   display: flex;

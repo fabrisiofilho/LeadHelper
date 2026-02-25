@@ -225,15 +225,13 @@ export function SprintsTasksPage() {
       await deleteAllocation(alloc.id);
     }
 
-    // If assigning (not removing), create a new allocation
-    if (memberId !== null) {
-      const task = tasks.find((t) => t.id === taskId);
-      const today = new Date();
+    // If assigning (not removing), create allocation using sprint dates
+    if (memberId !== null && selectedSprint) {
       await createAllocation({
         teamMemberId: memberId,
         taskId,
-        startDate: task?.startDate ?? today,
-        endDate: task?.endDate ?? today,
+        startDate: new Date(selectedSprint.startDate),
+        endDate: new Date(selectedSprint.endDate),
       });
     }
 

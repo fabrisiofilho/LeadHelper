@@ -10,12 +10,12 @@ import {
   FormHelperText,
   Box,
 } from '@mui/material';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ptBR } from 'date-fns/locale';
 import { useForm, Controller } from 'react-hook-form';
 import { Modal } from '@renderer/components/Modal';
+import { DateRangeWithBusinessDays } from '@renderer/components/DateRangeWithBusinessDays';
 import type {
   Task,
   Sprint,
@@ -25,6 +25,7 @@ import type {
   TaskType,
 } from '@shared/interfaces/config/index.types';
 import { TASK_TYPE_OPTIONS } from '@renderer/utils/task-type';
+import { MarkdownEditor } from '@renderer/components/MarkdownEditor';
 
 interface TaskFormData {
   title: string;
@@ -66,6 +67,7 @@ export function TaskModal({
     handleSubmit,
     reset,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<TaskFormData>({
     defaultValues: {
@@ -142,9 +144,12 @@ export function TaskModal({
         confirmLabel="Salvar"
         cancelLabel="Cancelar"
         loading={loading}
-        setMaxWidth="500px"
+        width="720px"
+        setMaxWidth="720px"
+        height="80vh"
+        hasCloseButton
       >
-        <Stack spacing={2} sx={{ pt: 1 }}>
+        <Stack spacing={2.5} sx={{ pt: 1, flex: 1, overflow: 'auto' }}>
           {error && (
             <Typography color="error" variant="body2">
               {error}
@@ -171,15 +176,17 @@ export function TaskModal({
             name="description"
             control={control}
             render={({ field }) => (
-              <TextField
-                {...field}
-                label="Descrição"
-                placeholder="Descreva a tarefa..."
-                fullWidth
-                multiline
-                rows={3}
-                disabled={loading}
-              />
+              <Box>
+                <Typography variant="caption" color="text.secondary" mb={0.5}>
+                  Descrição
+                </Typography>
+                <MarkdownEditor
+                  value={field.value}
+                  onChange={field.onChange}
+                  disabled={loading}
+                  minRows={10}
+                />
+              </Box>
             )}
           />
           <Controller
@@ -228,55 +235,15 @@ export function TaskModal({
               </FormControl>
             )}
           />
-          <Stack direction="row" spacing={2}>
-            <Controller
-              name="startDate"
-              control={control}
-              render={({ field }) => (
-                <DatePicker
-                  label="Data Início"
-                  value={field.value}
-                  onChange={field.onChange}
-                  disabled={loading}
-                  slotProps={{
-                    textField: {
-                      fullWidth: true,
-                      error: !!errors.startDate,
-                      helperText: errors.startDate?.message,
-                    },
-                  }}
-                />
-              )}
-            />
-            <Controller
-              name="endDate"
-              control={control}
-              rules={{
-                validate: (value) => {
-                  if (value && startDateValue && value < startDateValue) {
-                    return 'Data fim deve ser posterior à data início';
-                  }
-                  return true;
-                },
-              }}
-              render={({ field }) => (
-                <DatePicker
-                  label="Data Fim"
-                  value={field.value}
-                  onChange={field.onChange}
-                  minDate={startDateValue || undefined}
-                  disabled={loading}
-                  slotProps={{
-                    textField: {
-                      fullWidth: true,
-                      error: !!errors.endDate,
-                      helperText: errors.endDate?.message,
-                    },
-                  }}
-                />
-              )}
-            />
-          </Stack>
+          <DateRangeWithBusinessDays
+            startDate={startDateValue}
+            endDate={watch('endDate')}
+            onStartDateChange={(date) => setValue('startDate', date)}
+            onEndDateChange={(date) => setValue('endDate', date)}
+            disabled={loading}
+            startError={errors.startDate?.message}
+            endError={errors.endDate?.message}
+          />
         </Stack>
       </Modal>
     </LocalizationProvider>

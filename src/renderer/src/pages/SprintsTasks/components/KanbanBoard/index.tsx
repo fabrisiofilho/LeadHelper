@@ -46,6 +46,7 @@ import type {
 } from '@shared/interfaces/config/index.types';
 import { getInitials, getRoleColor } from '@renderer/utils/member';
 import { getTaskTypeOption } from '@renderer/utils/task-type';
+import { HtmlContent } from '@renderer/components/HtmlContent';
 import {
   KanbanContainer,
   KanbanColumn,
@@ -145,19 +146,23 @@ function CardContent({
 
       {/* Description */}
       {task.description && (
-        <Typography
-          variant="body2"
-          color="text.secondary"
-          sx={{
-            display: '-webkit-box',
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical',
-            overflow: 'hidden',
-            lineHeight: 1.4,
-          }}
-        >
-          {task.description}
-        </Typography>
+        /<[a-z][\s\S]*>/i.test(task.description) ? (
+          <HtmlContent html={task.description} maxLines={2} sx={{ lineHeight: 1.4 }} />
+        ) : (
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              lineHeight: 1.4,
+            }}
+          >
+            {task.description}
+          </Typography>
+        )
       )}
 
       {/* Tags row: type + priority + estimation */}
@@ -197,7 +202,7 @@ function CardContent({
             '& .MuiChip-icon': { ml: '4px' },
           }}
         />
-        {task.estimationType === 'points' && task.estimationPoints && (
+        {task.estimationType === 'points' && task.estimationPoints != null && (
           <Chip
             icon={<SpeedIcon sx={{ fontSize: '14px !important' }} />}
             label={`${task.estimationPoints} pts`}
@@ -206,7 +211,7 @@ function CardContent({
             sx={{ height: 24, fontSize: '0.75rem' }}
           />
         )}
-        {task.estimationType === 'hours' && task.estimationHours && (
+        {task.estimationType === 'hours' && task.estimationHours != null && (
           <Chip
             icon={<TimerIcon sx={{ fontSize: '14px !important' }} />}
             label={`${task.estimationHours}h`}

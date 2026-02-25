@@ -91,6 +91,7 @@ export function LinkTaskModal({
 
   return (
     <Modal
+      variant="form"
       open={open}
       title={`Vincular Tarefas — ${sprint.name}`}
       handleClose={onClose}
@@ -98,6 +99,10 @@ export function LinkTaskModal({
       confirmLabel={`Vincular (${selectedIds.size})`}
       cancelLabel="Cancelar"
       loading={loading}
+      width="680px"
+      setMaxWidth="680px"
+      height="70vh"
+      hasCloseButton
     >
       <Stack spacing={2}>
         <TextField
@@ -117,7 +122,7 @@ export function LinkTaskModal({
 
         <Box
           sx={{
-            maxHeight: 360,
+            flex: 1,
             overflow: 'auto',
             border: '1px solid',
             borderColor: 'divider',

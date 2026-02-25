@@ -20,6 +20,7 @@ import type {
   TaskStatusConfig,
 } from '@shared/interfaces/config/index.types';
 import { getTaskTypeOption } from '@renderer/utils/task-type';
+import { HtmlContent } from '@renderer/components/HtmlContent';
 import {
   TaskListContainer,
   HeaderContainer,
@@ -169,19 +170,27 @@ export function TaskList({
                     </Stack>
 
                     {task.description && (
-                      <Typography
-                        variant="body2"
-                        color="text.secondary"
-                        sx={{
-                          mt: 0.5,
-                          display: '-webkit-box',
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: 'vertical',
-                          overflow: 'hidden',
-                        }}
-                      >
-                        {task.description}
-                      </Typography>
+                      /<[a-z][\s\S]*>/i.test(task.description) ? (
+                        <HtmlContent
+                          html={task.description}
+                          maxLines={2}
+                          sx={{ mt: 0.5 }}
+                        />
+                      ) : (
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          sx={{
+                            mt: 0.5,
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          {task.description}
+                        </Typography>
+                      )
                     )}
                   </Box>
 

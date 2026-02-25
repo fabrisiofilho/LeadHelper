@@ -19,6 +19,7 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ptBR } from 'date-fns/locale';
 import { useForm, Controller } from 'react-hook-form';
 import { Modal } from '@renderer/components/Modal';
+import { DateRangeWithBusinessDays } from '@renderer/components/DateRangeWithBusinessDays';
 import type {
   Team,
   TeamMember,
@@ -237,7 +238,9 @@ export function AllocationModal({
         confirmLabel="Salvar"
         cancelLabel="Cancelar"
         loading={loading}
-        setMaxWidth="550px"
+        width="680px"
+        setMaxWidth="680px"
+        hasCloseButton
       >
         <Stack spacing={2.5} sx={{ pt: 1 }}>
           {error && (
@@ -431,47 +434,16 @@ export function AllocationModal({
           )}
 
           {/* Date fields */}
-          <Stack direction="row" spacing={2}>
-            <Controller
-              name="startDate"
-              control={control}
-              rules={{ required: 'Data início é obrigatória' }}
-              render={({ field }) => (
-                <DatePicker
-                  label="Data Início"
-                  value={field.value}
-                  onChange={field.onChange}
-                  disabled={loading}
-                  slotProps={{
-                    textField: {
-                      fullWidth: true,
-                      required: true,
-                      error: !!errors.startDate,
-                      helperText: errors.startDate?.message,
-                    },
-                  }}
-                />
-              )}
-            />
-            <Controller
-              name="endDate"
-              control={control}
-              render={({ field }) => (
-                <DatePicker
-                  label="Data Fim"
-                  value={field.value}
-                  onChange={field.onChange}
-                  disabled={loading}
-                  slotProps={{
-                    textField: {
-                      fullWidth: true,
-                      helperText: 'Deixe vazio para indefinido',
-                    },
-                  }}
-                />
-              )}
-            />
-          </Stack>
+          <DateRangeWithBusinessDays
+            startDate={watch('startDate')}
+            endDate={watch('endDate')}
+            onStartDateChange={(date) => setValue('startDate', date)}
+            onEndDateChange={(date) => setValue('endDate', date)}
+            disabled={loading}
+            startRequired
+            startError={errors.startDate?.message}
+            endLabel="Data Fim (opcional)"
+          />
 
           {/* Dedication percentage slider */}
           <Controller

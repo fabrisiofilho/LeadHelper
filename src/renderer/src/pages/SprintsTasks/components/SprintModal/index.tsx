@@ -1,11 +1,11 @@
 import { useEffect } from 'react';
 import { TextField, Typography, Stack } from '@mui/material';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ptBR } from 'date-fns/locale';
 import { useForm, Controller } from 'react-hook-form';
 import { Modal } from '@renderer/components/Modal';
+import { DateRangeWithBusinessDays } from '@renderer/components/DateRangeWithBusinessDays';
 import type {
   Sprint,
   CreateSprintInput,
@@ -41,6 +41,7 @@ export function SprintModal({
     handleSubmit,
     reset,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<SprintFormData>({
     defaultValues: {
@@ -102,7 +103,9 @@ export function SprintModal({
         confirmLabel="Salvar"
         cancelLabel="Cancelar"
         loading={loading}
-        setMaxWidth="500px"
+        width="620px"
+        setMaxWidth="620px"
+        hasCloseButton
       >
         <Stack spacing={2} sx={{ pt: 1 }}>
           {error && (
@@ -142,59 +145,17 @@ export function SprintModal({
               />
             )}
           />
-          <Stack direction="row" spacing={2}>
-            <Controller
-              name="startDate"
-              control={control}
-              rules={{ required: 'Data início é obrigatória' }}
-              render={({ field }) => (
-                <DatePicker
-                  label="Data Início"
-                  value={field.value}
-                  onChange={field.onChange}
-                  disabled={loading}
-                  slotProps={{
-                    textField: {
-                      fullWidth: true,
-                      required: true,
-                      error: !!errors.startDate,
-                      helperText: errors.startDate?.message,
-                    },
-                  }}
-                />
-              )}
-            />
-            <Controller
-              name="endDate"
-              control={control}
-              rules={{
-                required: 'Data fim é obrigatória',
-                validate: (value) => {
-                  if (value && startDateValue && value < startDateValue) {
-                    return 'Data fim deve ser posterior à data início';
-                  }
-                  return true;
-                },
-              }}
-              render={({ field }) => (
-                <DatePicker
-                  label="Data Fim"
-                  value={field.value}
-                  onChange={field.onChange}
-                  minDate={startDateValue || undefined}
-                  disabled={loading}
-                  slotProps={{
-                    textField: {
-                      fullWidth: true,
-                      required: true,
-                      error: !!errors.endDate,
-                      helperText: errors.endDate?.message,
-                    },
-                  }}
-                />
-              )}
-            />
-          </Stack>
+          <DateRangeWithBusinessDays
+            startDate={startDateValue}
+            endDate={watch('endDate')}
+            onStartDateChange={(date) => setValue('startDate', date)}
+            onEndDateChange={(date) => setValue('endDate', date)}
+            disabled={loading}
+            startRequired
+            endRequired
+            startError={errors.startDate?.message}
+            endError={errors.endDate?.message}
+          />
         </Stack>
       </Modal>
     </LocalizationProvider>

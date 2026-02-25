@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -17,12 +17,19 @@ import {
   Paper,
   IconButton,
   Tooltip,
+  TextField,
+  MenuItem,
+  InputAdornment,
 } from '@mui/material';
 import {
   Sync as SyncIcon,
   SyncProblem as SyncAllIcon,
+  Search as SearchIcon,
+  Clear as ClearIcon,
 } from '@mui/icons-material';
 import type { Task, SyncResult } from '@shared/interfaces/config/index.types';
+import { useTableSort } from '@renderer/hooks/useTableSort';
+import { SortableTableCell } from '@renderer/components/SortableTableCell';
 
 interface ImportedTasksTabProps {
   isConnected: boolean;
@@ -43,6 +50,14 @@ const STATUS_LABELS: Record<string, string> = {
   completed: 'Concluída',
   cancelled: 'Cancelada',
 };
+
+const STATUS_OPTIONS = [
+  { value: 'all', label: 'Todos' },
+  { value: 'pending', label: 'Pendente' },
+  { value: 'in_progress', label: 'Em Progresso' },
+  { value: 'completed', label: 'Concluída' },
+  { value: 'cancelled', label: 'Cancelada' },
+];
 
 const formatDate = (date: Date | string | undefined): string => {
   if (!date) return '-';
@@ -69,6 +84,8 @@ export function ImportedTasksTab({
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(15);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
 
   const loadImportedTasks = useCallback(async () => {
     setLoading(true);
@@ -89,6 +106,32 @@ export function ImportedTasksTab({
   useEffect(() => {
     loadImportedTasks();
   }, [loadImportedTasks]);
+
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((task) => {
+      if (statusFilter !== 'all' && task.status !== statusFilter) return false;
+      if (searchTerm.trim()) {
+        const search = searchTerm.toLowerCase();
+        const matchTitle = task.title?.toLowerCase().includes(search);
+        const matchId = task.externalId?.includes(search);
+        if (!matchTitle && !matchId) return false;
+      }
+      return true;
+    });
+  }, [tasks, statusFilter, searchTerm]);
+
+  const { sortedItems, sortConfig, handleSort } = useTableSort(filteredTasks, {
+    property: 'updatedAt',
+    direction: 'desc',
+  });
+
+  const hasActiveFilters = searchTerm.trim() !== '' || statusFilter !== 'all';
+
+  const handleClearFilters = () => {
+    setSearchTerm('');
+    setStatusFilter('all');
+    setPage(0);
+  };
 
   const handleSyncTask = async (taskId: number) => {
     setSyncingId(taskId);
@@ -115,7 +158,6 @@ export function ImportedTasksTab({
       const result = await onSyncAll();
       if (result) {
         setSyncResult(result);
-        // Reload to get updated data
         await loadImportedTasks();
       }
     } catch {
@@ -125,7 +167,7 @@ export function ImportedTasksTab({
     }
   };
 
-  const paginatedTasks = tasks.slice(
+  const paginatedTasks = sortedItems.slice(
     page * rowsPerPage,
     page * rowsPerPage + rowsPerPage,
   );
@@ -187,6 +229,8 @@ export function ImportedTasksTab({
       >
         <Typography variant="body2" color="text.secondary">
           {tasks.length} tarefa(s) importada(s) do Azure DevOps
+          {filteredTasks.length !== tasks.length &&
+            ` (${filteredTasks.length} exibida(s))`}
         </Typography>
         <Button
           variant="outlined"
@@ -200,11 +244,76 @@ export function ImportedTasksTab({
         </Button>
       </Stack>
 
+      {tasks.length > 0 && (
+        <Paper variant="outlined" sx={{ p: 1.5, mb: 2 }}>
+          <Stack
+            direction="row"
+            spacing={2}
+            alignItems="center"
+            flexWrap="wrap"
+            useFlexGap
+          >
+            <TextField
+              size="small"
+              placeholder="Buscar por título ou ID Azure..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setPage(0);
+              }}
+              sx={{ minWidth: 250 }}
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon fontSize="small" />
+                    </InputAdornment>
+                  ),
+                },
+              }}
+            />
+            <TextField
+              select
+              size="small"
+              label="Status"
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setPage(0);
+              }}
+              sx={{ minWidth: 150 }}
+              slotProps={{ inputLabel: { shrink: true } }}
+            >
+              {STATUS_OPTIONS.map((opt) => (
+                <MenuItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </MenuItem>
+              ))}
+            </TextField>
+            {hasActiveFilters && (
+              <Button
+                size="small"
+                startIcon={<ClearIcon />}
+                onClick={handleClearFilters}
+              >
+                Limpar
+              </Button>
+            )}
+          </Stack>
+        </Paper>
+      )}
+
       {tasks.length === 0 ? (
         <Box textAlign="center" py={4}>
           <Typography color="text.secondary">
             Nenhuma tarefa importada ainda. Use a aba Explorar para buscar e
             importar work items.
+          </Typography>
+        </Box>
+      ) : sortedItems.length === 0 ? (
+        <Box textAlign="center" py={4}>
+          <Typography color="text.secondary">
+            Nenhuma tarefa encontrada com os filtros aplicados.
           </Typography>
         </Box>
       ) : (
@@ -213,12 +322,43 @@ export function ImportedTasksTab({
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>ID</TableCell>
-                  <TableCell>ID Azure</TableCell>
-                  <TableCell>Título</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Atualizado</TableCell>
-                  <TableCell align="center">Ações</TableCell>
+                  <SortableTableCell
+                    id="id"
+                    label="ID"
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                    width={70}
+                  />
+                  <SortableTableCell
+                    id="externalId"
+                    label="ID Azure"
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                    width={100}
+                  />
+                  <SortableTableCell
+                    id="title"
+                    label="Título"
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                  />
+                  <SortableTableCell
+                    id="status"
+                    label="Status"
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                    width={130}
+                  />
+                  <SortableTableCell
+                    id="updatedAt"
+                    label="Atualizado"
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                    width={160}
+                  />
+                  <TableCell align="center" sx={{ width: 80 }}>
+                    Ações
+                  </TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -240,7 +380,9 @@ export function ImportedTasksTab({
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      {task.title}
+                      <Tooltip title={task.title} placement="top-start">
+                        <span>{task.title}</span>
+                      </Tooltip>
                     </TableCell>
                     <TableCell>
                       <Chip
@@ -279,7 +421,7 @@ export function ImportedTasksTab({
 
           <TablePagination
             component="div"
-            count={tasks.length}
+            count={sortedItems.length}
             page={page}
             onPageChange={(_, p) => setPage(p)}
             rowsPerPage={rowsPerPage}

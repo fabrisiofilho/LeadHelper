@@ -598,6 +598,10 @@ export interface IAzureDevOpsController {
   importWorkItems(workItemIds: number[]): Promise<ApiResponse<Task[]>>;
   syncTask(taskId: number): Promise<ApiResponse<Task>>;
   syncAllImportedTasks(): Promise<ApiResponse<SyncResult>>;
+  fetchIterations(): Promise<ApiResponse<IterationNode[]>>;
+  getReportData(period: ReportPeriod): Promise<ApiResponse<ReportData>>;
+  getDashboardMetrics(): Promise<ApiResponse<DashboardMetrics>>;
+  exportPdf(period: ReportPeriod): Promise<ApiResponse<ExportResult>>;
 }
 
 export interface ITeamMemberAllocationController {

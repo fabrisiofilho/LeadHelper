@@ -180,23 +180,6 @@ export class AzureDevOpsController extends BaseHandler {
     }
   }
 
-  @IpcMethod('azure-devops:exportCsv')
-  async exportCsv(period: ReportPeriod): Promise<ApiResponse<ExportResult>> {
-    try {
-      const reportData = await this.service.getReportData(period);
-      const exporter = new ReportExporter();
-      const result = await exporter.exportCsv(reportData.items, period);
-      return { success: true, data: result };
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Erro ao exportar relatório CSV';
-      logger.error('AzureDevOpsController.exportCsv error:', error);
-      return { success: false, error: message };
-    }
-  }
-
   @IpcMethod('azure-devops:exportPdf')
   async exportPdf(period: ReportPeriod): Promise<ApiResponse<ExportResult>> {
     try {

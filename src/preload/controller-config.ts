@@ -124,7 +124,6 @@ export const CONTROLLER_CONFIG = {
       'fetchIterations',
       'getReportData',
       'getDashboardMetrics',
-      'exportCsv',
       'exportPdf',
     ] as const,
   },

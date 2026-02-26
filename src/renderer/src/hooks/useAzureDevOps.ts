@@ -251,25 +251,6 @@ export function useAzureDevOps() {
       }
     }, []);
 
-  const exportCsv = useCallback(
-    async (period: ReportPeriod): Promise<ExportResult | null> => {
-      setLoading(true);
-      try {
-        const response = await window.electronAPI.azureDevOps.exportCsv(period);
-        if (!response.success) {
-          setError(response.error || 'Erro ao exportar CSV');
-          return null;
-        }
-        setState((prev) => ({ ...prev, loading: false }));
-        return cloneIpcData(response.data) || null;
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Erro de comunicação');
-        return null;
-      }
-    },
-    [],
-  );
-
   const exportPdf = useCallback(
     async (period: ReportPeriod): Promise<ExportResult | null> => {
       setLoading(true);
@@ -313,7 +294,6 @@ export function useAzureDevOps() {
     fetchIterations,
     getReportData,
     getDashboardMetrics,
-    exportCsv,
     exportPdf,
     clearError,
     clearWorkItems,

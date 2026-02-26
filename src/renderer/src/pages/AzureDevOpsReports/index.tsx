@@ -1,11 +1,4 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  useReducer,
-  useCallback,
-  useMemo,
-} from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -18,39 +11,57 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TableSortLabel,
+  TablePagination,
   Skeleton,
   Snackbar,
   Alert,
-  Tooltip,
+  Tooltip as MuiTooltip,
   LinearProgress,
+  Tabs,
+  Tab,
+  Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  IconButton,
+  TextField,
+  InputAdornment,
+  Divider,
 } from '@mui/material';
 import {
-  FileDownloadOutlined as CsvIcon,
   PictureAsPdfOutlined as PdfIcon,
   AssessmentOutlined as ReportsIcon,
+  Close as CloseIcon,
+  Search as SearchIcon,
+  ListAlt as ListIcon,
+  Dashboard as DashboardIcon,
 } from '@mui/icons-material';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { ptBR } from 'date-fns/locale';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-  Cell,
-} from 'recharts';
-import { useTableSort } from '@renderer/hooks/useTableSort';
-import { SortableTableCell } from '@renderer/components/SortableTableCell';
 import { PageContainer } from './styles';
 import type {
   ReportData,
+  ReportItem,
   ReportPeriod,
   ExportResult,
 } from '@shared/interfaces/config/index.types';
+
+/* ------------------------------------------------------------------ */
+/*  Helpers                                                           */
+/* ------------------------------------------------------------------ */
+function deepClone<T>(v: T): T {
+  if (v == null || typeof v !== 'object') return v;
+  try {
+    return structuredClone(v);
+  } catch {
+    return JSON.parse(JSON.stringify(v));
+  }
+}
+
+function fmtDate(d?: Date | string): string {
+  if (!d) return '-';
+  const dt = typeof d === 'string' ? new Date(d) : d;
+  return dt.toLocaleDateString('pt-BR');
+}
 
 const PERIOD_PRESETS = [
   { label: '7 dias', days: 7 },
@@ -58,7 +69,7 @@ const PERIOD_PRESETS = [
   { label: '30 dias', days: 30 },
   { label: '60 dias', days: 60 },
   { label: '90 dias', days: 90 },
-] as const;
+];
 
 const TYPE_COLORS = [
   '#4d8df7',
@@ -70,6 +81,9 @@ const TYPE_COLORS = [
 ];
 const STATUS_COLORS = ['#4d8df7', '#FFAB00', '#1db954', '#FF5630', '#a07de8'];
 
+const TYPE_COLOR_MAP: Record<string, string> = {};
+const STATUS_COLOR_MAP: Record<string, string> = {};
+
 function buildPeriod(days: number): ReportPeriod {
   const endDate = new Date();
   const startDate = new Date();
@@ -79,673 +93,1040 @@ function buildPeriod(days: number): ReportPeriod {
   return { startDate, endDate };
 }
 
-/**
- * Deep-clone any value so that frozen objects returned by Electron's
- * contextBridge become mutable plain objects safe for React 19 state.
- */
-function clone<T>(v: T): T {
-  if (v == null || typeof v !== 'object') return v;
-  return JSON.parse(JSON.stringify(v));
-}
-
-// --- IPC helpers that bypass the useAzureDevOps hook entirely ---
-// This avoids the double-setState cascade (hook loading + component loading)
-// that was triggering React 19 FiberRootNode crashes.
+/* ------------------------------------------------------------------ */
+/*  IPC                                                               */
+/* ------------------------------------------------------------------ */
 async function fetchReport(period: ReportPeriod): Promise<ReportData | null> {
-  const response = await (window.electronAPI.azureDevOps as any).getReportData(
-    period,
-  );
-  if (!response?.success) return null;
-  return clone(response.data) ?? null;
-}
-
-async function doExportCsv(period: ReportPeriod): Promise<ExportResult | null> {
-  const response = await (window.electronAPI.azureDevOps as any).exportCsv(
-    period,
-  );
-  if (!response?.success) return null;
-  return clone(response.data) ?? null;
+  try {
+    const raw = await window.electronAPI.azureDevOps.getReportData(period);
+    const response = deepClone(raw);
+    if (!response?.success || !response.data) return null;
+    return response.data;
+  } catch {
+    return null;
+  }
 }
 
 async function doExportPdf(period: ReportPeriod): Promise<ExportResult | null> {
-  const response = await (window.electronAPI.azureDevOps as any).exportPdf(
-    period,
+  try {
+    const raw = await window.electronAPI.azureDevOps.exportPdf(period);
+    const response = deepClone(raw);
+    if (!response?.success || !response.data) return null;
+    return response.data;
+  } catch {
+    return null;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  SimpleBarChart (CSS only)                                         */
+/* ------------------------------------------------------------------ */
+interface BarItem {
+  label: string;
+  value: number;
+  color: string;
+}
+
+function SimpleBarChart({
+  items,
+  height = 260,
+}: {
+  items: BarItem[];
+  height?: number;
+}) {
+  const maxVal = Math.max(...items.map((d) => d.value), 1);
+  return (
+    <Box
+      sx={{ display: 'flex', alignItems: 'flex-end', gap: 1.5, height, pt: 2 }}
+    >
+      {items.map((item, i) => {
+        const pct = (item.value / maxVal) * 100;
+        return (
+          <MuiTooltip
+            key={i}
+            title={`${item.label}: ${item.value}`}
+            arrow
+            placement="top"
+          >
+            <Box
+              sx={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                height: '100%',
+                justifyContent: 'flex-end',
+                minWidth: 0,
+              }}
+            >
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ mb: 0.5 }}
+              >
+                {item.value}
+              </Typography>
+              <Box
+                sx={{
+                  width: '100%',
+                  maxWidth: 64,
+                  height: `${Math.max(pct, 2)}%`,
+                  bgcolor: item.color,
+                  borderRadius: '6px 6px 0 0',
+                  transition: 'height 0.4s ease',
+                  minHeight: 4,
+                  '&:hover': { opacity: 0.8 },
+                }}
+              />
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{
+                  mt: 1,
+                  textAlign: 'center',
+                  fontSize: '0.7rem',
+                  lineHeight: 1.2,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  maxWidth: 80,
+                }}
+              >
+                {item.label}
+              </Typography>
+            </Box>
+          </MuiTooltip>
+        );
+      })}
+    </Box>
   );
-  if (!response?.success) return null;
-  return clone(response.data) ?? null;
 }
 
-// --- Filter state managed via useReducer ---
-interface FilterState {
-  selectedPreset: number;
-  customStart: Date | null;
-  customEnd: Date | null;
-  isCustom: boolean;
-  fetchTrigger: number;
+/* ------------------------------------------------------------------ */
+/*  Sort hook                                                         */
+/* ------------------------------------------------------------------ */
+type SortDir = 'asc' | 'desc';
+
+function useSortable<T extends Record<string, unknown>>(items: T[]) {
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
+
+  const toggle = useCallback((key: string) => {
+    setSortKey((prev) => {
+      if (prev === key) {
+        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+        return key;
+      }
+      setSortDir('asc');
+      return key;
+    });
+  }, []);
+
+  const sorted = useMemo(() => {
+    if (!sortKey) return items;
+    return [...items].sort((a, b) => {
+      const av = a[sortKey];
+      const bv = b[sortKey];
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      if (typeof av === 'number' && typeof bv === 'number')
+        return sortDir === 'asc' ? av - bv : bv - av;
+      const as = String(av).toLowerCase();
+      const bs = String(bv).toLowerCase();
+      if (as < bs) return sortDir === 'asc' ? -1 : 1;
+      if (as > bs) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [items, sortKey, sortDir]);
+
+  return { sorted, sortKey, sortDir, toggle };
 }
 
-type FilterAction =
-  | { type: 'SELECT_PRESET'; days: number }
-  | { type: 'SET_CUSTOM_START'; date: Date | null }
-  | { type: 'SET_CUSTOM_END'; date: Date | null };
+/* ------------------------------------------------------------------ */
+/*  Work Item Detail Modal                                            */
+/* ------------------------------------------------------------------ */
+function WorkItemDetailModal({
+  item,
+  open,
+  onClose,
+}: {
+  item: ReportItem | null;
+  open: boolean;
+  onClose: () => void;
+}) {
+  if (!item) return null;
 
-function filterReducer(state: FilterState, action: FilterAction): FilterState {
-  switch (action.type) {
-    case 'SELECT_PRESET':
-      return {
-        ...state,
-        isCustom: false,
-        selectedPreset: action.days,
-        fetchTrigger: state.fetchTrigger + 1,
-      };
-    case 'SET_CUSTOM_START': {
-      const nextStart = action.date ? new Date(action.date.getTime()) : null;
-      const shouldFetch = nextStart != null && state.customEnd != null;
-      return {
-        ...state,
-        customStart: nextStart,
-        isCustom: true,
-        fetchTrigger: shouldFetch ? state.fetchTrigger + 1 : state.fetchTrigger,
-      };
-    }
-    case 'SET_CUSTOM_END': {
-      const nextEnd = action.date ? new Date(action.date.getTime()) : null;
-      const shouldFetch = state.customStart != null && nextEnd != null;
-      return {
-        ...state,
-        customEnd: nextEnd,
-        isCustom: true,
-        fetchTrigger: shouldFetch ? state.fetchTrigger + 1 : state.fetchTrigger,
-      };
-    }
-    default:
-      return state;
-  }
+  const fields: Array<{ label: string; value: string }> = [
+    { label: 'ID', value: String(item.id) },
+    { label: 'Título', value: item.title },
+    { label: 'Tipo', value: item.type },
+    { label: 'Tipo Original', value: item.originalType || '-' },
+    { label: 'Status', value: item.status },
+    { label: 'Responsável', value: item.assignee || 'Não atribuído' },
+    { label: 'Projeto', value: item.project || '-' },
+    { label: 'Area Path', value: item.areaPath || '-' },
+    { label: 'Iteration Path', value: item.iterationPath || '-' },
+    { label: 'Tags', value: item.tags || '-' },
+    {
+      label: 'Story Points',
+      value: item.storyPoints != null ? String(item.storyPoints) : '-',
+    },
+    { label: 'Criado em', value: fmtDate(item.createdAt) },
+    { label: 'Atualizado em', value: fmtDate(item.updatedAt) },
+  ];
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          pb: 1,
+        }}
+      >
+        <Stack
+          direction="row"
+          spacing={1}
+          alignItems="center"
+          sx={{ minWidth: 0 }}
+        >
+          <Chip
+            label={item.type}
+            size="small"
+            sx={{
+              bgcolor: (TYPE_COLOR_MAP[item.type] || '#4d8df7') + '22',
+              color: TYPE_COLOR_MAP[item.type] || '#4d8df7',
+              fontWeight: 600,
+              fontSize: '0.7rem',
+            }}
+          />
+          <Typography variant="subtitle1" fontWeight={600} noWrap>
+            #{item.id}
+          </Typography>
+        </Stack>
+        <IconButton size="small" onClick={onClose}>
+          <CloseIcon fontSize="small" />
+        </IconButton>
+      </DialogTitle>
+      <DialogContent dividers>
+        <Typography variant="h6" fontWeight={600} mb={2}>
+          {item.title}
+        </Typography>
+        <Stack spacing={1.5}>
+          {fields.map((f) => (
+            <Stack
+              key={f.label}
+              direction="row"
+              spacing={2}
+              alignItems="baseline"
+            >
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ minWidth: 130, flexShrink: 0 }}
+              >
+                {f.label}
+              </Typography>
+              <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
+                {f.value}
+              </Typography>
+            </Stack>
+          ))}
+        </Stack>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
-function getCurrentPeriod(state: FilterState): ReportPeriod {
-  if (state.isCustom && state.customStart && state.customEnd) {
-    const start = new Date(state.customStart.getTime());
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(state.customEnd.getTime());
-    end.setHours(23, 59, 59, 999);
-    return { startDate: start, endDate: end };
-  }
-  return buildPeriod(state.selectedPreset);
+/* ------------------------------------------------------------------ */
+/*  Work Items Tab (table like Gestão de Tarefas)                     */
+/* ------------------------------------------------------------------ */
+interface PlainItem {
+  id: number;
+  title: string;
+  type: string;
+  originalType: string;
+  status: string;
+  assignee: string;
+  project: string;
+  areaPath: string;
+  iterationPath: string;
+  tags: string;
+  storyPoints: number | null;
+  createdAt: string;
+  updatedAt: string;
+  [key: string]: unknown;
 }
 
+function WorkItemsTab({
+  items,
+  onSelectItem,
+}: {
+  items: PlainItem[];
+  onSelectItem: (item: PlainItem) => void;
+}) {
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(15);
+  const [search, setSearch] = useState('');
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return items;
+    const term = search.trim().toLowerCase();
+    return items.filter(
+      (it) =>
+        it.title.toLowerCase().includes(term) ||
+        it.assignee.toLowerCase().includes(term) ||
+        it.project.toLowerCase().includes(term) ||
+        String(it.id).includes(term) ||
+        it.type.toLowerCase().includes(term) ||
+        it.status.toLowerCase().includes(term),
+    );
+  }, [items, search]);
+
+  const { sorted, sortKey, sortDir, toggle } = useSortable(filtered);
+
+  const paginated = useMemo(
+    () => sorted.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [sorted, page, rowsPerPage],
+  );
+
+  // Reset page when search changes
+  useEffect(() => {
+    setPage(0);
+  }, [search]);
+
+  const cols: Array<{
+    id: string;
+    label: string;
+    align?: 'left' | 'right' | 'center';
+    width?: number;
+  }> = [
+    { id: 'id', label: 'ID', width: 70 },
+    { id: 'title', label: 'Título' },
+    { id: 'type', label: 'Tipo', width: 120 },
+    { id: 'status', label: 'Status', width: 120 },
+    { id: 'assignee', label: 'Responsável', width: 160 },
+    { id: 'project', label: 'Projeto', width: 150 },
+    { id: 'storyPoints', label: 'Pontos', width: 80, align: 'right' },
+    { id: 'createdAt', label: 'Criado', width: 100 },
+  ];
+
+  return (
+    <Box
+      sx={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Search bar */}
+      <Box sx={{ px: 2, py: 1.5, flexShrink: 0 }}>
+        <TextField
+          size="small"
+          placeholder="Buscar por título, responsável, projeto, ID..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon fontSize="small" color="action" />
+              </InputAdornment>
+            ),
+          }}
+          sx={{ width: 400, maxWidth: '100%' }}
+        />
+      </Box>
+      <Divider />
+
+      <TableContainer sx={{ flex: 1, overflow: 'auto' }}>
+        <Table size="small" stickyHeader>
+          <TableHead>
+            <TableRow>
+              {cols.map((col) => (
+                <TableCell
+                  key={col.id}
+                  align={col.align || 'left'}
+                  sx={{ width: col.width }}
+                >
+                  <TableSortLabel
+                    active={sortKey === col.id}
+                    direction={sortKey === col.id ? sortDir : 'asc'}
+                    onClick={() => toggle(col.id)}
+                  >
+                    {col.label}
+                  </TableSortLabel>
+                </TableCell>
+              ))}
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {paginated.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={cols.length} align="center">
+                  <Typography variant="body2" color="text.secondary" py={4}>
+                    Nenhum work item encontrado
+                  </Typography>
+                </TableCell>
+              </TableRow>
+            ) : (
+              paginated.map((row) => (
+                <TableRow
+                  key={row.id}
+                  hover
+                  sx={{ cursor: 'pointer' }}
+                  onClick={() => onSelectItem(row)}
+                >
+                  <TableCell>
+                    <Typography variant="body2" color="text.secondary">
+                      #{row.id}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography
+                      variant="body2"
+                      fontWeight={500}
+                      noWrap
+                      sx={{ maxWidth: 300 }}
+                    >
+                      {row.title}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={row.type}
+                      size="small"
+                      sx={{
+                        height: 22,
+                        fontSize: '0.7rem',
+                        bgcolor: (TYPE_COLOR_MAP[row.type] || '#4d8df7') + '18',
+                        color: TYPE_COLOR_MAP[row.type] || '#4d8df7',
+                        fontWeight: 600,
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={row.status}
+                      size="small"
+                      sx={{
+                        height: 22,
+                        fontSize: '0.7rem',
+                        bgcolor:
+                          (STATUS_COLOR_MAP[row.status] || '#4d8df7') + '20',
+                        color: STATUS_COLOR_MAP[row.status] || '#4d8df7',
+                        fontWeight: 600,
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" noWrap>
+                      {row.assignee || 'Não atribuído'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" noWrap>
+                      {row.project || '-'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Typography variant="body2">
+                      {row.storyPoints != null ? row.storyPoints : '-'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="caption">
+                      {fmtDate(row.createdAt)}
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      <TablePagination
+        component="div"
+        count={sorted.length}
+        page={page}
+        onPageChange={(_, p) => setPage(p)}
+        rowsPerPage={rowsPerPage}
+        onRowsPerPageChange={(e) => {
+          setRowsPerPage(parseInt(e.target.value, 10));
+          setPage(0);
+        }}
+        rowsPerPageOptions={[10, 15, 25, 50]}
+        labelRowsPerPage="Por página:"
+        sx={{ flexShrink: 0 }}
+      />
+    </Box>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Dashboard Tab                                                     */
+/* ------------------------------------------------------------------ */
+function DashboardTab({
+  reportData,
+  byTypeBars,
+  byStatusBars,
+  assigneeData,
+  projectData,
+}: {
+  reportData: ReportData;
+  byTypeBars: BarItem[];
+  byStatusBars: BarItem[];
+  assigneeData: Array<{
+    assignee: string;
+    count: number;
+    [k: string]: unknown;
+  }>;
+  projectData: Array<{ project: string; count: number; [k: string]: unknown }>;
+}) {
+  const assigneeSort = useSortable(assigneeData);
+  const projectSort = useSortable(projectData);
+
+  return (
+    <Stack spacing={3} sx={{ p: 2.5, overflow: 'auto' }}>
+      {/* Total */}
+      <Box
+        sx={{ bgcolor: 'background.default', borderRadius: '0.75rem', p: 2.5 }}
+      >
+        <Typography variant="body2" color="text.secondary">
+          Total de work items no período
+        </Typography>
+        <Typography variant="h3" fontWeight={700} color="primary.main">
+          {reportData.totalItems}
+        </Typography>
+      </Box>
+
+      {/* Charts */}
+      <Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
+        <Box
+          sx={{
+            flex: 1,
+            bgcolor: 'background.default',
+            borderRadius: '0.75rem',
+            p: 2.5,
+          }}
+        >
+          <Typography variant="subtitle1" fontWeight={600} mb={1}>
+            Por Tipo
+          </Typography>
+          {byTypeBars.length > 0 ? (
+            <SimpleBarChart items={byTypeBars} />
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              Sem dados
+            </Typography>
+          )}
+        </Box>
+        <Box
+          sx={{
+            flex: 1,
+            bgcolor: 'background.default',
+            borderRadius: '0.75rem',
+            p: 2.5,
+          }}
+        >
+          <Typography variant="subtitle1" fontWeight={600} mb={1}>
+            Por Status
+          </Typography>
+          {byStatusBars.length > 0 ? (
+            <SimpleBarChart items={byStatusBars} />
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              Sem dados
+            </Typography>
+          )}
+        </Box>
+      </Stack>
+
+      {/* Summary tables */}
+      <Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
+        <Box
+          sx={{
+            flex: 1,
+            bgcolor: 'background.default',
+            borderRadius: '0.75rem',
+            p: 2.5,
+          }}
+        >
+          <Typography variant="subtitle1" fontWeight={600} mb={2}>
+            Por Responsável
+          </Typography>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>
+                    <TableSortLabel
+                      active={assigneeSort.sortKey === 'assignee'}
+                      direction={
+                        assigneeSort.sortKey === 'assignee'
+                          ? assigneeSort.sortDir
+                          : 'asc'
+                      }
+                      onClick={() => assigneeSort.toggle('assignee')}
+                    >
+                      Responsável
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell align="right">
+                    <TableSortLabel
+                      active={assigneeSort.sortKey === 'count'}
+                      direction={
+                        assigneeSort.sortKey === 'count'
+                          ? assigneeSort.sortDir
+                          : 'asc'
+                      }
+                      onClick={() => assigneeSort.toggle('count')}
+                    >
+                      Qtd
+                    </TableSortLabel>
+                  </TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {assigneeSort.sorted.map((row, i) => (
+                  <TableRow key={row.assignee || `u-${i}`} hover>
+                    <TableCell>{row.assignee || 'Não atribuído'}</TableCell>
+                    <TableCell align="right">{row.count}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Box>
+        <Box
+          sx={{
+            flex: 1,
+            bgcolor: 'background.default',
+            borderRadius: '0.75rem',
+            p: 2.5,
+          }}
+        >
+          <Typography variant="subtitle1" fontWeight={600} mb={2}>
+            Por Projeto
+          </Typography>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>
+                    <TableSortLabel
+                      active={projectSort.sortKey === 'project'}
+                      direction={
+                        projectSort.sortKey === 'project'
+                          ? projectSort.sortDir
+                          : 'asc'
+                      }
+                      onClick={() => projectSort.toggle('project')}
+                    >
+                      Projeto
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell align="right">
+                    <TableSortLabel
+                      active={projectSort.sortKey === 'count'}
+                      direction={
+                        projectSort.sortKey === 'count'
+                          ? projectSort.sortDir
+                          : 'asc'
+                      }
+                      onClick={() => projectSort.toggle('count')}
+                    >
+                      Qtd
+                    </TableSortLabel>
+                  </TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {projectSort.sorted.map((row, i) => (
+                  <TableRow key={row.project || `p-${i}`} hover>
+                    <TableCell>{row.project || 'Sem projeto'}</TableCell>
+                    <TableCell align="right">{row.count}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Box>
+      </Stack>
+    </Stack>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Main Page                                                         */
+/* ------------------------------------------------------------------ */
 export function AzureDevOpsReportsPage() {
-  const [filters, dispatch] = useReducer(filterReducer, {
-    selectedPreset: 30,
-    customStart: null,
-    customEnd: null,
-    isCustom: false,
-    fetchTrigger: 0,
-  });
-
+  const [selectedPreset, setSelectedPreset] = useState(30);
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [loadingReport, setLoadingReport] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [snackbar, setSnackbar] = useState<{
-    open: boolean;
-    message: string;
-    severity: 'success' | 'error';
-  }>({ open: false, message: '', severity: 'success' });
+  const [snackOpen, setSnackOpen] = useState(false);
+  const [snackMsg, setSnackMsg] = useState('');
+  const [snackSev, setSnackSev] = useState<'success' | 'error'>('success');
+  const [activeTab, setActiveTab] = useState(0);
+  const [selectedItem, setSelectedItem] = useState<ReportItem | null>(null);
 
   const fetchIdRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
     const id = ++fetchIdRef.current;
-    const period = getCurrentPeriod(filters);
+    const period = buildPeriod(selectedPreset);
 
     setLoadingReport(true);
-
     fetchReport(period)
       .then((data) => {
-        if (!cancelled && id === fetchIdRef.current) {
-          setReportData(data);
-        }
+        if (!cancelled && id === fetchIdRef.current) setReportData(data);
       })
-      .catch(() => {
-        /* swallow – no data */
-      })
+      .catch(() => {})
       .finally(() => {
-        if (!cancelled && id === fetchIdRef.current) {
-          setLoadingReport(false);
-        }
+        if (!cancelled && id === fetchIdRef.current) setLoadingReport(false);
       });
 
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.fetchTrigger]);
+  }, [selectedPreset]);
 
-  const handlePresetClick = useCallback((days: number) => {
-    dispatch({ type: 'SELECT_PRESET', days });
-  }, []);
-
-  const handleCustomStartChange = useCallback((date: Date | null) => {
-    dispatch({ type: 'SET_CUSTOM_START', date });
-  }, []);
-
-  const handleCustomEndChange = useCallback((date: Date | null) => {
-    dispatch({ type: 'SET_CUSTOM_END', date });
-  }, []);
-
-  const handleExportCsv = async () => {
+  const handleExportPdf = useCallback(async () => {
     setExporting(true);
     try {
-      const period = getCurrentPeriod(filters);
-      const result = await doExportCsv(period);
+      const result = await doExportPdf(buildPeriod(selectedPreset));
       if (result?.success && result.filePath) {
-        setSnackbar({
-          open: true,
-          message: `CSV exportado com sucesso: ${result.filePath}`,
-          severity: 'success',
-        });
+        setSnackMsg(`PDF exportado: ${result.filePath}`);
+        setSnackSev('success');
       } else if (result && !result.success && result.error) {
-        setSnackbar({ open: true, message: result.error, severity: 'error' });
+        setSnackMsg(result.error);
+        setSnackSev('error');
       }
+      setSnackOpen(true);
     } catch {
-      setSnackbar({
-        open: true,
-        message: 'Erro ao exportar CSV',
-        severity: 'error',
-      });
+      setSnackMsg('Erro ao exportar PDF');
+      setSnackSev('error');
+      setSnackOpen(true);
     } finally {
       setExporting(false);
     }
-  };
+  }, [selectedPreset]);
 
-  const handleExportPdf = async () => {
-    setExporting(true);
-    try {
-      const period = getCurrentPeriod(filters);
-      const result = await doExportPdf(period);
-      if (result?.success && result.filePath) {
-        setSnackbar({
-          open: true,
-          message: `PDF exportado com sucesso: ${result.filePath}`,
-          severity: 'success',
-        });
-      } else if (result && !result.success && result.error) {
-        setSnackbar({ open: true, message: result.error, severity: 'error' });
-      }
-    } catch {
-      setSnackbar({
-        open: true,
-        message: 'Erro ao exportar PDF',
-        severity: 'error',
-      });
-    } finally {
-      setExporting(false);
-    }
-  };
+  /* --- Build color maps from report data --- */
+  useEffect(() => {
+    if (!reportData) return;
+    // Clear and rebuild
+    for (const k of Object.keys(TYPE_COLOR_MAP)) delete TYPE_COLOR_MAP[k];
+    for (const k of Object.keys(STATUS_COLOR_MAP)) delete STATUS_COLOR_MAP[k];
+    (reportData.byType ?? []).forEach((d, i) => {
+      TYPE_COLOR_MAP[d.type] = TYPE_COLORS[i % TYPE_COLORS.length];
+    });
+    (reportData.byStatus ?? []).forEach((d, i) => {
+      STATUS_COLOR_MAP[d.status] = STATUS_COLORS[i % STATUS_COLORS.length];
+    });
+  }, [reportData]);
 
-  const closeSnackbar = useCallback(() => {
-    setSnackbar((prev) => ({ ...prev, open: false }));
+  /* --- Derived data --- */
+  const byTypeBars: BarItem[] = useMemo(
+    () =>
+      (reportData?.byType ?? []).map((d, i) => ({
+        label: String(d.type),
+        value: Number(d.count),
+        color: TYPE_COLORS[i % TYPE_COLORS.length],
+      })),
+    [reportData],
+  );
+  const byStatusBars: BarItem[] = useMemo(
+    () =>
+      (reportData?.byStatus ?? []).map((d, i) => ({
+        label: String(d.status),
+        value: Number(d.count),
+        color: STATUS_COLORS[i % STATUS_COLORS.length],
+      })),
+    [reportData],
+  );
+  const assigneeData = useMemo(
+    () =>
+      (reportData?.byAssignee ?? []).map((d) => ({
+        assignee: String(d.assignee ?? ''),
+        count: Number(d.count),
+      })),
+    [reportData],
+  );
+  const projectData = useMemo(
+    () =>
+      (reportData?.byProject ?? []).map((d) => ({
+        project: String(d.project ?? ''),
+        count: Number(d.count),
+      })),
+    [reportData],
+  );
+
+  /* --- Flat items for the work items tab --- */
+  const plainItems: PlainItem[] = useMemo(
+    () =>
+      (reportData?.items ?? []).map((d) => ({
+        id: Number(d.id),
+        title: String(d.title ?? ''),
+        type: String(d.type ?? ''),
+        originalType: String(d.originalType ?? ''),
+        status: String(d.status ?? ''),
+        assignee: String(d.assignee ?? ''),
+        project: String(d.project ?? ''),
+        areaPath: String(d.areaPath ?? ''),
+        iterationPath: String(d.iterationPath ?? ''),
+        tags: String(d.tags ?? ''),
+        storyPoints: d.storyPoints != null ? Number(d.storyPoints) : null,
+        createdAt: d.createdAt ? String(d.createdAt) : '',
+        updatedAt: d.updatedAt ? String(d.updatedAt) : '',
+      })),
+    [reportData],
+  );
+
+  const hasData = reportData != null && reportData.totalItems > 0;
+  const isInitialLoad = loadingReport && reportData == null;
+
+  const handleSelectWorkItem = useCallback((item: PlainItem) => {
+    setSelectedItem({
+      id: item.id,
+      title: item.title,
+      type: item.type,
+      originalType: item.originalType || undefined,
+      status: item.status,
+      assignee: item.assignee || undefined,
+      project: item.project || undefined,
+      areaPath: item.areaPath || undefined,
+      iterationPath: item.iterationPath || undefined,
+      tags: item.tags || undefined,
+      storyPoints: item.storyPoints ?? undefined,
+      createdAt: item.createdAt ? new Date(item.createdAt) : undefined,
+      updatedAt: item.updatedAt ? new Date(item.updatedAt) : undefined,
+    });
   }, []);
-
-  const {
-    sortedItems: sortedAssignees,
-    sortConfig: assigneeSortConfig,
-    handleSort: handleAssigneeSort,
-  } = useTableSort(reportData?.byAssignee ?? []);
-
-  const {
-    sortedItems: sortedProjects,
-    sortConfig: projectSortConfig,
-    handleSort: handleProjectSort,
-  } = useTableSort(reportData?.byProject ?? []);
-
-  const hasData = reportData && reportData.totalItems > 0;
-  const isInitialLoad = loadingReport && !reportData;
-
-  // Memoize chart data arrays so Recharts always gets fresh mutable objects
-  const byTypeData = useMemo(
-    () => (reportData?.byType ?? []).map((item) => ({ ...item })),
-    [reportData?.byType],
-  );
-  const byStatusData = useMemo(
-    () => (reportData?.byStatus ?? []).map((item) => ({ ...item })),
-    [reportData?.byStatus],
-  );
 
   return (
-    <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ptBR}>
-      <PageContainer>
-        {/* Header */}
-        <Stack
-          direction="row"
-          justifyContent="space-between"
-          alignItems="center"
-          mb={3}
-        >
-          <Box>
-            <Stack direction="row" alignItems="center" spacing={1}>
-              <ReportsIcon sx={{ fontSize: 28, color: 'primary.main' }} />
-              <Typography variant="h4" fontWeight={700}>
-                Relatórios Azure DevOps
-              </Typography>
-            </Stack>
-            <Typography variant="body2" color="text.secondary" mt={0.5}>
-              Visualize métricas e tendências dos work items importados
+    <PageContainer
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Header */}
+      <Stack
+        direction="row"
+        justifyContent="space-between"
+        alignItems="center"
+        mb={2}
+        flexShrink={0}
+      >
+        <Box>
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <ReportsIcon sx={{ fontSize: 28, color: 'primary.main' }} />
+            <Typography variant="h4" fontWeight={700}>
+              Relatórios Azure DevOps
             </Typography>
-          </Box>
-          <Stack direction="row" spacing={1}>
-            <Tooltip title="Exportar dados em CSV">
-              <span>
-                <Button
-                  variant="outlined"
-                  startIcon={<CsvIcon />}
-                  onClick={handleExportCsv}
-                  disabled={exporting || loadingReport || !hasData}
-                  size="small"
-                >
-                  Exportar CSV
-                </Button>
-              </span>
-            </Tooltip>
-            <Tooltip title="Exportar relatório em PDF">
-              <span>
-                <Button
-                  variant="outlined"
-                  startIcon={<PdfIcon />}
-                  onClick={handleExportPdf}
-                  disabled={exporting || loadingReport || !hasData}
-                  size="small"
-                >
-                  Exportar PDF
-                </Button>
-              </span>
-            </Tooltip>
+          </Stack>
+          <Typography variant="body2" color="text.secondary" mt={0.5}>
+            Visualize métricas e explore os work items importados
+          </Typography>
+        </Box>
+        <MuiTooltip title="Exportar relatório em PDF">
+          <span>
+            <Button
+              variant="outlined"
+              startIcon={<PdfIcon />}
+              onClick={handleExportPdf}
+              disabled={exporting || loadingReport || !hasData}
+              size="small"
+            >
+              Exportar PDF
+            </Button>
+          </span>
+        </MuiTooltip>
+      </Stack>
+
+      {/* Period */}
+      <Box
+        sx={{
+          bgcolor: 'background.paper',
+          borderRadius: '1rem',
+          border: 1,
+          borderColor: 'divider',
+          p: 2,
+          mb: 2,
+          flexShrink: 0,
+        }}
+      >
+        <Typography variant="subtitle2" color="text.secondary" mb={1.5}>
+          Período
+        </Typography>
+        <ButtonGroup size="small" variant="outlined">
+          {PERIOD_PRESETS.map((p) => (
+            <Button
+              key={p.days}
+              onClick={() => setSelectedPreset(p.days)}
+              variant={selectedPreset === p.days ? 'contained' : 'outlined'}
+              disabled={loadingReport}
+            >
+              {p.label}
+            </Button>
+          ))}
+        </ButtonGroup>
+      </Box>
+
+      {loadingReport && !isInitialLoad && (
+        <LinearProgress sx={{ mb: 1, borderRadius: 1, flexShrink: 0 }} />
+      )}
+
+      {isInitialLoad && (
+        <Stack spacing={3} sx={{ flex: 1 }}>
+          <Skeleton
+            variant="rounded"
+            height={80}
+            sx={{ borderRadius: '1rem' }}
+          />
+          <Stack direction="row" spacing={3}>
+            <Skeleton
+              variant="rounded"
+              height={300}
+              sx={{ flex: 1, borderRadius: '1rem' }}
+            />
+            <Skeleton
+              variant="rounded"
+              height={300}
+              sx={{ flex: 1, borderRadius: '1rem' }}
+            />
           </Stack>
         </Stack>
+      )}
 
-        {/* Period Filter */}
+      {!isInitialLoad && !hasData && !loadingReport && (
         <Box
           sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            py: 8,
             bgcolor: 'background.paper',
             borderRadius: '1rem',
             border: 1,
             borderColor: 'divider',
-            p: 2,
-            mb: 3,
           }}
         >
-          <Typography variant="subtitle2" color="text.secondary" mb={1.5}>
-            Período
+          <ReportsIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+          <Typography variant="h6" color="text.secondary" gutterBottom>
+            Nenhum dado encontrado
           </Typography>
-          <Stack
-            direction="row"
-            spacing={2}
-            alignItems="center"
-            flexWrap="wrap"
-            useFlexGap
-          >
-            <ButtonGroup size="small" variant="outlined">
-              {PERIOD_PRESETS.map((preset) => (
-                <Button
-                  key={preset.days}
-                  onClick={() => handlePresetClick(preset.days)}
-                  variant={
-                    !filters.isCustom && filters.selectedPreset === preset.days
-                      ? 'contained'
-                      : 'outlined'
-                  }
-                  disabled={loadingReport}
-                >
-                  {preset.label}
-                </Button>
-              ))}
-            </ButtonGroup>
-            <Stack direction="row" spacing={1} alignItems="center">
-              <Typography variant="body2" color="text.secondary">
-                ou
-              </Typography>
-              <DatePicker
-                label="Data início"
-                value={filters.customStart}
-                onChange={handleCustomStartChange}
-                disabled={loadingReport}
-                slotProps={{
-                  textField: { size: 'small', sx: { width: 160 } },
-                }}
-              />
-              <DatePicker
-                label="Data fim"
-                value={filters.customEnd}
-                onChange={handleCustomEndChange}
-                disabled={loadingReport}
-                slotProps={{
-                  textField: { size: 'small', sx: { width: 160 } },
-                }}
-              />
-            </Stack>
-          </Stack>
+          <Typography variant="body2" color="text.secondary">
+            Não há work items importados para o período selecionado.
+          </Typography>
         </Box>
+      )}
 
-        {/* Loading indicator for subsequent loads */}
-        {loadingReport && !isInitialLoad && (
-          <LinearProgress sx={{ mb: 2, borderRadius: 1 }} />
-        )}
-
-        {/* Skeleton for initial load only */}
-        {isInitialLoad && (
-          <Stack spacing={3}>
-            <Skeleton
-              variant="rounded"
-              height={80}
-              sx={{ borderRadius: '1rem' }}
-            />
-            <Stack direction="row" spacing={3}>
-              <Skeleton
-                variant="rounded"
-                height={300}
-                sx={{ flex: 1, borderRadius: '1rem' }}
-              />
-              <Skeleton
-                variant="rounded"
-                height={300}
-                sx={{ flex: 1, borderRadius: '1rem' }}
-              />
-            </Stack>
-            <Skeleton
-              variant="rounded"
-              height={200}
-              sx={{ borderRadius: '1rem' }}
-            />
-            <Skeleton
-              variant="rounded"
-              height={200}
-              sx={{ borderRadius: '1rem' }}
-            />
-          </Stack>
-        )}
-
-        {/* Empty State */}
-        {!isInitialLoad && !hasData && !loadingReport && (
-          <Box
+      {!isInitialLoad && hasData && reportData && (
+        <Box
+          sx={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            bgcolor: 'background.paper',
+            borderRadius: '1rem',
+            border: 1,
+            borderColor: 'divider',
+            minHeight: 0,
+            overflow: 'hidden',
+            opacity: loadingReport ? 0.5 : 1,
+            transition: 'opacity 0.2s ease',
+            pointerEvents: loadingReport ? 'none' : 'auto',
+          }}
+        >
+          {/* Tabs */}
+          <Tabs
+            value={activeTab}
+            onChange={(_, v) => setActiveTab(v)}
             sx={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              py: 8,
-              px: 4,
-              bgcolor: 'background.paper',
-              borderRadius: '1rem',
-              border: 1,
+              px: 2,
+              flexShrink: 0,
+              borderBottom: 1,
               borderColor: 'divider',
             }}
           >
-            <ReportsIcon
-              sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }}
+            <Tab
+              icon={<DashboardIcon fontSize="small" />}
+              iconPosition="start"
+              label="Dashboard"
+              sx={{ textTransform: 'none', minHeight: 48 }}
             />
-            <Typography variant="h6" color="text.secondary" gutterBottom>
-              Nenhum dado encontrado
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Não há work items importados para o período selecionado.
-            </Typography>
-          </Box>
-        )}
+            <Tab
+              icon={<ListIcon fontSize="small" />}
+              iconPosition="start"
+              label={`Work Items (${reportData.totalItems})`}
+              sx={{ textTransform: 'none', minHeight: 48 }}
+            />
+          </Tabs>
 
-        {/* Report Content */}
-        {!isInitialLoad && hasData && reportData && (
-          <Stack
-            spacing={3}
+          {/* Tab content */}
+          <Box
             sx={{
-              opacity: loadingReport ? 0.5 : 1,
-              transition: 'opacity 0.2s ease',
-              pointerEvents: loadingReport ? 'none' : 'auto',
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: 0,
+              overflow: 'hidden',
             }}
           >
-            {/* Total Count */}
-            <Box
-              sx={{
-                bgcolor: 'background.paper',
-                borderRadius: '1rem',
-                border: 1,
-                borderColor: 'divider',
-                p: 2.5,
-              }}
-            >
-              <Typography variant="body2" color="text.secondary">
-                Total de work items no período
-              </Typography>
-              <Typography variant="h3" fontWeight={700} color="primary.main">
-                {reportData.totalItems}
-              </Typography>
-            </Box>
-
-            {/* Charts Row */}
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
-              {/* Chart by Type */}
-              <Box
-                sx={{
-                  flex: 1,
-                  bgcolor: 'background.paper',
-                  borderRadius: '1rem',
-                  border: 1,
-                  borderColor: 'divider',
-                  p: 2.5,
-                }}
-              >
-                <Typography variant="subtitle1" fontWeight={600} mb={2}>
-                  Por Tipo
-                </Typography>
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart
-                    data={byTypeData}
-                    margin={{ top: 5, right: 20, bottom: 5, left: 0 }}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="rgba(255,255,255,0.1)"
-                    />
-                    <XAxis
-                      dataKey="type"
-                      tick={{ fill: '#a0a0a0', fontSize: 12 }}
-                      axisLine={{ stroke: '#333' }}
-                    />
-                    <YAxis
-                      tick={{ fill: '#a0a0a0', fontSize: 12 }}
-                      axisLine={{ stroke: '#333' }}
-                      allowDecimals={false}
-                    />
-                    <RechartsTooltip
-                      contentStyle={{
-                        backgroundColor: '#282828',
-                        border: '1px solid #404040',
-                        borderRadius: 8,
-                        color: '#f0f0f0',
-                      }}
-                    />
-                    <Bar
-                      dataKey="count"
-                      name="Quantidade"
-                      radius={[4, 4, 0, 0]}
-                    >
-                      {byTypeData.map((_, index) => (
-                        <Cell
-                          key={`type-${index}`}
-                          fill={TYPE_COLORS[index % TYPE_COLORS.length]}
-                        />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+            {activeTab === 0 && (
+              <Box sx={{ flex: 1, overflow: 'auto' }}>
+                <DashboardTab
+                  reportData={reportData}
+                  byTypeBars={byTypeBars}
+                  byStatusBars={byStatusBars}
+                  assigneeData={assigneeData}
+                  projectData={projectData}
+                />
               </Box>
+            )}
+            {activeTab === 1 && (
+              <WorkItemsTab
+                items={plainItems}
+                onSelectItem={handleSelectWorkItem}
+              />
+            )}
+          </Box>
+        </Box>
+      )}
 
-              {/* Chart by Status */}
-              <Box
-                sx={{
-                  flex: 1,
-                  bgcolor: 'background.paper',
-                  borderRadius: '1rem',
-                  border: 1,
-                  borderColor: 'divider',
-                  p: 2.5,
-                }}
-              >
-                <Typography variant="subtitle1" fontWeight={600} mb={2}>
-                  Por Status
-                </Typography>
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart
-                    data={byStatusData}
-                    margin={{ top: 5, right: 20, bottom: 5, left: 0 }}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="rgba(255,255,255,0.1)"
-                    />
-                    <XAxis
-                      dataKey="status"
-                      tick={{ fill: '#a0a0a0', fontSize: 12 }}
-                      axisLine={{ stroke: '#333' }}
-                    />
-                    <YAxis
-                      tick={{ fill: '#a0a0a0', fontSize: 12 }}
-                      axisLine={{ stroke: '#333' }}
-                      allowDecimals={false}
-                    />
-                    <RechartsTooltip
-                      contentStyle={{
-                        backgroundColor: '#282828',
-                        border: '1px solid #404040',
-                        borderRadius: 8,
-                        color: '#f0f0f0',
-                      }}
-                    />
-                    <Bar
-                      dataKey="count"
-                      name="Quantidade"
-                      radius={[4, 4, 0, 0]}
-                    >
-                      {byStatusData.map((_, index) => (
-                        <Cell
-                          key={`status-${index}`}
-                          fill={STATUS_COLORS[index % STATUS_COLORS.length]}
-                        />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </Box>
-            </Stack>
+      {/* Detail modal */}
+      <WorkItemDetailModal
+        item={selectedItem}
+        open={selectedItem != null}
+        onClose={() => setSelectedItem(null)}
+      />
 
-            {/* Table by Assignee */}
-            <Box
-              sx={{
-                bgcolor: 'background.paper',
-                borderRadius: '1rem',
-                border: 1,
-                borderColor: 'divider',
-                p: 2.5,
-              }}
-            >
-              <Typography variant="subtitle1" fontWeight={600} mb={2}>
-                Por Responsável
-              </Typography>
-              <TableContainer>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <SortableTableCell
-                        id="assignee"
-                        label="Responsável"
-                        sortConfig={assigneeSortConfig}
-                        onSort={handleAssigneeSort}
-                      />
-                      <SortableTableCell
-                        id="count"
-                        label="Quantidade"
-                        sortConfig={assigneeSortConfig}
-                        onSort={handleAssigneeSort}
-                        align="right"
-                      />
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {sortedAssignees.map((row) => (
-                      <TableRow key={row.assignee} hover>
-                        <TableCell>{row.assignee || 'Não atribuído'}</TableCell>
-                        <TableCell align="right">{row.count}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Box>
-
-            {/* Table by Project */}
-            <Box
-              sx={{
-                bgcolor: 'background.paper',
-                borderRadius: '1rem',
-                border: 1,
-                borderColor: 'divider',
-                p: 2.5,
-              }}
-            >
-              <Typography variant="subtitle1" fontWeight={600} mb={2}>
-                Por Projeto
-              </Typography>
-              <TableContainer>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <SortableTableCell
-                        id="project"
-                        label="Projeto"
-                        sortConfig={projectSortConfig}
-                        onSort={handleProjectSort}
-                      />
-                      <SortableTableCell
-                        id="count"
-                        label="Quantidade"
-                        sortConfig={projectSortConfig}
-                        onSort={handleProjectSort}
-                        align="right"
-                      />
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {sortedProjects.map((row) => (
-                      <TableRow key={row.project} hover>
-                        <TableCell>{row.project || 'Sem projeto'}</TableCell>
-                        <TableCell align="right">{row.count}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Box>
-          </Stack>
-        )}
-
-        {/* Snackbar for export notifications */}
-        <Snackbar
-          open={snackbar.open}
-          autoHideDuration={6000}
-          onClose={closeSnackbar}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      {/* Snackbar */}
+      <Snackbar
+        open={snackOpen}
+        autoHideDuration={6000}
+        onClose={() => setSnackOpen(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={() => setSnackOpen(false)}
+          severity={snackSev}
+          variant="filled"
+          sx={{ width: '100%' }}
         >
-          <Alert
-            onClose={closeSnackbar}
-            severity={snackbar.severity}
-            variant="filled"
-            sx={{ width: '100%' }}
-          >
-            {snackbar.message}
-          </Alert>
-        </Snackbar>
-      </PageContainer>
-    </LocalizationProvider>
+          {snackMsg}
+        </Alert>
+      </Snackbar>
+    </PageContainer>
   );
 }
 

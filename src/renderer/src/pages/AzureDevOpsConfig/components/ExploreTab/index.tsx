@@ -21,6 +21,7 @@ import {
   Paper,
   Tooltip,
   IconButton,
+  Skeleton,
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -29,6 +30,7 @@ import {
   Clear as ClearIcon,
   SelectAll as SelectAllIcon,
   Deselect as DeselectIcon,
+  Visibility as ViewIcon,
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -40,6 +42,8 @@ import type {
 } from '@shared/interfaces/config/index.types';
 import { useTableSort } from '@renderer/hooks/useTableSort';
 import { SortableTableCell } from '@renderer/components/SortableTableCell';
+import { IterationSelector } from '@renderer/components/IterationSelector';
+import { WorkItemDetailModal } from '../WorkItemDetailModal';
 
 interface ExploreTabProps {
   isConnected: boolean;
@@ -126,6 +130,7 @@ export function ExploreTab({
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [assignedToFilter, setAssignedToFilter] = useState('');
+  const [selectedIterationPath, setSelectedIterationPath] = useState<string | null>(null);
   const [createdAfter, setCreatedAfter] = useState<Date | null>(null);
   const [createdBefore, setCreatedBefore] = useState<Date | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -136,6 +141,7 @@ export function ExploreTab({
     null,
   );
   const [fetched, setFetched] = useState(false);
+  const [detailItem, setDetailItem] = useState<WorkItem | null>(null);
 
   // Client-side filtering for assignedTo and date range (post-fetch)
   const filteredWorkItems = useMemo(() => {
@@ -207,6 +213,7 @@ export function ExploreTab({
     if (selectedTypes.length > 0) filters.types = selectedTypes;
     if (selectedStates.length > 0) filters.states = selectedStates;
     if (searchQuery.trim()) filters.query = searchQuery.trim();
+    if (selectedIterationPath) filters.iterationPath = selectedIterationPath;
     await onFetchWorkItems(filters);
     setFetched(true);
   };
@@ -230,6 +237,7 @@ export function ExploreTab({
     setSelectedStates([]);
     setSearchQuery('');
     setAssignedToFilter('');
+    setSelectedIterationPath(null);
     setCreatedAfter(null);
     setCreatedBefore(null);
     setPage(0);
@@ -240,6 +248,7 @@ export function ExploreTab({
     selectedStates.length > 0 ||
     searchQuery.trim() !== '' ||
     assignedToFilter.trim() !== '' ||
+    selectedIterationPath !== null ||
     createdAfter !== null ||
     createdBefore !== null;
 
@@ -374,6 +383,12 @@ export function ExploreTab({
                 </MenuItem>
               ))}
             </TextField>
+
+            <IterationSelector
+              value={selectedIterationPath}
+              onChange={setSelectedIterationPath}
+              disabled={loading}
+            />
 
             <TextField
               label="Buscar por título"
@@ -524,6 +539,36 @@ export function ExploreTab({
           </Paper>
         )}
 
+        {/* Loading skeleton for table */}
+        {loading && !fetched && sortedItems.length === 0 && (
+          <TableContainer component={Paper} variant="outlined">
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  {['', 'ID', 'Título', 'Tipo', 'Estado', 'Atribuído', 'Criado', 'Atualizado', ''].map((col, i) => (
+                    <TableCell key={i}>{col}</TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell padding="checkbox"><Skeleton variant="rounded" width={20} height={20} /></TableCell>
+                    <TableCell><Skeleton variant="text" width={50} /></TableCell>
+                    <TableCell><Skeleton variant="text" width="80%" /></TableCell>
+                    <TableCell><Skeleton variant="rounded" width={80} height={24} /></TableCell>
+                    <TableCell><Skeleton variant="rounded" width={80} height={24} /></TableCell>
+                    <TableCell><Skeleton variant="text" width={100} /></TableCell>
+                    <TableCell><Skeleton variant="text" width={80} /></TableCell>
+                    <TableCell><Skeleton variant="text" width={80} /></TableCell>
+                    <TableCell><Skeleton variant="circular" width={28} height={28} /></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+
         {/* Results */}
         {fetched && sortedItems.length === 0 && !loading && (
           <Box textAlign="center" py={4}>
@@ -648,6 +693,7 @@ export function ExploreTab({
                       onSort={handleSort}
                       width={110}
                     />
+                    <TableCell width={50} />
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -711,6 +757,19 @@ export function ExploreTab({
                       </TableCell>
                       <TableCell>{formatDate(wi.createdDate)}</TableCell>
                       <TableCell>{formatDate(wi.changedDate)}</TableCell>
+                      <TableCell padding="none" align="center">
+                        <Tooltip title="Ver detalhes">
+                          <IconButton
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDetailItem(wi);
+                            }}
+                          >
+                            <ViewIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -735,6 +794,12 @@ export function ExploreTab({
             />
           </>
         )}
+
+        <WorkItemDetailModal
+          open={!!detailItem}
+          workItem={detailItem}
+          onClose={() => setDetailItem(null)}
+        />
       </Box>
     </LocalizationProvider>
   );

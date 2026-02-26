@@ -11,6 +11,7 @@ import PersonAddOutlinedIcon from '@mui/icons-material/PersonAddOutlined';
 import GroupWorkOutlinedIcon from '@mui/icons-material/GroupWorkOutlined';
 import ViewKanbanOutlinedIcon from '@mui/icons-material/ViewKanbanOutlined';
 import TaskAltOutlinedIcon from '@mui/icons-material/TaskAltOutlined';
+import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { DrawerNavigator } from './components/DrawerNavigator';
 import { IDrawerItem } from '@renderer/types/drawer/drawerItem';
@@ -30,7 +31,10 @@ import { SprintsPage } from '@renderer/pages/Sprints';
 import { TeamAllocationPage } from '@renderer/pages/TeamAllocation';
 import { SprintsTasksPage } from '@renderer/pages/SprintsTasks';
 import { TaskBoardPage } from '@renderer/pages/TaskBoard';
+import { SystemSettingsPage } from '@renderer/pages/SystemSettings';
+import { AzureDevOpsReportsPage } from '@renderer/pages/AzureDevOpsReports';
 
+import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
 type WithRouteProps<T> = T & {
   routePath: string;
   routeElement: JSX.Element;
@@ -71,70 +75,23 @@ const GENERAL_SECTION: IDrawerSection = {
       icon: <TimelineOutlinedIcon />,
       canAccess: true,
     },
-  ],
-};
-
-// Seção Sistema - Cadastros individuais para administração
-const SYSTEM_SECTION: IDrawerSection = {
-  id: 'system',
-  title: 'Sistema',
-  items: [
     {
-      label: 'Cargos',
-      path: '/panel/positions',
-      icon: <WorkOutlinedIcon />,
+      label: 'Relatórios Azure DevOps',
+      path: '/panel/azure-devops-reports',
+      icon: <AssessmentOutlinedIcon />,
       canAccess: true,
     },
     {
-      label: 'Equipes',
-      path: '/panel/teams',
-      icon: <GroupsOutlinedIcon />,
-      canAccess: true,
-    },
-    {
-      label: 'Membros',
-      path: '/panel/team-members',
-      icon: <PeopleOutlinedIcon />,
-      canAccess: true,
-    },
-    {
-      label: 'Alocação em Equipes',
-      path: '/panel/team-member-allocations',
-      icon: <PersonAddOutlinedIcon />,
-      canAccess: true,
-    },
-    {
-      label: 'Sprints',
-      path: '/panel/sprints',
-      icon: <SpeedOutlinedIcon />,
-      canAccess: true,
-    },
-    {
-      label: 'Tarefas',
-      path: '/panel/tasks',
-      icon: <AssignmentOutlinedIcon />,
-      canAccess: true,
-    },
-    {
-      label: 'Alocações',
-      path: '/panel/allocations',
-      icon: <EventNoteOutlinedIcon />,
-      canAccess: true,
-    },
-    {
-      label: 'Azure DevOps',
-      path: '/panel/azure-devops',
-      icon: <CloudOutlinedIcon />,
+      label: 'Sistema',
+      path: '/panel/system',
+      icon: <SettingsOutlinedIcon />,
       canAccess: true,
     },
   ],
 };
 
 // Array exportado com todas as seções para uso pelo DrawerNavigator
-export const DRAWER_SECTIONS: IDrawerSection[] = [
-  GENERAL_SECTION,
-  SYSTEM_SECTION,
-];
+export const DRAWER_SECTIONS: IDrawerSection[] = [GENERAL_SECTION];
 
 const ROUTES_ITEMS: WithRouteProps<IDrawerItem>[] = [
   {
@@ -144,6 +101,14 @@ const ROUTES_ITEMS: WithRouteProps<IDrawerItem>[] = [
     canAccess: true,
     routeElement: <TeamDashboardPage />,
     routePath: '/dashboard',
+  },
+  {
+    label: 'Sistema',
+    path: '/panel/system',
+    icon: <SettingsOutlinedIcon />,
+    canAccess: true,
+    routeElement: <SystemSettingsPage />,
+    routePath: '/system',
   },
   {
     label: 'Alocação de Equipes',
@@ -240,6 +205,14 @@ const ROUTES_ITEMS: WithRouteProps<IDrawerItem>[] = [
     canAccess: true,
     routeElement: <AzureDevOpsConfigPage />,
     routePath: '/azure-devops',
+  },
+  {
+    label: 'Relatórios Azure DevOps',
+    path: '/panel/azure-devops-reports',
+    icon: <AssessmentOutlinedIcon />,
+    canAccess: true,
+    routeElement: <AzureDevOpsReportsPage />,
+    routePath: '/azure-devops-reports',
   },
 ];
 

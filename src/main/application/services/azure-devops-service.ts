@@ -5,6 +5,8 @@ import { Repository } from 'typeorm';
 import { TaskRepository } from '../repositories/task-repository';
 import { TaskEntity } from '../entities/task.entity';
 import { logger } from '@main/infrastructure/log/logger';
+import { mapWorkItemType } from './work-item-type-mapper';
+import { DashboardMetrics, IterationNode, ReportData, ReportItem, ReportPeriod } from '@shared/interfaces/config/index.types';
 
 export interface AzureDevOpsConfig {
   organizationUrl: string;
@@ -27,7 +29,16 @@ export interface WorkItem {
   assignedTo?: string;
   createdDate: Date;
   changedDate: Date;
+  // Campos enriquecidos (V2)
+  projectName?: string;
+  areaPath?: string;
+  iterationPath?: string;
+  tags?: string;
+  storyPoints?: number;
+  priority?: number;
+  originalWorkItemType?: string;
 }
+
 
 export interface WorkItemFilters {
   types?: string[];
@@ -296,6 +307,14 @@ export class AzureDevOpsService {
       whereClause += ` AND [System.Title] CONTAINS '${filters.query}'`;
     }
 
+    if (filters?.iterationPath) {
+      // Azure DevOps classification paths must not start with a backslash.
+      // The classification nodes API returns paths like "\Project\Iteration\Sprint-01",
+      // but WIQL expects "Project\Iteration\Sprint-01".
+      const sanitizedPath = filters.iterationPath.replace(/^\\+/, '');
+      whereClause += ` AND [System.IterationPath] UNDER '${sanitizedPath}'`;
+    }
+
     const wiqlQuery = `SELECT [System.Id] FROM WorkItems WHERE ${whereClause} ORDER BY [System.ChangedDate] DESC`;
 
     // Execute WIQL query to get work item IDs
@@ -368,7 +387,7 @@ export class AzureDevOpsService {
 
     const idsParam = workItemIds.join(',');
     const fields =
-      'System.Id,System.Title,System.WorkItemType,System.State,System.Description,System.AssignedTo,System.CreatedDate,System.ChangedDate';
+      'System.Id,System.Title,System.WorkItemType,System.State,System.Description,System.AssignedTo,System.CreatedDate,System.ChangedDate,System.AreaPath,System.IterationPath,System.Tags,Microsoft.VSTS.Scheduling.StoryPoints,Microsoft.VSTS.Common.Priority';
     const detailsUrl = `${baseUrl}/${encodeURIComponent(projectName)}/_apis/wit/workitems?ids=${idsParam}&fields=${fields}&api-version=7.0`;
 
     const response = await fetch(detailsUrl, {
@@ -400,6 +419,14 @@ export class AzureDevOpsService {
         ?.displayName,
       createdDate: new Date(wi.fields['System.CreatedDate'] as string),
       changedDate: new Date(wi.fields['System.ChangedDate'] as string),
+      // Campos enriquecidos (V2)
+      projectName: projectName,
+      areaPath: (wi.fields['System.AreaPath'] as string) ?? null,
+      iterationPath: (wi.fields['System.IterationPath'] as string) ?? null,
+      tags: (wi.fields['System.Tags'] as string) ?? null,
+      storyPoints: (wi.fields['Microsoft.VSTS.Scheduling.StoryPoints'] as number) ?? null,
+      priority: (wi.fields['Microsoft.VSTS.Common.Priority'] as number) ?? null,
+      originalWorkItemType: (wi.fields['System.WorkItemType'] as string) ?? null,
     }));
   }
 
@@ -465,9 +492,15 @@ export class AzureDevOpsService {
         startDate: startDate,
         endDate: endDate >= startDate ? endDate : startDate,
         status: this.mapWorkItemStateToTaskStatus(workItem.state),
+        type: mapWorkItemType(workItem.type),
         origin: 'azure_devops',
         externalId: String(workItem.id),
         externalSource: 'azure_devops',
+        areaPath: workItem.areaPath ?? undefined,
+        iterationPath: workItem.iterationPath ?? undefined,
+        tags: workItem.tags ?? undefined,
+        storyPoints: workItem.storyPoints ?? undefined,
+        originalWorkItemType: workItem.originalWorkItemType ?? undefined,
       });
 
       createdTasks.push(savedTask);
@@ -579,6 +612,14 @@ export class AzureDevOpsService {
     task.title = workItem.title;
     task.description = workItem.description || undefined;
     task.status = this.mapWorkItemStateToTaskStatus(workItem.state);
+    task.type = mapWorkItemType(workItem.type);
+
+    // Update enriched fields with current values from Azure DevOps API
+    task.areaPath = workItem.areaPath ?? undefined;
+    task.iterationPath = workItem.iterationPath ?? undefined;
+    task.tags = workItem.tags ?? undefined;
+    task.storyPoints = workItem.storyPoints ?? undefined;
+    task.originalWorkItemType = workItem.originalWorkItemType ?? undefined;
 
     // Save the updated task
     const updatedTask = await taskRepository.save(task);
@@ -622,5 +663,201 @@ export class AzureDevOpsService {
     }
 
     return result;
+  }
+
+  /**
+   * Fetch iteration tree from Azure DevOps classification nodes API.
+   * Returns the children of the root Iterations node, mapped recursively.
+   * On error, returns an empty array and logs the error.
+   */
+  async fetchIterations(): Promise<IterationNode[]> {
+    try {
+      const fullConfig = await this.getFullConfig();
+
+      if (!fullConfig) {
+        logger.warn('Configuração do Azure DevOps não encontrada ao buscar iterations');
+        return [];
+      }
+
+      const { organizationUrl, projectName, pat } = fullConfig;
+      const baseUrl = organizationUrl.replace(/\/$/, '');
+      const authHeader = `Basic ${Buffer.from(`:${pat}`).toString('base64')}`;
+
+      const url = `${baseUrl}/${encodeURIComponent(projectName)}/_apis/wit/classificationnodes/Iterations?$depth=10&api-version=7.0`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Authorization: authHeader,
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error(`Erro ao buscar iterations: ${response.status} - ${errorText}`);
+        return [];
+      }
+
+      const data = await response.json() as {
+        id: number;
+        name: string;
+        path: string;
+        children?: Array<Record<string, unknown>>;
+      };
+
+      return this.mapIterationNodes(data.children ?? []);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      logger.error(`Erro ao buscar iterations: ${errorMessage}`);
+      return [];
+    }
+  }
+
+  /**
+   * Recursively maps raw API classification node objects to IterationNode[].
+   */
+  private mapIterationNodes(nodes: Array<Record<string, unknown>>): IterationNode[] {
+    return nodes.map((node) => ({
+      id: node.id as number,
+      name: node.name as string,
+      path: node.path as string,
+      children: this.mapIterationNodes((node.children as Array<Record<string, unknown>>) ?? []),
+    }));
+  }
+
+  /**
+   * Get report data by fetching work items directly from the Azure DevOps API
+   * within a given period. Aggregates by type, status, assignee, and project.
+   * @param period The date range to filter work items by creation date
+   * @returns ReportData with totals, aggregations, and item list
+   */
+  async getReportData(period: ReportPeriod): Promise<ReportData> {
+    const fullConfig = await this.getFullConfig();
+
+    if (!fullConfig) {
+      throw new Error('Configuração do Azure DevOps não encontrada');
+    }
+
+    const { organizationUrl, projectName, pat } = fullConfig;
+    const baseUrl = organizationUrl.replace(/\/$/, '');
+    const authHeader = `Basic ${Buffer.from(`:${pat}`).toString('base64')}`;
+
+    // Format dates for WIQL
+    const startStr = period.startDate.toISOString().split('T')[0];
+    const endStr = period.endDate.toISOString().split('T')[0];
+
+    const wiqlQuery = `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '${projectName}' AND [System.CreatedDate] >= '${startStr}' AND [System.CreatedDate] <= '${endStr}' ORDER BY [System.CreatedDate] DESC`;
+
+    const wiqlUrl = `${baseUrl}/${encodeURIComponent(projectName)}/_apis/wit/wiql?api-version=7.0`;
+
+    const wiqlResponse = await fetch(wiqlUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: authHeader,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query: wiqlQuery }),
+    });
+
+    if (!wiqlResponse.ok) {
+      const errorText = await wiqlResponse.text();
+      throw new Error(`Erro ao buscar work items para relatório: ${wiqlResponse.status} - ${errorText}`);
+    }
+
+    const wiqlResult = (await wiqlResponse.json()) as {
+      workItems: Array<{ id: number }>;
+    };
+
+    if (!wiqlResult.workItems || wiqlResult.workItems.length === 0) {
+      return { totalItems: 0, byType: [], byStatus: [], byAssignee: [], byProject: [], items: [] };
+    }
+
+    // Fetch details (limit to 200)
+    const workItemIds = wiqlResult.workItems.slice(0, 200).map((wi) => wi.id);
+    const workItems = await this.fetchWorkItemDetails(workItemIds, baseUrl, projectName, authHeader);
+
+    // Build aggregation maps
+    const typeMap = new Map<string, number>();
+    const statusMap = new Map<string, number>();
+    const assigneeMap = new Map<string, number>();
+    const projectMap = new Map<string, number>();
+
+    const items: ReportItem[] = workItems.map((wi) => {
+      const assignee = wi.assignedTo || 'Não atribuído';
+      const project = wi.areaPath ? wi.areaPath.split('\\')[0] || 'Sem projeto' : 'Sem projeto';
+
+      typeMap.set(wi.type, (typeMap.get(wi.type) ?? 0) + 1);
+      statusMap.set(wi.state, (statusMap.get(wi.state) ?? 0) + 1);
+      assigneeMap.set(assignee, (assigneeMap.get(assignee) ?? 0) + 1);
+      projectMap.set(project, (projectMap.get(project) ?? 0) + 1);
+
+      return {
+        id: wi.id,
+        title: wi.title,
+        type: wi.type,
+        originalType: wi.originalWorkItemType,
+        status: wi.state,
+        assignee,
+        project,
+        areaPath: wi.areaPath,
+        iterationPath: wi.iterationPath,
+        tags: wi.tags,
+        storyPoints: wi.storyPoints,
+        createdAt: wi.createdDate,
+        updatedAt: wi.changedDate,
+      };
+    });
+
+    return {
+      totalItems: workItems.length,
+      byType: Array.from(typeMap.entries()).map(([type, count]) => ({ type, count })),
+      byStatus: Array.from(statusMap.entries()).map(([status, count]) => ({ status, count })),
+      byAssignee: Array.from(assigneeMap.entries()).map(([assignee, count]) => ({ assignee, count })),
+      byProject: Array.from(projectMap.entries()).map(([project, count]) => ({ project, count })),
+      items,
+    };
+  }
+
+  async getDashboardMetrics(): Promise<DashboardMetrics> {
+    const taskRepository = new TaskRepository();
+
+    // Query all tasks imported from Azure DevOps
+    const tasks = await taskRepository.find({
+      where: { origin: 'azure_devops' },
+    });
+
+    const totalImported = tasks.length;
+
+    // Find the most recent updatedAt as lastSyncDate
+    let lastSyncDate: Date | undefined;
+    if (tasks.length > 0) {
+      lastSyncDate = tasks.reduce((latest, task) => {
+        const taskDate = task.updatedAt ? new Date(task.updatedAt) : new Date(0);
+        return taskDate > latest ? taskDate : latest;
+      }, new Date(0));
+    }
+
+    // pendingSync: Since we don't store changedDate from Azure DevOps locally,
+    // we cannot compare it with updatedAt. Set to 0 as per design guidance.
+    const pendingSync = 0;
+
+    // Build status distribution
+    const statusMap = new Map<string, number>();
+    for (const task of tasks) {
+      const status = task.status || 'pending';
+      statusMap.set(status, (statusMap.get(status) ?? 0) + 1);
+    }
+
+    const byStatus = Array.from(statusMap.entries()).map(([status, count]) => ({
+      status,
+      count,
+    }));
+
+    return {
+      totalImported,
+      lastSyncDate,
+      pendingSync,
+      byStatus,
+    };
   }
 }

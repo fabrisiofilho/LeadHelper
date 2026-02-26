@@ -98,6 +98,21 @@ export class TaskEntity extends AuditableEntity {
   @Column({ name: 'estimation_type', type: 'text', nullable: true })
   estimationType?: EstimationType;
 
+  @Column({ name: 'area_path', type: 'text', nullable: true })
+  areaPath?: string;
+
+  @Column({ name: 'iteration_path', type: 'text', nullable: true })
+  iterationPath?: string;
+
+  @Column({ name: 'tags', type: 'text', nullable: true })
+  tags?: string;
+
+  @Column({ name: 'story_points', type: 'real', nullable: true })
+  storyPoints?: number;
+
+  @Column({ name: 'original_work_item_type', type: 'text', nullable: true })
+  originalWorkItemType?: string;
+
   @OneToMany('AllocationEntity', 'task')
   allocations?: AllocationEntity[];
 

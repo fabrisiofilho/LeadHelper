@@ -4,22 +4,25 @@ import {
   Typography,
   IconButton,
   Tooltip,
-  CircularProgress,
   Stack,
   Tab,
   Tabs,
+  Button,
+  Skeleton,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
   Settings as ConfigIcon,
   Explore as ExploreIcon,
   CloudSync as ImportedIcon,
+  CloudOff as CloudOffIcon,
 } from '@mui/icons-material';
 import { useAzureDevOps } from '@renderer/hooks/useAzureDevOps';
-import { PageContainer } from './styles';
+import { PageContainer, PlaceholderContent } from './styles';
 import { ConfigTab } from './components/ConfigTab';
 import { ExploreTab } from './components/ExploreTab';
 import { ImportedTasksTab } from './components/ImportedTasksTab';
+import { DashboardSection } from '@renderer/components/DashboardSection';
 
 export function AzureDevOpsConfigPage() {
   const [activeTab, setActiveTab] = useState(0);
@@ -51,15 +54,20 @@ export function AzureDevOpsConfigPage() {
   if (loading && !config) {
     return (
       <PageContainer>
-        <Stack alignItems="center" justifyContent="center" minHeight="60vh">
-          <CircularProgress size={48} />
-          <Typography variant="body1" color="text.secondary" mt={2}>
-            Carregando configuração...
-          </Typography>
+        <Stack spacing={2}>
+          <Box>
+            <Skeleton variant="text" width={280} height={40} />
+            <Skeleton variant="text" width={400} height={20} />
+          </Box>
+          <Skeleton variant="rounded" height={120} sx={{ borderRadius: '1rem' }} />
+          <Skeleton variant="rounded" height={48} sx={{ borderRadius: '0.5rem' }} />
+          <Skeleton variant="rounded" height={300} sx={{ borderRadius: '1rem' }} />
         </Stack>
       </PageContainer>
     );
   }
+
+  const isConfigDefined = config?.isConfigured;
 
   return (
     <PageContainer>
@@ -84,6 +92,8 @@ export function AzureDevOpsConfigPage() {
           </IconButton>
         </Tooltip>
       </Stack>
+
+      {config && <DashboardSection />}
 
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs
@@ -124,7 +134,26 @@ export function AzureDevOpsConfigPage() {
         />
       )}
 
-      {activeTab === 1 && (
+      {activeTab === 1 && !isConfigDefined && (
+        <PlaceholderContent>
+          <CloudOffIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+          <Typography variant="h6" color="text.secondary" gutterBottom>
+            Configuração do Azure DevOps não encontrada
+          </Typography>
+          <Typography variant="body2" color="text.secondary" mb={3}>
+            Configure suas credenciais de acesso para explorar work items do Azure DevOps.
+          </Typography>
+          <Button
+            variant="contained"
+            startIcon={<ConfigIcon />}
+            onClick={() => setActiveTab(0)}
+          >
+            Ir para Configuração
+          </Button>
+        </PlaceholderContent>
+      )}
+
+      {activeTab === 1 && isConfigDefined && (
         <ExploreTab
           isConnected={isConnected}
           workItems={workItems}
@@ -136,7 +165,26 @@ export function AzureDevOpsConfigPage() {
         />
       )}
 
-      {activeTab === 2 && (
+      {activeTab === 2 && !isConfigDefined && (
+        <PlaceholderContent>
+          <CloudOffIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+          <Typography variant="h6" color="text.secondary" gutterBottom>
+            Configuração do Azure DevOps não encontrada
+          </Typography>
+          <Typography variant="body2" color="text.secondary" mb={3}>
+            Configure suas credenciais de acesso para gerenciar tarefas importadas.
+          </Typography>
+          <Button
+            variant="contained"
+            startIcon={<ConfigIcon />}
+            onClick={() => setActiveTab(0)}
+          >
+            Ir para Configuração
+          </Button>
+        </PlaceholderContent>
+      )}
+
+      {activeTab === 2 && isConfigDefined && (
         <ImportedTasksTab
           isConnected={isConnected}
           onSyncTask={syncTask}

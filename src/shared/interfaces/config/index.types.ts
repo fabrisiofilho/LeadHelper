@@ -205,6 +205,11 @@ export interface Task {
   estimationPoints?: number;
   estimationHours?: number;
   estimationType?: EstimationType;
+  areaPath?: string;
+  iterationPath?: string;
+  tags?: string;
+  storyPoints?: number;
+  originalWorkItemType?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -420,18 +425,77 @@ export interface WorkItem {
   assignedTo?: string;
   createdDate: Date;
   changedDate: Date;
+  // Campos enriquecidos (V2)
+  projectName?: string;
+  areaPath?: string;
+  iterationPath?: string;
+  tags?: string;
+  storyPoints?: number;
+  priority?: number;
+  originalWorkItemType?: string;
 }
 
 export interface WorkItemFilters {
   types?: string[];
   states?: string[];
   query?: string;
+  iterationPath?: string;
 }
 
 export interface SyncResult {
   synced: number;
   failed: number;
   errors: string[];
+}
+
+export interface IterationNode {
+  id: number;
+  name: string;
+  path: string;
+  children: IterationNode[];
+}
+
+export interface ReportData {
+  totalItems: number;
+  byType: Array<{ type: string; count: number }>;
+  byStatus: Array<{ status: string; count: number }>;
+  byAssignee: Array<{ assignee: string; count: number }>;
+  byProject: Array<{ project: string; count: number }>;
+  items: ReportItem[];
+}
+
+export interface ReportItem {
+  id: number;
+  title: string;
+  type: string;
+  originalType?: string;
+  status: string;
+  assignee?: string;
+  project?: string;
+  areaPath?: string;
+  iterationPath?: string;
+  tags?: string;
+  storyPoints?: number;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface DashboardMetrics {
+  totalImported: number;
+  lastSyncDate?: Date;
+  pendingSync: number;
+  byStatus: Array<{ status: string; count: number }>;
+}
+
+export interface ReportPeriod {
+  startDate: Date;
+  endDate: Date;
+}
+
+export interface ExportResult {
+  success: boolean;
+  filePath?: string;
+  error?: string;
 }
 
 // ============================================================================

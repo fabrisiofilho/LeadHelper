@@ -120,6 +120,12 @@ export const CONTROLLER_CONFIG = {
       'importWorkItems',
       'syncTask',
       'syncAllImportedTasks',
+      // Novos métodos V2
+      'fetchIterations',
+      'getReportData',
+      'getDashboardMetrics',
+      'exportCsv',
+      'exportPdf',
     ] as const,
   },
   autoUpdater: {

@@ -20,6 +20,7 @@ import {
   TextField,
   MenuItem,
   InputAdornment,
+  Skeleton,
 } from '@mui/material';
 import {
   Sync as SyncIcon,
@@ -185,11 +186,34 @@ export function ImportedTasksTab({
 
   if (loading && tasks.length === 0) {
     return (
-      <Box textAlign="center" py={6}>
-        <CircularProgress size={36} />
-        <Typography color="text.secondary" mt={1}>
-          Carregando tarefas importadas...
-        </Typography>
+      <Box>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+          <Skeleton variant="text" width={250} height={20} />
+          <Skeleton variant="rounded" width={160} height={36} />
+        </Stack>
+        <TableContainer component={Paper} variant="outlined">
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                {['ID', 'ID Azure', 'Título', 'Status', 'Atualizado', 'Ações'].map((col) => (
+                  <TableCell key={col}>{col}</TableCell>
+                ))}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell><Skeleton variant="text" width={40} /></TableCell>
+                  <TableCell><Skeleton variant="rounded" width={60} height={24} /></TableCell>
+                  <TableCell><Skeleton variant="text" width="80%" /></TableCell>
+                  <TableCell><Skeleton variant="rounded" width={80} height={24} /></TableCell>
+                  <TableCell><Skeleton variant="text" width={120} /></TableCell>
+                  <TableCell align="center"><Skeleton variant="circular" width={28} height={28} /></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
       </Box>
     );
   }

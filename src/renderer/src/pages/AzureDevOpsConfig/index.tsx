@@ -59,9 +59,21 @@ export function AzureDevOpsConfigPage() {
             <Skeleton variant="text" width={280} height={40} />
             <Skeleton variant="text" width={400} height={20} />
           </Box>
-          <Skeleton variant="rounded" height={120} sx={{ borderRadius: '1rem' }} />
-          <Skeleton variant="rounded" height={48} sx={{ borderRadius: '0.5rem' }} />
-          <Skeleton variant="rounded" height={300} sx={{ borderRadius: '1rem' }} />
+          <Skeleton
+            variant="rounded"
+            height={120}
+            sx={{ borderRadius: '1rem' }}
+          />
+          <Skeleton
+            variant="rounded"
+            height={48}
+            sx={{ borderRadius: '0.5rem' }}
+          />
+          <Skeleton
+            variant="rounded"
+            height={300}
+            sx={{ borderRadius: '1rem' }}
+          />
         </Stack>
       </PageContainer>
     );
@@ -141,7 +153,8 @@ export function AzureDevOpsConfigPage() {
             Configuração do Azure DevOps não encontrada
           </Typography>
           <Typography variant="body2" color="text.secondary" mb={3}>
-            Configure suas credenciais de acesso para explorar work items do Azure DevOps.
+            Configure suas credenciais de acesso para explorar work items do
+            Azure DevOps.
           </Typography>
           <Button
             variant="contained"
@@ -172,7 +185,8 @@ export function AzureDevOpsConfigPage() {
             Configuração do Azure DevOps não encontrada
           </Typography>
           <Typography variant="body2" color="text.secondary" mb={3}>
-            Configure suas credenciais de acesso para gerenciar tarefas importadas.
+            Configure suas credenciais de acesso para gerenciar tarefas
+            importadas.
           </Typography>
           <Button
             variant="contained"

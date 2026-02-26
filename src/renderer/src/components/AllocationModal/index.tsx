@@ -10,9 +10,7 @@ import {
   LinearProgress,
   Chip,
 } from '@mui/material';
-import {
-  Warning as WarningIcon,
-} from '@mui/icons-material';
+import { Warning as WarningIcon } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -185,7 +183,11 @@ export function AllocationModal({
   const memberAllocationInfo = useMemo(() => {
     const info = new Map<
       number,
-      { teams: { name: string; dedication: number }[]; totalDedication: number; isInCurrentTeam: boolean }
+      {
+        teams: { name: string; dedication: number }[];
+        totalDedication: number;
+        isInCurrentTeam: boolean;
+      }
     >();
     const currentTeamId = fixedTeam?.id ?? null;
 
@@ -350,7 +352,12 @@ export function AllocationModal({
                           </Typography>
                         </Box>
                         {info && (
-                          <Stack direction="row" spacing={0.5} flexShrink={0} alignItems="center">
+                          <Stack
+                            direction="row"
+                            spacing={0.5}
+                            flexShrink={0}
+                            alignItems="center"
+                          >
                             {info.isInCurrentTeam ? (
                               <Chip
                                 label="Já alocado"
@@ -361,10 +368,18 @@ export function AllocationModal({
                               />
                             ) : (
                               <Chip
-                                icon={<WarningIcon sx={{ fontSize: '14px !important' }} />}
+                                icon={
+                                  <WarningIcon
+                                    sx={{ fontSize: '14px !important' }}
+                                  />
+                                }
                                 label={`${info.totalDedication}% alocado`}
                                 size="small"
-                                color={info.totalDedication >= 100 ? 'error' : 'warning'}
+                                color={
+                                  info.totalDedication >= 100
+                                    ? 'error'
+                                    : 'warning'
+                                }
                                 variant="outlined"
                                 sx={{ height: 22, fontSize: '0.65rem' }}
                               />

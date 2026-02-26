@@ -16,19 +16,16 @@ export function useTableSort<T>(items: T[], defaultSort?: TableSortConfig) {
     defaultSort ?? null,
   );
 
-  const handleSort = useCallback(
-    (property: string) => {
-      setSortConfig((prev) => {
-        if (prev?.property === property) {
-          if (prev.direction === 'asc') return { property, direction: 'desc' };
-          // Third click removes sort
-          return null;
-        }
-        return { property, direction: 'asc' };
-      });
-    },
-    [],
-  );
+  const handleSort = useCallback((property: string) => {
+    setSortConfig((prev) => {
+      if (prev?.property === property) {
+        if (prev.direction === 'asc') return { property, direction: 'desc' };
+        // Third click removes sort
+        return null;
+      }
+      return { property, direction: 'asc' };
+    });
+  }, []);
 
   const sortedItems = useMemo(() => {
     if (!sortConfig) return items;
@@ -38,7 +35,8 @@ export function useTableSort<T>(items: T[], defaultSort?: TableSortConfig) {
     return [...items].sort((a, b) => {
       const getValue = (obj: unknown, path: string): unknown => {
         return path.split('.').reduce((acc: unknown, key: string) => {
-          if (acc && typeof acc === 'object') return (acc as Record<string, unknown>)[key];
+          if (acc && typeof acc === 'object')
+            return (acc as Record<string, unknown>)[key];
           return undefined;
         }, obj);
       };
@@ -56,7 +54,12 @@ export function useTableSort<T>(items: T[], defaultSort?: TableSortConfig) {
       if (bVal instanceof Date) bVal = bVal.getTime();
 
       // Handle date strings
-      if (typeof aVal === 'string' && !isNaN(Date.parse(aVal)) && typeof bVal === 'string' && !isNaN(Date.parse(bVal))) {
+      if (
+        typeof aVal === 'string' &&
+        !isNaN(Date.parse(aVal)) &&
+        typeof bVal === 'string' &&
+        !isNaN(Date.parse(bVal))
+      ) {
         const aDate = new Date(aVal).getTime();
         const bDate = new Date(bVal).getTime();
         if (!isNaN(aDate) && !isNaN(bDate)) {

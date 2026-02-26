@@ -27,7 +27,7 @@ graph TB
         Dashboard["DashboardSection<br/>(novo componente)"]
         IterationSelector["IterationSelector<br/>(novo componente)"]
         ExportButtons["ExportButtons<br/>(novo componente)"]
-        
+
         AzurePage --> Dashboard
         AzurePage --> IterationSelector
         ReportsPage --> ExportButtons
@@ -43,7 +43,7 @@ graph TB
         TypeMapper["work-item-type-mapper.ts<br/>(novo módulo)"]
         ReportExporter["report-exporter.ts<br/>(novo módulo)"]
         Migration007["007_azure_devops_enrichment.sql"]
-        
+
         Controller --> Service
         Controller --> ReportExporter
         Service --> TypeMapper
@@ -109,10 +109,10 @@ sequenceDiagram
 ```typescript
 // Mapeamento de tipos Azure DevOps → TaskType local
 const TYPE_MAP: Record<string, TaskType> = {
-  'feature': 'feature',
-  'bug': 'bug',
-  'task': 'task',
-  'improvement': 'improvement',
+  feature: 'feature',
+  bug: 'bug',
+  task: 'task',
+  improvement: 'improvement',
   'user story': 'feature',
   'product backlog item': 'task',
 };
@@ -219,13 +219,13 @@ export interface ExportResult {
 
 Novos métodos a adicionar:
 
-| Método IPC | Parâmetros | Retorno | Descrição |
-|---|---|---|---|
-| `azure-devops:fetchIterations` | — | `ApiResponse<IterationNode[]>` | Lista árvore de iterations do projeto |
-| `azure-devops:getReportData` | `ReportPeriod` | `ApiResponse<ReportData>` | Dados agregados para relatórios |
-| `azure-devops:getDashboardMetrics` | — | `ApiResponse<DashboardMetrics>` | Métricas resumidas do dashboard |
-| `azure-devops:exportCsv` | `ReportPeriod` | `ApiResponse<ExportResult>` | Exporta CSV com dialog nativo |
-| `azure-devops:exportPdf` | `ReportPeriod` | `ApiResponse<ExportResult>` | Exporta PDF com dialog nativo |
+| Método IPC                         | Parâmetros     | Retorno                         | Descrição                             |
+| ---------------------------------- | -------------- | ------------------------------- | ------------------------------------- |
+| `azure-devops:fetchIterations`     | —              | `ApiResponse<IterationNode[]>`  | Lista árvore de iterations do projeto |
+| `azure-devops:getReportData`       | `ReportPeriod` | `ApiResponse<ReportData>`       | Dados agregados para relatórios       |
+| `azure-devops:getDashboardMetrics` | —              | `ApiResponse<DashboardMetrics>` | Métricas resumidas do dashboard       |
+| `azure-devops:exportCsv`           | `ReportPeriod` | `ApiResponse<ExportResult>`     | Exporta CSV com dialog nativo         |
+| `azure-devops:exportPdf`           | `ReportPeriod` | `ApiResponse<ExportResult>`     | Exporta PDF com dialog nativo         |
 
 ### 4. Service — Métodos Adicionados
 
@@ -245,8 +245,14 @@ Novos métodos a adicionar:
 
 ```typescript
 export class ReportExporter {
-  async exportCsv(items: ReportItem[], period: ReportPeriod): Promise<ExportResult>;
-  async exportPdf(items: ReportItem[], period: ReportPeriod): Promise<ExportResult>;
+  async exportCsv(
+    items: ReportItem[],
+    period: ReportPeriod,
+  ): Promise<ExportResult>;
+  async exportPdf(
+    items: ReportItem[],
+    period: ReportPeriod,
+  ): Promise<ExportResult>;
 }
 ```
 
@@ -286,6 +292,7 @@ azureDevOps: {
 Seção de cards de métricas exibida no topo da `AzureDevOpsConfigPage`, antes das abas. Usa `surface` background, `border-radius: 1rem`, `box-shadow: cards` do tema.
 
 Cards:
+
 - Total importado (número)
 - Última sincronização (data/hora formatada)
 - Pendentes de sincronização (número com badge)
@@ -318,7 +325,6 @@ Componente `Autocomplete` (MUI) com árvore de iterations. Exibido na aba "Explo
 ### 8. Navegação
 
 Adicionar item "Relatórios Azure DevOps" no menu lateral (`panel.routes.tsx`), na seção Geral, com ícone `AssessmentOutlinedIcon`.
-
 
 ## Modelos de Dados
 
@@ -398,68 +404,67 @@ erDiagram
     }
 ```
 
-
 ## Propriedades de Corretude
 
-*Uma propriedade é uma característica ou comportamento que deve ser verdadeiro em todas as execuções válidas de um sistema — essencialmente, uma declaração formal sobre o que o sistema deve fazer. Propriedades servem como ponte entre especificações legíveis por humanos e garantias de corretude verificáveis por máquina.*
+_Uma propriedade é uma característica ou comportamento que deve ser verdadeiro em todas as execuções válidas de um sistema — essencialmente, uma declaração formal sobre o que o sistema deve fazer. Propriedades servem como ponte entre especificações legíveis por humanos e garantias de corretude verificáveis por máquina._
 
 ### Propriedade 1: Round-trip de enriquecimento na importação e sincronização
 
-*Para qualquer* WorkItem retornado pela API do Azure DevOps com campos enriquecidos (areaPath, iterationPath, tags, storyPoints, originalWorkItemType), após importação ou sincronização, a TaskEntity resultante deve conter os mesmos valores para esses campos. Quando um campo enriquecido é nulo/ausente na API, o valor armazenado deve ser nulo. Adicionalmente, o campo `type` da TaskEntity deve ser igual a `mapWorkItemType(workItem.type)` e o campo `originalWorkItemType` deve preservar o tipo original.
+_Para qualquer_ WorkItem retornado pela API do Azure DevOps com campos enriquecidos (areaPath, iterationPath, tags, storyPoints, originalWorkItemType), após importação ou sincronização, a TaskEntity resultante deve conter os mesmos valores para esses campos. Quando um campo enriquecido é nulo/ausente na API, o valor armazenado deve ser nulo. Adicionalmente, o campo `type` da TaskEntity deve ser igual a `mapWorkItemType(workItem.type)` e o campo `originalWorkItemType` deve preservar o tipo original.
 
 **Validates: Requirements 1.3, 1.5, 1.6, 2.3, 2.4**
 
 ### Propriedade 2: Requisição de detalhes inclui campos enriquecidos
 
-*Para qualquer* conjunto de IDs de work items, a URL construída por `fetchWorkItemDetails` deve conter os campos `System.AreaPath`, `System.IterationPath`, `System.Tags`, `Microsoft.VSTS.Scheduling.StoryPoints`, `Microsoft.VSTS.Common.Priority` e `System.WorkItemType` no parâmetro `fields`.
+_Para qualquer_ conjunto de IDs de work items, a URL construída por `fetchWorkItemDetails` deve conter os campos `System.AreaPath`, `System.IterationPath`, `System.Tags`, `Microsoft.VSTS.Scheduling.StoryPoints`, `Microsoft.VSTS.Common.Priority` e `System.WorkItemType` no parâmetro `fields`.
 
 **Validates: Requirements 1.1**
 
 ### Propriedade 3: Tipo desconhecido resulta em fallback "task"
 
-*Para qualquer* string que não esteja nas chaves conhecidas do mapeamento de tipos (Feature, Bug, Task, Improvement, User Story, Product Backlog Item), `mapWorkItemType` deve retornar `'task'`.
+_Para qualquer_ string que não esteja nas chaves conhecidas do mapeamento de tipos (Feature, Bug, Task, Improvement, User Story, Product Backlog Item), `mapWorkItemType` deve retornar `'task'`.
 
 **Validates: Requirements 2.2**
 
 ### Propriedade 4: Mapeamento de tipo é case-insensitive
 
-*Para qualquer* tipo conhecido do Azure DevOps em qualquer combinação de maiúsculas/minúsculas (ex: "FEATURE", "feature", "Feature", "fEaTuRe"), `mapWorkItemType` deve retornar o mesmo resultado que para a versão em minúsculas.
+_Para qualquer_ tipo conhecido do Azure DevOps em qualquer combinação de maiúsculas/minúsculas (ex: "FEATURE", "feature", "Feature", "fEaTuRe"), `mapWorkItemType` deve retornar o mesmo resultado que para a versão em minúsculas.
 
 **Validates: Requirements 2.5**
 
 ### Propriedade 5: Cláusula WIQL de iteration path
 
-*Para qualquer* string não-vazia de iterationPath fornecida nos filtros, a consulta WIQL gerada por `fetchWorkItems` deve conter a cláusula `[System.IterationPath] UNDER '{iterationPath}'`. Quando iterationPath não é fornecido, a cláusula não deve estar presente.
+_Para qualquer_ string não-vazia de iterationPath fornecida nos filtros, a consulta WIQL gerada por `fetchWorkItems` deve conter a cláusula `[System.IterationPath] UNDER '{iterationPath}'`. Quando iterationPath não é fornecido, a cláusula não deve estar presente.
 
 **Validates: Requirements 3.2**
 
 ### Propriedade 6: Parsing da árvore de iterations
 
-*Para qualquer* resposta válida da API de classification nodes do Azure DevOps com estrutura de árvore aninhada, `fetchIterations` deve produzir uma lista de `IterationNode[]` onde cada nó preserva id, name e path, e os filhos são recursivamente mapeados.
+_Para qualquer_ resposta válida da API de classification nodes do Azure DevOps com estrutura de árvore aninhada, `fetchIterations` deve produzir uma lista de `IterationNode[]` onde cada nó preserva id, name e path, e os filhos são recursivamente mapeados.
 
 **Validates: Requirements 3.4**
 
 ### Propriedade 7: Invariante de agrupamento nos relatórios
 
-*Para qualquer* conjunto de tarefas importadas e qualquer período, a soma das contagens em cada agrupamento (por tipo, por status, por assignee, por projeto) deve ser igual ao `totalItems` retornado por `getReportData`. Isto é, nenhum item é perdido ou duplicado na agregação.
+_Para qualquer_ conjunto de tarefas importadas e qualquer período, a soma das contagens em cada agrupamento (por tipo, por status, por assignee, por projeto) deve ser igual ao `totalItems` retornado por `getReportData`. Isto é, nenhum item é perdido ou duplicado na agregação.
 
 **Validates: Requirements 4.3, 4.4, 4.5, 4.6, 4.7, 6.2, 6.5**
 
 ### Propriedade 8: CSV contém todas as colunas obrigatórias
 
-*Para qualquer* lista de `ReportItem[]`, o CSV gerado por `exportCsv` deve conter uma linha de cabeçalho com exatamente as colunas: ID, Título, Tipo, Tipo Original, Estado, Responsável, Projeto, Area Path, Iteration Path, Tags, Story Points, Data de Criação, Data de Atualização. Cada linha de dados deve ter o mesmo número de campos que o cabeçalho.
+_Para qualquer_ lista de `ReportItem[]`, o CSV gerado por `exportCsv` deve conter uma linha de cabeçalho com exatamente as colunas: ID, Título, Tipo, Tipo Original, Estado, Responsável, Projeto, Area Path, Iteration Path, Tags, Story Points, Data de Criação, Data de Atualização. Cada linha de dados deve ter o mesmo número de campos que o cabeçalho.
 
 **Validates: Requirements 5.2**
 
 ### Propriedade 9: Dados exportados correspondem aos dados do relatório
 
-*Para qualquer* período, os itens retornados por `getReportData(period).items` devem ser idênticos (mesmos IDs, mesma ordem) aos itens usados por `exportCsv(period)` e `exportPdf(period)`.
+_Para qualquer_ período, os itens retornados por `getReportData(period).items` devem ser idênticos (mesmos IDs, mesma ordem) aos itens usados por `exportCsv(period)` e `exportPdf(period)`.
 
 **Validates: Requirements 5.7**
 
 ### Propriedade 10: Contagem de pendentes de sincronização
 
-*Para qualquer* conjunto de tarefas importadas do Azure DevOps, o valor `pendingSync` retornado por `getDashboardMetrics` deve ser igual ao número de tarefas cujo `changedDate` no Azure DevOps é posterior ao `updatedAt` local.
+_Para qualquer_ conjunto de tarefas importadas do Azure DevOps, o valor `pendingSync` retornado por `getDashboardMetrics` deve ser igual ao número de tarefas cujo `changedDate` no Azure DevOps é posterior ao `updatedAt` local.
 
 **Validates: Requirements 6.4**
 
@@ -467,26 +472,26 @@ erDiagram
 
 ### Backend (Main Process)
 
-| Cenário | Comportamento | Código |
-|---|---|---|
-| API Azure DevOps retorna 401 | Lança erro "Token de acesso inválido ou expirado" | Existente |
-| API Azure DevOps retorna 404 | Lança erro "Projeto não encontrado" | Existente |
-| Campo enriquecido nulo/ausente | Armazena `null` sem erro | Novo |
-| Erro ao buscar iterations | Retorna `[]` e loga erro | Novo |
-| Erro ao gerar CSV/PDF | Retorna `ExportResult { success: false, error }` | Novo |
-| Usuário cancela dialog de salvamento | Retorna `ExportResult { success: false }` sem erro | Novo |
-| Tipo de work item desconhecido | Usa fallback `'task'` | Novo |
-| Período inválido (startDate > endDate) | Retorna dados vazios | Novo |
+| Cenário                                | Comportamento                                      | Código    |
+| -------------------------------------- | -------------------------------------------------- | --------- |
+| API Azure DevOps retorna 401           | Lança erro "Token de acesso inválido ou expirado"  | Existente |
+| API Azure DevOps retorna 404           | Lança erro "Projeto não encontrado"                | Existente |
+| Campo enriquecido nulo/ausente         | Armazena `null` sem erro                           | Novo      |
+| Erro ao buscar iterations              | Retorna `[]` e loga erro                           | Novo      |
+| Erro ao gerar CSV/PDF                  | Retorna `ExportResult { success: false, error }`   | Novo      |
+| Usuário cancela dialog de salvamento   | Retorna `ExportResult { success: false }` sem erro | Novo      |
+| Tipo de work item desconhecido         | Usa fallback `'task'`                              | Novo      |
+| Período inválido (startDate > endDate) | Retorna dados vazios                               | Novo      |
 
 ### Frontend (Renderer Process)
 
-| Cenário | Comportamento |
-|---|---|
-| Erro na chamada IPC | Exibe mensagem via `setError` no hook, com opção de retry |
-| Loading | Exibe skeleton/spinner consistente com o sistema |
-| Config não definida | Exibe empty state com botão de ação |
+| Cenário                  | Comportamento                                                      |
+| ------------------------ | ------------------------------------------------------------------ |
+| Erro na chamada IPC      | Exibe mensagem via `setError` no hook, com opção de retry          |
+| Loading                  | Exibe skeleton/spinner consistente com o sistema                   |
+| Config não definida      | Exibe empty state com botão de ação                                |
 | Nenhum dado no relatório | Exibe mensagem "Nenhum dado encontrado para o período selecionado" |
-| Exportação com sucesso | Notificação toast com caminho do arquivo |
+| Exportação com sucesso   | Notificação toast com caminho do arquivo                           |
 
 ## Estratégia de Testes
 
@@ -506,37 +511,37 @@ A estratégia combina testes unitários (exemplos específicos) e testes baseado
 
 ### Testes Unitários
 
-| Área | Escopo | Tipo |
-|---|---|---|
-| Type Mapper | Mapeamentos conhecidos (2.1) | Exemplos |
-| Type Mapper | Tipo desconhecido → "task" | Exemplo |
-| Service — fetchIterations | Erro da API retorna [] | Edge case |
-| Service — importWorkItems | WorkItem com campos nulos | Edge case |
-| Report Exporter — CSV | Geração com lista vazia | Edge case |
-| Report Exporter — PDF | Geração produz buffer válido | Exemplo |
-| Controller | Cada novo método IPC retorna ApiResponse correto | Exemplos |
-| Frontend — empty state | Config null renderiza empty state | Exemplo |
-| Frontend — loading | Estado loading renderiza skeleton | Exemplo |
+| Área                      | Escopo                                           | Tipo      |
+| ------------------------- | ------------------------------------------------ | --------- |
+| Type Mapper               | Mapeamentos conhecidos (2.1)                     | Exemplos  |
+| Type Mapper               | Tipo desconhecido → "task"                       | Exemplo   |
+| Service — fetchIterations | Erro da API retorna []                           | Edge case |
+| Service — importWorkItems | WorkItem com campos nulos                        | Edge case |
+| Report Exporter — CSV     | Geração com lista vazia                          | Edge case |
+| Report Exporter — PDF     | Geração produz buffer válido                     | Exemplo   |
+| Controller                | Cada novo método IPC retorna ApiResponse correto | Exemplos  |
+| Frontend — empty state    | Config null renderiza empty state                | Exemplo   |
+| Frontend — loading        | Estado loading renderiza skeleton                | Exemplo   |
 
 ### Testes de Propriedade
 
-| Propriedade | Gerador | Iterações |
-|---|---|---|
-| P1: Round-trip enriquecimento | Gerar WorkItems com campos enriquecidos aleatórios (incluindo nulls) | 100 |
-| P2: Campos na URL | Gerar arrays de IDs aleatórios | 100 |
-| P3: Fallback tipo desconhecido | Gerar strings aleatórias excluindo tipos conhecidos | 100 |
-| P4: Case-insensitive | Gerar variações de casing dos tipos conhecidos | 100 |
-| P5: WIQL iteration clause | Gerar strings de iteration path aleatórias + undefined | 100 |
-| P6: Parsing árvore iterations | Gerar árvores JSON aninhadas aleatórias | 100 |
-| P7: Invariante agrupamento | Gerar listas de tasks com tipos/status/assignees aleatórios | 100 |
-| P8: CSV colunas | Gerar listas de ReportItem com campos aleatórios | 100 |
-| P9: Export = Report | Gerar períodos aleatórios com conjunto fixo de tasks | 100 |
-| P10: Pending sync count | Gerar tasks com changedDate/updatedAt aleatórios | 100 |
+| Propriedade                    | Gerador                                                              | Iterações |
+| ------------------------------ | -------------------------------------------------------------------- | --------- |
+| P1: Round-trip enriquecimento  | Gerar WorkItems com campos enriquecidos aleatórios (incluindo nulls) | 100       |
+| P2: Campos na URL              | Gerar arrays de IDs aleatórios                                       | 100       |
+| P3: Fallback tipo desconhecido | Gerar strings aleatórias excluindo tipos conhecidos                  | 100       |
+| P4: Case-insensitive           | Gerar variações de casing dos tipos conhecidos                       | 100       |
+| P5: WIQL iteration clause      | Gerar strings de iteration path aleatórias + undefined               | 100       |
+| P6: Parsing árvore iterations  | Gerar árvores JSON aninhadas aleatórias                              | 100       |
+| P7: Invariante agrupamento     | Gerar listas de tasks com tipos/status/assignees aleatórios          | 100       |
+| P8: CSV colunas                | Gerar listas de ReportItem com campos aleatórios                     | 100       |
+| P9: Export = Report            | Gerar períodos aleatórios com conjunto fixo de tasks                 | 100       |
+| P10: Pending sync count        | Gerar tasks com changedDate/updatedAt aleatórios                     | 100       |
 
 ### Cada propriedade DEVE ser implementada por UM ÚNICO teste de propriedade
 
 Cada teste de propriedade deve ser anotado com:
+
 ```typescript
 // Feature: azure-devops-integration-v2, Property 1: Round-trip de enriquecimento na importação e sincronização
 ```
-

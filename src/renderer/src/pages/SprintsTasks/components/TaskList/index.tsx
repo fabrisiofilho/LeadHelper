@@ -169,8 +169,8 @@ export function TaskList({
                       })()}
                     </Stack>
 
-                    {task.description && (
-                      /<[a-z][\s\S]*>/i.test(task.description) ? (
+                    {task.description &&
+                      (/<[a-z][\s\S]*>/i.test(task.description) ? (
                         <HtmlContent
                           html={task.description}
                           maxLines={2}
@@ -190,8 +190,7 @@ export function TaskList({
                         >
                           {task.description}
                         </Typography>
-                      )
-                    )}
+                      ))}
                   </Box>
 
                   <Stack direction="row" spacing={0.5} ml={2}>

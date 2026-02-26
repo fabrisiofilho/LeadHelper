@@ -139,7 +139,11 @@ export function SystemSettingsPage() {
                   <Typography variant="subtitle1" fontWeight={600}>
                     {card.label}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ mt: 0.25 }}
+                  >
                     {card.description}
                   </Typography>
                 </Box>

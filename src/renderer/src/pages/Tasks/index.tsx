@@ -177,9 +177,16 @@ export function TasksPage() {
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
   // Assignment state
-  const [assignMenuAnchor, setAssignMenuAnchor] = useState<HTMLElement | null>(null);
+  const [assignMenuAnchor, setAssignMenuAnchor] = useState<HTMLElement | null>(
+    null,
+  );
   const [assignMenuTask, setAssignMenuTask] = useState<Task | null>(null);
-  const [pendingAssign, setPendingAssign] = useState<{ taskId: number; memberId: number; memberName: string; taskTitle: string } | null>(null);
+  const [pendingAssign, setPendingAssign] = useState<{
+    taskId: number;
+    memberId: number;
+    memberName: string;
+    taskTitle: string;
+  } | null>(null);
   const [assignDateModalOpen, setAssignDateModalOpen] = useState(false);
   const [assignLoading, setAssignLoading] = useState(false);
 
@@ -198,7 +205,13 @@ export function TasksPage() {
     findAllTeams({ isActive: true });
     findAllTeamMembers({ isActive: true });
     findAllStatuses();
-  }, [loadTasks, findAllSprints, findAllTeams, findAllTeamMembers, findAllStatuses]);
+  }, [
+    loadTasks,
+    findAllSprints,
+    findAllTeams,
+    findAllTeamMembers,
+    findAllStatuses,
+  ]);
 
   const filteredTasksRaw = tasks.filter((task) => {
     if (!searchTerm) return true;
@@ -209,7 +222,11 @@ export function TasksPage() {
     );
   });
 
-  const { sortedItems: filteredTasks, sortConfig, handleSort: handleSortColumn } = useTableSort(filteredTasksRaw, { property: 'title', direction: 'asc' });
+  const {
+    sortedItems: filteredTasks,
+    sortConfig,
+    handleSort: handleSortColumn,
+  } = useTableSort(filteredTasksRaw, { property: 'title', direction: 'asc' });
 
   const handleNewTask = () => {
     setSelectedTask(null);
@@ -276,10 +293,13 @@ export function TasksPage() {
   };
 
   // Assignment handlers
-  const handleAssignClick = useCallback((e: React.MouseEvent<HTMLElement>, task: Task) => {
-    setAssignMenuAnchor(e.currentTarget);
-    setAssignMenuTask(task);
-  }, []);
+  const handleAssignClick = useCallback(
+    (e: React.MouseEvent<HTMLElement>, task: Task) => {
+      setAssignMenuAnchor(e.currentTarget);
+      setAssignMenuTask(task);
+    },
+    [],
+  );
 
   const handleAssignClose = useCallback(() => {
     setAssignMenuAnchor(null);
@@ -289,62 +309,77 @@ export function TasksPage() {
     setAssignMenuTask(null);
   }, []);
 
-  const handleAssignMember = useCallback(async (memberId: number | null) => {
-    if (!assignMenuTask) return;
-    handleAssignClose();
+  const handleAssignMember = useCallback(
+    async (memberId: number | null) => {
+      if (!assignMenuTask) return;
+      handleAssignClose();
 
-    // Remove existing allocations
-    const existing = await findAllocationsByTask(assignMenuTask.id);
-    for (const alloc of existing) {
-      await deleteAllocation(alloc.id);
-    }
+      // Remove existing allocations
+      const existing = await findAllocationsByTask(assignMenuTask.id);
+      for (const alloc of existing) {
+        await deleteAllocation(alloc.id);
+      }
 
-    if (memberId === null) {
-      // Just removing — reload
-      await loadTasks();
-      return;
-    }
+      if (memberId === null) {
+        // Just removing — reload
+        await loadTasks();
+        return;
+      }
 
-    // If task has a sprint, use sprint dates directly
-    const taskSprint = sprints.find((s) => s.id === assignMenuTask.sprintId);
-    if (taskSprint) {
-      await createAllocation({
-        teamMemberId: memberId,
-        taskId: assignMenuTask.id,
-        startDate: new Date(taskSprint.startDate),
-        endDate: new Date(taskSprint.endDate),
-      });
-      await loadTasks();
-    } else {
-      // No sprint — open date modal
-      const member = teamMembers.find((m) => m.id === memberId);
-      setPendingAssign({
-        taskId: assignMenuTask.id,
-        memberId,
-        memberName: member?.name ?? `Membro #${memberId}`,
-        taskTitle: assignMenuTask.title,
-      });
-      setAssignDateModalOpen(true);
-    }
-  }, [assignMenuTask, handleAssignClose, findAllocationsByTask, deleteAllocation, createAllocation, sprints, teamMembers, loadTasks]);
+      // If task has a sprint, use sprint dates directly
+      const taskSprint = sprints.find((s) => s.id === assignMenuTask.sprintId);
+      if (taskSprint) {
+        await createAllocation({
+          teamMemberId: memberId,
+          taskId: assignMenuTask.id,
+          startDate: new Date(taskSprint.startDate),
+          endDate: new Date(taskSprint.endDate),
+        });
+        await loadTasks();
+      } else {
+        // No sprint — open date modal
+        const member = teamMembers.find((m) => m.id === memberId);
+        setPendingAssign({
+          taskId: assignMenuTask.id,
+          memberId,
+          memberName: member?.name ?? `Membro #${memberId}`,
+          taskTitle: assignMenuTask.title,
+        });
+        setAssignDateModalOpen(true);
+      }
+    },
+    [
+      assignMenuTask,
+      handleAssignClose,
+      findAllocationsByTask,
+      deleteAllocation,
+      createAllocation,
+      sprints,
+      teamMembers,
+      loadTasks,
+    ],
+  );
 
-  const handleAssignDateConfirm = useCallback(async (startDate: Date, endDate: Date) => {
-    if (!pendingAssign) return;
-    setAssignLoading(true);
-    try {
-      await createAllocation({
-        teamMemberId: pendingAssign.memberId,
-        taskId: pendingAssign.taskId,
-        startDate,
-        endDate,
-      });
-      setAssignDateModalOpen(false);
-      setPendingAssign(null);
-      await loadTasks();
-    } finally {
-      setAssignLoading(false);
-    }
-  }, [pendingAssign, createAllocation, loadTasks]);
+  const handleAssignDateConfirm = useCallback(
+    async (startDate: Date, endDate: Date) => {
+      if (!pendingAssign) return;
+      setAssignLoading(true);
+      try {
+        await createAllocation({
+          teamMemberId: pendingAssign.memberId,
+          taskId: pendingAssign.taskId,
+          startDate,
+          endDate,
+        });
+        setAssignDateModalOpen(false);
+        setPendingAssign(null);
+        await loadTasks();
+      } finally {
+        setAssignLoading(false);
+      }
+    },
+    [pendingAssign, createAllocation, loadTasks],
+  );
 
   const handleAssignDateClose = useCallback(() => {
     setAssignDateModalOpen(false);
@@ -607,15 +642,62 @@ export function TasksPage() {
               <Table stickyHeader>
                 <TableHead>
                   <TableRow>
-                    <SortableTableCell id="title" label="Título" sortConfig={sortConfig} onSort={handleSortColumn} />
-                    <SortableTableCell id="sprint.name" label="Sprint / Equipe" sortConfig={sortConfig} onSort={handleSortColumn} />
-                    <SortableTableCell id="assignee.name" label="Responsável" sortConfig={sortConfig} onSort={handleSortColumn} />
-                    <SortableTableCell id="priority" label="Prioridade" sortConfig={sortConfig} onSort={handleSortColumn} />
-                    <SortableTableCell id="estimationPoints" label="Estimativa" sortConfig={sortConfig} onSort={handleSortColumn} />
-                    <SortableTableCell id="startDate" label="Período" sortConfig={sortConfig} onSort={handleSortColumn} />
-                    <SortableTableCell id="status" label="Status" sortConfig={sortConfig} onSort={handleSortColumn} />
-                    <SortableTableCell id="origin" label="Origem" sortConfig={sortConfig} onSort={handleSortColumn} />
-                    <SortableTableCell id="actions" label="Ações" sortConfig={sortConfig} onSort={handleSortColumn} noSort align="right" />
+                    <SortableTableCell
+                      id="title"
+                      label="Título"
+                      sortConfig={sortConfig}
+                      onSort={handleSortColumn}
+                    />
+                    <SortableTableCell
+                      id="sprint.name"
+                      label="Sprint / Equipe"
+                      sortConfig={sortConfig}
+                      onSort={handleSortColumn}
+                    />
+                    <SortableTableCell
+                      id="assignee.name"
+                      label="Responsável"
+                      sortConfig={sortConfig}
+                      onSort={handleSortColumn}
+                    />
+                    <SortableTableCell
+                      id="priority"
+                      label="Prioridade"
+                      sortConfig={sortConfig}
+                      onSort={handleSortColumn}
+                    />
+                    <SortableTableCell
+                      id="estimationPoints"
+                      label="Estimativa"
+                      sortConfig={sortConfig}
+                      onSort={handleSortColumn}
+                    />
+                    <SortableTableCell
+                      id="startDate"
+                      label="Período"
+                      sortConfig={sortConfig}
+                      onSort={handleSortColumn}
+                    />
+                    <SortableTableCell
+                      id="status"
+                      label="Status"
+                      sortConfig={sortConfig}
+                      onSort={handleSortColumn}
+                    />
+                    <SortableTableCell
+                      id="origin"
+                      label="Origem"
+                      sortConfig={sortConfig}
+                      onSort={handleSortColumn}
+                    />
+                    <SortableTableCell
+                      id="actions"
+                      label="Ações"
+                      sortConfig={sortConfig}
+                      onSort={handleSortColumn}
+                      noSort
+                      align="right"
+                    />
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -626,8 +708,8 @@ export function TasksPage() {
                       <TableRow key={task.id} hover>
                         <TableCell>
                           <Typography fontWeight={500}>{task.title}</Typography>
-                          {task.description && (
-                            /<[a-z][\s\S]*>/i.test(task.description) ? (
+                          {task.description &&
+                            (/<[a-z][\s\S]*>/i.test(task.description) ? (
                               <HtmlContent
                                 html={task.description}
                                 maxLines={1}
@@ -642,8 +724,7 @@ export function TasksPage() {
                               >
                                 {task.description}
                               </Typography>
-                            )
-                          )}
+                            ))}
                         </TableCell>
                         <TableCell>
                           <Stack spacing={0.5}>
@@ -683,7 +764,9 @@ export function TasksPage() {
                                     height: 22,
                                     fontSize: '0.65rem',
                                     bgcolor: getRoleColor(
-                                      teamMembers.find((m) => m.id === task.assignee?.id)?.role,
+                                      teamMembers.find(
+                                        (m) => m.id === task.assignee?.id,
+                                      )?.role,
                                     ),
                                   }}
                                 >
@@ -693,16 +776,29 @@ export function TasksPage() {
                               label={task.assignee.name}
                               size="small"
                               onClick={(e) => handleAssignClick(e, task)}
-                              sx={{ cursor: 'pointer', height: 26, fontSize: '0.75rem' }}
+                              sx={{
+                                cursor: 'pointer',
+                                height: 26,
+                                fontSize: '0.75rem',
+                              }}
                             />
                           ) : (
                             <Chip
-                              icon={<PersonAddIcon sx={{ fontSize: '14px !important' }} />}
+                              icon={
+                                <PersonAddIcon
+                                  sx={{ fontSize: '14px !important' }}
+                                />
+                              }
                               label="Atribuir"
                               size="small"
                               variant="outlined"
                               onClick={(e) => handleAssignClick(e, task)}
-                              sx={{ cursor: 'pointer', height: 26, fontSize: '0.75rem', borderStyle: 'dashed' }}
+                              sx={{
+                                cursor: 'pointer',
+                                height: 26,
+                                fontSize: '0.75rem',
+                                borderStyle: 'dashed',
+                              }}
                             />
                           )}
                         </TableCell>
@@ -928,7 +1024,10 @@ export function TasksPage() {
               </ListItemAvatar>
               <ListItemText
                 primary="Remover responsável"
-                primaryTypographyProps={{ variant: 'body2', color: 'text.secondary' }}
+                primaryTypographyProps={{
+                  variant: 'body2',
+                  color: 'text.secondary',
+                }}
               />
             </MenuItem>
           )}

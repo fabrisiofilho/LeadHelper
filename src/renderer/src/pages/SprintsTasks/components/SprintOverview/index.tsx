@@ -252,11 +252,7 @@ export function SprintOverview({
           }}
         >
           <AddIcon sx={{ color: 'text.secondary', mb: 0.5 }} />
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            fontWeight={500}
-          >
+          <Typography variant="caption" color="text.secondary" fontWeight={500}>
             Nova Sprint
           </Typography>
         </Paper>

@@ -130,7 +130,9 @@ export function ExploreTab({
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [assignedToFilter, setAssignedToFilter] = useState('');
-  const [selectedIterationPath, setSelectedIterationPath] = useState<string | null>(null);
+  const [selectedIterationPath, setSelectedIterationPath] = useState<
+    string | null
+  >(null);
   const [createdAfter, setCreatedAfter] = useState<Date | null>(null);
   const [createdBefore, setCreatedBefore] = useState<Date | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -545,7 +547,17 @@ export function ExploreTab({
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  {['', 'ID', 'Título', 'Tipo', 'Estado', 'Atribuído', 'Criado', 'Atualizado', ''].map((col, i) => (
+                  {[
+                    '',
+                    'ID',
+                    'Título',
+                    'Tipo',
+                    'Estado',
+                    'Atribuído',
+                    'Criado',
+                    'Atualizado',
+                    '',
+                  ].map((col, i) => (
                     <TableCell key={i}>{col}</TableCell>
                   ))}
                 </TableRow>
@@ -553,15 +565,33 @@ export function ExploreTab({
               <TableBody>
                 {Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell padding="checkbox"><Skeleton variant="rounded" width={20} height={20} /></TableCell>
-                    <TableCell><Skeleton variant="text" width={50} /></TableCell>
-                    <TableCell><Skeleton variant="text" width="80%" /></TableCell>
-                    <TableCell><Skeleton variant="rounded" width={80} height={24} /></TableCell>
-                    <TableCell><Skeleton variant="rounded" width={80} height={24} /></TableCell>
-                    <TableCell><Skeleton variant="text" width={100} /></TableCell>
-                    <TableCell><Skeleton variant="text" width={80} /></TableCell>
-                    <TableCell><Skeleton variant="text" width={80} /></TableCell>
-                    <TableCell><Skeleton variant="circular" width={28} height={28} /></TableCell>
+                    <TableCell padding="checkbox">
+                      <Skeleton variant="rounded" width={20} height={20} />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton variant="text" width={50} />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton variant="text" width="80%" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton variant="rounded" width={80} height={24} />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton variant="rounded" width={80} height={24} />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton variant="text" width={100} />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton variant="text" width={80} />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton variant="text" width={80} />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton variant="circular" width={28} height={28} />
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

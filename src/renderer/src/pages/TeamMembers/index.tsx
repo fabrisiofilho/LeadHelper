@@ -174,7 +174,11 @@ export function TeamMembersPage() {
     );
   });
 
-  const { sortedItems: filteredMembers, sortConfig, handleSort } = useTableSort(filteredMembersRaw, { property: 'name', direction: 'asc' });
+  const {
+    sortedItems: filteredMembers,
+    sortConfig,
+    handleSort,
+  } = useTableSort(filteredMembersRaw, { property: 'name', direction: 'asc' });
 
   const handleNewMember = () => {
     setSelectedMember(null);
@@ -415,11 +419,38 @@ export function TeamMembersPage() {
             <Table stickyHeader>
               <TableHead>
                 <TableRow>
-                  <SortableTableCell id="name" label="Nome" sortConfig={sortConfig} onSort={handleSort} />
-                  <SortableTableCell id="email" label="Email" sortConfig={sortConfig} onSort={handleSort} />
-                  <SortableTableCell id="role" label="Função" sortConfig={sortConfig} onSort={handleSort} />
-                  <SortableTableCell id="isActive" label="Status" sortConfig={sortConfig} onSort={handleSort} />
-                  <SortableTableCell id="actions" label="Ações" sortConfig={sortConfig} onSort={handleSort} noSort align="right" />
+                  <SortableTableCell
+                    id="name"
+                    label="Nome"
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                  />
+                  <SortableTableCell
+                    id="email"
+                    label="Email"
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                  />
+                  <SortableTableCell
+                    id="role"
+                    label="Função"
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                  />
+                  <SortableTableCell
+                    id="isActive"
+                    label="Status"
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                  />
+                  <SortableTableCell
+                    id="actions"
+                    label="Ações"
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                    noSort
+                    align="right"
+                  />
                 </TableRow>
               </TableHead>
               <TableBody>

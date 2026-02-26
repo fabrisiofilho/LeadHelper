@@ -1,10 +1,10 @@
 import type { TaskType } from '../entities/task.entity';
 
 const TYPE_MAP: Record<string, TaskType> = {
-  'feature': 'feature',
-  'bug': 'bug',
-  'task': 'task',
-  'improvement': 'improvement',
+  feature: 'feature',
+  bug: 'bug',
+  task: 'task',
+  improvement: 'improvement',
   'user story': 'feature',
   'product backlog item': 'task',
 };

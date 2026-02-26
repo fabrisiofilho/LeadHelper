@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, KeyboardEvent } from 'react';
 import {
   Box,
   Typography,
@@ -74,6 +74,8 @@ export function TeamsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [areaPaths, setAreaPaths] = useState<string[]>([]);
+  const [areaPathInput, setAreaPathInput] = useState('');
 
   const {
     control,
@@ -104,11 +106,41 @@ export function TeamsPage() {
     );
   });
 
-  const { sortedItems: filteredTeams, sortConfig, handleSort } = useTableSort(filteredTeamsRaw, { property: 'name', direction: 'asc' });
+  const {
+    sortedItems: filteredTeams,
+    sortConfig,
+    handleSort,
+  } = useTableSort(filteredTeamsRaw, { property: 'name', direction: 'asc' });
+
+  const parseAreaPaths = (value?: string): string[] => {
+    if (!value) return [];
+    return value.split(';').map((p) => p.trim()).filter(Boolean);
+  };
+
+  const handleAddPath = () => {
+    const trimmed = areaPathInput.trim();
+    if (trimmed && !areaPaths.includes(trimmed)) {
+      setAreaPaths((prev) => [...prev, trimmed]);
+    }
+    setAreaPathInput('');
+  };
+
+  const handlePathKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddPath();
+    }
+  };
+
+  const handleRemovePath = (path: string) => {
+    setAreaPaths((prev) => prev.filter((p) => p !== path));
+  };
 
   const handleNewTeam = () => {
     setSelectedTeam(null);
     reset({ name: '', description: '' });
+    setAreaPaths([]);
+    setAreaPathInput('');
     setIsFormOpen(true);
   };
 
@@ -118,23 +150,29 @@ export function TeamsPage() {
       name: team.name,
       description: team.description ?? '',
     });
+    setAreaPaths(parseAreaPaths(team.azureAreaPath));
+    setAreaPathInput('');
     setIsFormOpen(true);
   };
 
   const handleCloseForm = () => {
     setIsFormOpen(false);
     setSelectedTeam(null);
+    setAreaPaths([]);
+    setAreaPathInput('');
     reset();
     clearError();
   };
 
   const handleSaveTeam = async (data: TeamFormData) => {
     setFormLoading(true);
+    const azureAreaPath = areaPaths.length > 0 ? areaPaths.join(';') : undefined;
     try {
       if (selectedTeam) {
         const updateData: UpdateTeamInput = {
           name: data.name,
           description: data.description || undefined,
+          azureAreaPath,
         };
         const result = await update(selectedTeam.id, updateData);
         if (result) handleCloseForm();
@@ -142,6 +180,7 @@ export function TeamsPage() {
         const createData: CreateTeamInput = {
           name: data.name,
           description: data.description || undefined,
+          azureAreaPath,
         };
         const result = await create(createData);
         if (result) handleCloseForm();
@@ -273,11 +312,45 @@ export function TeamsPage() {
             <Table stickyHeader>
               <TableHead>
                 <TableRow>
-                  <SortableTableCell id="name" label="Nome" sortConfig={sortConfig} onSort={handleSort} />
-                  <SortableTableCell id="description" label="Descrição" sortConfig={sortConfig} onSort={handleSort} />
-                  <SortableTableCell id="members" label="Membros" sortConfig={sortConfig} onSort={handleSort} noSort />
-                  <SortableTableCell id="isActive" label="Status" sortConfig={sortConfig} onSort={handleSort} />
-                  <SortableTableCell id="actions" label="Ações" sortConfig={sortConfig} onSort={handleSort} noSort align="right" />
+                  <SortableTableCell
+                    id="name"
+                    label="Nome"
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                  />
+                  <SortableTableCell
+                    id="description"
+                    label="Descrição"
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                  />
+                  <SortableTableCell
+                    id="azureAreaPath"
+                    label="Area Path"
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                  />
+                  <SortableTableCell
+                    id="members"
+                    label="Membros"
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                    noSort
+                  />
+                  <SortableTableCell
+                    id="isActive"
+                    label="Status"
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                  />
+                  <SortableTableCell
+                    id="actions"
+                    label="Ações"
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                    noSort
+                    align="right"
+                  />
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -290,6 +363,17 @@ export function TeamsPage() {
                       <Typography variant="body2" color="text.secondary">
                         {team.description || '-'}
                       </Typography>
+                    </TableCell>
+                    <TableCell>
+                      {team.azureAreaPath ? (
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                          {team.azureAreaPath.split(';').map((p) => p.trim()).filter(Boolean).map((path) => (
+                            <Chip key={path} label={path} size="small" variant="outlined" />
+                          ))}
+                        </Box>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">-</Typography>
+                      )}
                     </TableCell>
                     <TableCell>
                       <MembersChipContainer>
@@ -441,6 +525,42 @@ export function TeamsPage() {
               />
             )}
           />
+          <Box>
+            <TextField
+              label="Area Path (Azure DevOps)"
+              placeholder="Digite e pressione Enter para adicionar"
+              fullWidth
+              value={areaPathInput}
+              onChange={(e) => setAreaPathInput(e.target.value)}
+              onKeyDown={handlePathKeyDown}
+              helperText="Pressione Enter para adicionar. Cada path será usado para associar tarefas automaticamente."
+              slotProps={{
+                input: {
+                  endAdornment: areaPathInput.trim() ? (
+                    <InputAdornment position="end">
+                      <AddIcon
+                        fontSize="small"
+                        sx={{ cursor: 'pointer', color: 'action.active' }}
+                        onClick={handleAddPath}
+                      />
+                    </InputAdornment>
+                  ) : undefined,
+                },
+              }}
+            />
+            {areaPaths.length > 0 && (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
+                {areaPaths.map((path) => (
+                  <Chip
+                    key={path}
+                    label={path}
+                    size="small"
+                    onDelete={() => handleRemovePath(path)}
+                  />
+                ))}
+              </Box>
+            )}
+          </Box>
         </FormContainer>
       </Modal>
 

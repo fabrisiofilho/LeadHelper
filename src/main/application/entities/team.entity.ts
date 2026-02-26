@@ -28,6 +28,9 @@ export class TeamEntity extends AuditableEntity {
   @Column({ type: 'text', default: '#2196F3' })
   color!: string;
 
+  @Column({ name: 'azure_area_path', type: 'text', nullable: true })
+  azureAreaPath?: string;
+
   @OneToMany('SprintEntity', 'team')
   sprints?: SprintEntity[];
 

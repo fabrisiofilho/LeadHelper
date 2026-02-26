@@ -13,7 +13,10 @@ import {
   ViewList as ListIcon,
   ViewKanban as KanbanIcon,
 } from '@mui/icons-material';
-import type { TaskPriority, TaskType } from '@shared/interfaces/config/index.types';
+import type {
+  TaskPriority,
+  TaskType,
+} from '@shared/interfaces/config/index.types';
 import { TASK_TYPE_OPTIONS } from '@renderer/utils/task-type';
 
 export type ViewMode = 'list' | 'kanban';

@@ -60,7 +60,13 @@ const formatDate = (date: Date | string | undefined): string => {
   });
 };
 
-function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
+function DetailRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <Box sx={{ display: 'flex', gap: 1, py: 0.75 }}>
       <Typography
@@ -75,13 +81,29 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
   );
 }
 
-export function WorkItemDetailModal({ open, workItem, onClose }: WorkItemDetailModalProps) {
+export function WorkItemDetailModal({
+  open,
+  workItem,
+  onClose,
+}: WorkItemDetailModalProps) {
   if (!workItem) return null;
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pr: 1 }}>
-        <Stack direction="row" alignItems="center" spacing={1.5} sx={{ minWidth: 0 }}>
+      <DialogTitle
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          pr: 1,
+        }}
+      >
+        <Stack
+          direction="row"
+          alignItems="center"
+          spacing={1.5}
+          sx={{ minWidth: 0 }}
+        >
           <Chip
             label={workItem.type}
             size="small"
@@ -132,13 +154,19 @@ export function WorkItemDetailModal({ open, workItem, onClose }: WorkItemDetailM
             />
           </DetailRow>
           <DetailRow label="Atribuído a">
-            <Typography variant="body2">{workItem.assignedTo || 'Não atribuído'}</Typography>
+            <Typography variant="body2">
+              {workItem.assignedTo || 'Não atribuído'}
+            </Typography>
           </DetailRow>
           <DetailRow label="Criado em">
-            <Typography variant="body2">{formatDate(workItem.createdDate)}</Typography>
+            <Typography variant="body2">
+              {formatDate(workItem.createdDate)}
+            </Typography>
           </DetailRow>
           <DetailRow label="Atualizado em">
-            <Typography variant="body2">{formatDate(workItem.changedDate)}</Typography>
+            <Typography variant="body2">
+              {formatDate(workItem.changedDate)}
+            </Typography>
           </DetailRow>
 
           {workItem.iterationPath && (
@@ -165,16 +193,24 @@ export function WorkItemDetailModal({ open, workItem, onClose }: WorkItemDetailM
             <DetailRow label="Tags">
               <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
                 {workItem.tags.split(';').map((tag) => (
-                  <Chip key={tag.trim()} label={tag.trim()} size="small" variant="outlined" />
+                  <Chip
+                    key={tag.trim()}
+                    label={tag.trim()}
+                    size="small"
+                    variant="outlined"
+                  />
                 ))}
               </Stack>
             </DetailRow>
           )}
-          {workItem.originalWorkItemType && workItem.originalWorkItemType !== workItem.type && (
-            <DetailRow label="Tipo Original">
-              <Typography variant="body2">{workItem.originalWorkItemType}</Typography>
-            </DetailRow>
-          )}
+          {workItem.originalWorkItemType &&
+            workItem.originalWorkItemType !== workItem.type && (
+              <DetailRow label="Tipo Original">
+                <Typography variant="body2">
+                  {workItem.originalWorkItemType}
+                </Typography>
+              </DetailRow>
+            )}
 
           {workItem.description && (
             <>

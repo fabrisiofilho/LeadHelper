@@ -204,7 +204,14 @@ export function AllocationsPage() {
     });
   }, [enrichedAllocations, memberFilter, taskFilter, searchTerm]);
 
-  const { sortedItems: filteredAllocations, sortConfig, handleSort } = useTableSort(filteredAllocationsRaw, { property: 'startDate', direction: 'desc' });
+  const {
+    sortedItems: filteredAllocations,
+    sortConfig,
+    handleSort,
+  } = useTableSort(filteredAllocationsRaw, {
+    property: 'startDate',
+    direction: 'desc',
+  });
 
   const handleRefresh = async () => {
     await loadInitialData();
@@ -489,10 +496,32 @@ export function AllocationsPage() {
               <Table stickyHeader>
                 <TableHead>
                   <TableRow>
-                    <SortableTableCell id="teamMemberName" label="Membro" sortConfig={sortConfig} onSort={handleSort} />
-                    <SortableTableCell id="taskTitle" label="Tarefa" sortConfig={sortConfig} onSort={handleSort} />
-                    <SortableTableCell id="startDate" label="Período" sortConfig={sortConfig} onSort={handleSort} />
-                    <SortableTableCell id="actions" label="Ações" sortConfig={sortConfig} onSort={handleSort} noSort align="right" />
+                    <SortableTableCell
+                      id="teamMemberName"
+                      label="Membro"
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    />
+                    <SortableTableCell
+                      id="taskTitle"
+                      label="Tarefa"
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    />
+                    <SortableTableCell
+                      id="startDate"
+                      label="Período"
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    />
+                    <SortableTableCell
+                      id="actions"
+                      label="Ações"
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                      noSort
+                      align="right"
+                    />
                   </TableRow>
                 </TableHead>
                 <TableBody>

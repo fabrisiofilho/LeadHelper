@@ -80,7 +80,11 @@ export function TaskListView({
   const [assignAnchor, setAssignAnchor] = useState<HTMLElement | null>(null);
   const [assignTask, setAssignTask] = useState<Task | null>(null);
 
-  const { sortedItems: sortedTasks, sortConfig, handleSort } = useTableSort(tasks, { property: 'title', direction: 'asc' });
+  const {
+    sortedItems: sortedTasks,
+    sortConfig,
+    handleSort,
+  } = useTableSort(tasks, { property: 'title', direction: 'asc' });
 
   const statusMap = useMemo(() => {
     const map: Record<string, TaskStatusConfig> = {};
@@ -98,7 +102,10 @@ export function TaskListView({
   }, [teamMembers]);
 
   const paginatedTasks = useMemo(() => {
-    return sortedTasks.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+    return sortedTasks.slice(
+      page * rowsPerPage,
+      page * rowsPerPage + rowsPerPage,
+    );
   }, [sortedTasks, page, rowsPerPage]);
 
   // Show all active team members (teams relation is not always populated)
@@ -170,16 +177,68 @@ export function TaskListView({
         <Table size="small" stickyHeader>
           <TableHead>
             <TableRow>
-              <SortableTableCell id="title" label="Título" sortConfig={sortConfig} onSort={handleSort} />
-              <SortableTableCell id="type" label="Tipo" sortConfig={sortConfig} onSort={handleSort} />
-              <SortableTableCell id="team.name" label="Equipe" sortConfig={sortConfig} onSort={handleSort} />
-              <SortableTableCell id="sprint.name" label="Sprint" sortConfig={sortConfig} onSort={handleSort} />
-              <SortableTableCell id="status" label="Status" sortConfig={sortConfig} onSort={handleSort} />
-              <SortableTableCell id="priority" label="Prioridade" sortConfig={sortConfig} onSort={handleSort} />
-              <SortableTableCell id="assignee.name" label="Responsável" sortConfig={sortConfig} onSort={handleSort} />
-              <SortableTableCell id="estimationPoints" label="Estimativa" sortConfig={sortConfig} onSort={handleSort} />
-              <SortableTableCell id="startDate" label="Período" sortConfig={sortConfig} onSort={handleSort} />
-              <SortableTableCell id="actions" label="Ações" sortConfig={sortConfig} onSort={handleSort} noSort align="right" />
+              <SortableTableCell
+                id="title"
+                label="Título"
+                sortConfig={sortConfig}
+                onSort={handleSort}
+              />
+              <SortableTableCell
+                id="type"
+                label="Tipo"
+                sortConfig={sortConfig}
+                onSort={handleSort}
+              />
+              <SortableTableCell
+                id="team.name"
+                label="Equipe"
+                sortConfig={sortConfig}
+                onSort={handleSort}
+              />
+              <SortableTableCell
+                id="sprint.name"
+                label="Sprint"
+                sortConfig={sortConfig}
+                onSort={handleSort}
+              />
+              <SortableTableCell
+                id="status"
+                label="Status"
+                sortConfig={sortConfig}
+                onSort={handleSort}
+              />
+              <SortableTableCell
+                id="priority"
+                label="Prioridade"
+                sortConfig={sortConfig}
+                onSort={handleSort}
+              />
+              <SortableTableCell
+                id="assignee.name"
+                label="Responsável"
+                sortConfig={sortConfig}
+                onSort={handleSort}
+              />
+              <SortableTableCell
+                id="estimationPoints"
+                label="Estimativa"
+                sortConfig={sortConfig}
+                onSort={handleSort}
+              />
+              <SortableTableCell
+                id="startDate"
+                label="Período"
+                sortConfig={sortConfig}
+                onSort={handleSort}
+              />
+              <SortableTableCell
+                id="actions"
+                label="Ações"
+                sortConfig={sortConfig}
+                onSort={handleSort}
+                noSort
+                align="right"
+              />
             </TableRow>
           </TableHead>
           <TableBody>

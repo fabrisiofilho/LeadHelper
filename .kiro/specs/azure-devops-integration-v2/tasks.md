@@ -35,10 +35,10 @@ Implementação incremental das melhorias na integração Azure DevOps: enriquec
     - Mapeamento: Feature→feature, Bug→bug, Task→task, Improvement→improvement, User Story→feature, Product Backlog Item→task
     - Comparação case-insensitive, fallback para `'task'`
     - _Requirements: 2.1, 2.2, 2.5_
-  - [ ]* 3.2 Escrever teste de propriedade para fallback de tipo desconhecido
+  - [ ]\* 3.2 Escrever teste de propriedade para fallback de tipo desconhecido
     - **Property 3: Tipo desconhecido resulta em fallback "task"**
     - **Validates: Requirements 2.2**
-  - [ ]* 3.3 Escrever teste de propriedade para case-insensitive
+  - [ ]\* 3.3 Escrever teste de propriedade para case-insensitive
     - **Property 4: Mapeamento de tipo é case-insensitive**
     - **Validates: Requirements 2.5**
 
@@ -51,7 +51,7 @@ Implementação incremental das melhorias na integração Azure DevOps: enriquec
     - Adicionar `System.AreaPath`, `System.IterationPath`, `System.Tags`, `Microsoft.VSTS.Scheduling.StoryPoints`, `Microsoft.VSTS.Common.Priority`, `System.WorkItemType` no parâmetro `fields` da requisição de detalhes
     - Mapear resposta para `WorkItem` enriquecido, tratando campos nulos/ausentes como `null`
     - _Requirements: 1.1, 1.6_
-  - [ ]* 5.2 Escrever teste de propriedade para campos na URL de detalhes
+  - [ ]\* 5.2 Escrever teste de propriedade para campos na URL de detalhes
     - **Property 2: Requisição de detalhes inclui campos enriquecidos**
     - **Validates: Requirements 1.1**
   - [x] 5.3 Alterar importWorkItems para usar TypeMapper e persistir campos enriquecidos
@@ -63,14 +63,14 @@ Implementação incremental das melhorias na integração Azure DevOps: enriquec
     - Editar `src/main/application/services/azure-devops-service.ts`
     - Na sincronização, atualizar campos enriquecidos com valores atuais da API
     - _Requirements: 1.5_
-  - [ ]* 5.5 Escrever teste de propriedade para round-trip de enriquecimento
+  - [ ]\* 5.5 Escrever teste de propriedade para round-trip de enriquecimento
     - **Property 1: Round-trip de enriquecimento na importação e sincronização**
     - **Validates: Requirements 1.3, 1.5, 1.6, 2.3, 2.4**
   - [x] 5.6 Adicionar filtro iterationPath na consulta WIQL
     - Editar `src/main/application/services/azure-devops-service.ts` no método `fetchWorkItems`
     - Quando `filters.iterationPath` fornecido, adicionar cláusula `[System.IterationPath] UNDER '{iterationPath}'` na query WIQL
     - _Requirements: 3.2_
-  - [ ]* 5.7 Escrever teste de propriedade para cláusula WIQL de iteration
+  - [ ]\* 5.7 Escrever teste de propriedade para cláusula WIQL de iteration
     - **Property 5: Cláusula WIQL de iteration path**
     - **Validates: Requirements 3.2**
   - [x] 5.8 Implementar método fetchIterations
@@ -79,7 +79,7 @@ Implementação incremental das melhorias na integração Azure DevOps: enriquec
     - Retornar árvore de `IterationNode[]` com mapeamento recursivo
     - Em caso de erro, retornar `[]` e logar erro
     - _Requirements: 3.3, 3.4, 3.6_
-  - [ ]* 5.9 Escrever teste de propriedade para parsing da árvore de iterations
+  - [ ]\* 5.9 Escrever teste de propriedade para parsing da árvore de iterations
     - **Property 6: Parsing da árvore de iterations**
     - **Validates: Requirements 3.4**
 
@@ -92,7 +92,7 @@ Implementação incremental das melhorias na integração Azure DevOps: enriquec
     - Query SQL agregando tasks importadas (origin = 'azure_devops') por tipo, status, assignee e projeto no período
     - Retornar `ReportData` com totalItems, byType, byStatus, byAssignee, byProject e items
     - _Requirements: 4.3, 4.4, 4.5, 4.6, 4.7, 4.8_
-  - [ ]* 7.2 Escrever teste de propriedade para invariante de agrupamento
+  - [ ]\* 7.2 Escrever teste de propriedade para invariante de agrupamento
     - **Property 7: Invariante de agrupamento nos relatórios**
     - **Validates: Requirements 4.3, 4.4, 4.5, 4.6, 4.7, 6.2, 6.5**
   - [x] 7.3 Implementar método getDashboardMetrics
@@ -100,7 +100,7 @@ Implementação incremental das melhorias na integração Azure DevOps: enriquec
     - Query SQL para: total importado, última sincronização, pendentes de sync (changedDate > updatedAt), distribuição por status
     - Retornar `DashboardMetrics`
     - _Requirements: 6.2, 6.3, 6.4, 6.5, 6.6_
-  - [ ]* 7.4 Escrever teste de propriedade para contagem de pendentes
+  - [ ]\* 7.4 Escrever teste de propriedade para contagem de pendentes
     - **Property 10: Contagem de pendentes de sincronização**
     - **Validates: Requirements 6.4**
 
@@ -111,10 +111,10 @@ Implementação incremental das melhorias na integração Azure DevOps: enriquec
     - Implementar `exportPdf(items, period)`: gerar PDF com jsPDF + jspdf-autotable, título com período, tabela com mesmos dados, usar `dialog.showSaveDialog`, retornar `ExportResult`
     - Tratar cancelamento do dialog (retornar `{ success: false }` sem erro)
     - _Requirements: 5.2, 5.3, 5.4, 5.5_
-  - [ ]* 8.2 Escrever teste de propriedade para colunas do CSV
+  - [ ]\* 8.2 Escrever teste de propriedade para colunas do CSV
     - **Property 8: CSV contém todas as colunas obrigatórias**
     - **Validates: Requirements 5.2**
-  - [ ]* 8.3 Escrever teste de propriedade para correspondência export/report
+  - [ ]\* 8.3 Escrever teste de propriedade para correspondência export/report
     - **Property 9: Dados exportados correspondem aos dados do relatório**
     - **Validates: Requirements 5.7**
 

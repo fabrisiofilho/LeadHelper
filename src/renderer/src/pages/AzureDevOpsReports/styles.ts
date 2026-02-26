@@ -1,7 +1,6 @@
 import styled from 'styled-components';
 import { Box } from '@mui/material';
 
-
 export const PageContainer = styled(Box)`
   padding: 1.5rem;
   min-height: 100%;

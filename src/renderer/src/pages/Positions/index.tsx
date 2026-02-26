@@ -107,7 +107,14 @@ export function PositionsPage() {
     );
   });
 
-  const { sortedItems: filteredPositions, sortConfig, handleSort } = useTableSort(filteredPositionsRaw, { property: 'name', direction: 'asc' });
+  const {
+    sortedItems: filteredPositions,
+    sortConfig,
+    handleSort,
+  } = useTableSort(filteredPositionsRaw, {
+    property: 'name',
+    direction: 'asc',
+  });
 
   const handleNewPosition = () => {
     setSelectedPosition(null);
@@ -276,10 +283,32 @@ export function PositionsPage() {
             <Table stickyHeader>
               <TableHead>
                 <TableRow>
-                  <SortableTableCell id="name" label="Nome" sortConfig={sortConfig} onSort={handleSort} />
-                  <SortableTableCell id="description" label="Descrição" sortConfig={sortConfig} onSort={handleSort} />
-                  <SortableTableCell id="isActive" label="Status" sortConfig={sortConfig} onSort={handleSort} />
-                  <SortableTableCell id="actions" label="Ações" sortConfig={sortConfig} onSort={handleSort} noSort align="right" />
+                  <SortableTableCell
+                    id="name"
+                    label="Nome"
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                  />
+                  <SortableTableCell
+                    id="description"
+                    label="Descrição"
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                  />
+                  <SortableTableCell
+                    id="isActive"
+                    label="Status"
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                  />
+                  <SortableTableCell
+                    id="actions"
+                    label="Ações"
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                    noSort
+                    align="right"
+                  />
                 </TableRow>
               </TableHead>
               <TableBody>

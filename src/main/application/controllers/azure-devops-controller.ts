@@ -196,5 +196,4 @@ export class AzureDevOpsController extends BaseHandler {
       return { success: false, error: message };
     }
   }
-
 }

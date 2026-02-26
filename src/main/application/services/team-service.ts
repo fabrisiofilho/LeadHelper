@@ -5,11 +5,13 @@ import { logger } from '@main/infrastructure/log/logger';
 export interface CreateTeamInput {
   name: string;
   description?: string;
+  azureAreaPath?: string;
 }
 
 export interface UpdateTeamInput {
   name?: string;
   description?: string;
+  azureAreaPath?: string;
 }
 
 export interface TeamFilters {
@@ -34,6 +36,7 @@ export class TeamService {
     return this.repository.create({
       name: data.name,
       description: data.description,
+      azureAreaPath: data.azureAreaPath,
       isActive: true,
     });
   }

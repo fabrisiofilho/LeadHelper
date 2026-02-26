@@ -145,9 +145,13 @@ function CardContent({
       </Stack>
 
       {/* Description */}
-      {task.description && (
-        /<[a-z][\s\S]*>/i.test(task.description) ? (
-          <HtmlContent html={task.description} maxLines={2} sx={{ lineHeight: 1.4 }} />
+      {task.description &&
+        (/<[a-z][\s\S]*>/i.test(task.description) ? (
+          <HtmlContent
+            html={task.description}
+            maxLines={2}
+            sx={{ lineHeight: 1.4 }}
+          />
         ) : (
           <Typography
             variant="body2"
@@ -162,8 +166,7 @@ function CardContent({
           >
             {task.description}
           </Typography>
-        )
-      )}
+        ))}
 
       {/* Tags row: type + priority + estimation */}
       <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>

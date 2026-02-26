@@ -94,4 +94,17 @@ export class TeamRepository {
     await this.repository.save(team);
     return true;
   }
+
+  async findByAreaPath(areaPath: string): Promise<TeamEntity | null> {
+    return this.repository.findOne({
+      where: { azureAreaPath: areaPath },
+    });
+  }
+
+  async findAllWithAreaPath(): Promise<TeamEntity[]> {
+    const teams = await this.repository.find({
+      where: { isActive: true },
+    });
+    return teams.filter((t) => t.azureAreaPath);
+  }
 }

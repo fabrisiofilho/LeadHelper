@@ -1,6 +1,9 @@
 import { TableCell, TableSortLabel } from '@mui/material';
 import type { ReactNode } from 'react';
-import type { SortDirection, TableSortConfig } from '@renderer/hooks/useTableSort';
+import type {
+  SortDirection,
+  TableSortConfig,
+} from '@renderer/hooks/useTableSort';
 
 interface SortableTableCellProps {
   id: string;

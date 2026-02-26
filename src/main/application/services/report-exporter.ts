@@ -3,7 +3,11 @@ import * as fs from 'fs';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-import type { ReportItem, ReportPeriod, ExportResult } from '@shared/interfaces/config/index.types';
+import type {
+  ReportItem,
+  ReportPeriod,
+  ExportResult,
+} from '@shared/interfaces/config/index.types';
 
 const PDF_COLUMNS = [
   'ID',
@@ -28,7 +32,10 @@ function formatPeriod(period: ReportPeriod): string {
 }
 
 export class ReportExporter {
-  async exportPdf(items: ReportItem[], period: ReportPeriod): Promise<ExportResult> {
+  async exportPdf(
+    items: ReportItem[],
+    period: ReportPeriod,
+  ): Promise<ExportResult> {
     try {
       const result = await dialog.showSaveDialog({
         title: 'Exportar Relatório PDF',
@@ -40,7 +47,11 @@ export class ReportExporter {
         return { success: false };
       }
 
-      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4',
+      });
 
       doc.setFontSize(16);
       doc.text('Relatório Azure DevOps', 14, 15);
@@ -65,7 +76,11 @@ export class ReportExporter {
         body: tableBody,
         startY: 33,
         styles: { fontSize: 7, cellPadding: 1.5 },
-        headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
+        headStyles: {
+          fillColor: [41, 128, 185],
+          textColor: 255,
+          fontStyle: 'bold',
+        },
         alternateRowStyles: { fillColor: [245, 245, 245] },
       });
 

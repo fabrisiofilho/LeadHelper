@@ -55,6 +55,7 @@ export interface Team {
   name: string;
   description?: string;
   isActive: boolean;
+  azureAreaPath?: string;
   members?: TeamMember[];
   createdAt?: Date;
   updatedAt?: Date;
@@ -63,11 +64,13 @@ export interface Team {
 export interface CreateTeamInput {
   name: string;
   description?: string;
+  azureAreaPath?: string;
 }
 
 export interface UpdateTeamInput {
   name?: string;
   description?: string;
+  azureAreaPath?: string;
 }
 
 export interface TeamFilters {

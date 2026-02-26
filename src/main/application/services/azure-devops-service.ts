@@ -4,9 +4,16 @@ import { getDataSource } from '@main/infrastructure/database/data-source';
 import { Repository } from 'typeorm';
 import { TaskRepository } from '../repositories/task-repository';
 import { TaskEntity } from '../entities/task.entity';
+import { TeamRepository } from '../repositories/team-repository';
 import { logger } from '@main/infrastructure/log/logger';
 import { mapWorkItemType } from './work-item-type-mapper';
-import { DashboardMetrics, IterationNode, ReportData, ReportItem, ReportPeriod } from '@shared/interfaces/config/index.types';
+import {
+  DashboardMetrics,
+  IterationNode,
+  ReportData,
+  ReportItem,
+  ReportPeriod,
+} from '@shared/interfaces/config/index.types';
 
 export interface AzureDevOpsConfig {
   organizationUrl: string;
@@ -38,7 +45,6 @@ export interface WorkItem {
   priority?: number;
   originalWorkItemType?: string;
 }
-
 
 export interface WorkItemFilters {
   types?: string[];
@@ -430,9 +436,13 @@ export class AzureDevOpsService {
         areaPath: (wi.fields['System.AreaPath'] as string) ?? null,
         iterationPath: (wi.fields['System.IterationPath'] as string) ?? null,
         tags: (wi.fields['System.Tags'] as string) ?? null,
-        storyPoints: (wi.fields['Microsoft.VSTS.Scheduling.StoryPoints'] as number) ?? null,
-        priority: (wi.fields['Microsoft.VSTS.Common.Priority'] as number) ?? null,
-        originalWorkItemType: (wi.fields['System.WorkItemType'] as string) ?? null,
+        storyPoints:
+          (wi.fields['Microsoft.VSTS.Scheduling.StoryPoints'] as number) ??
+          null,
+        priority:
+          (wi.fields['Microsoft.VSTS.Common.Priority'] as number) ?? null,
+        originalWorkItemType:
+          (wi.fields['System.WorkItemType'] as string) ?? null,
       }));
 
       allResults.push(...mapped);
@@ -475,7 +485,11 @@ export class AzureDevOpsService {
 
     // Create tasks from work items
     const taskRepository = new TaskRepository();
+    const teamRepository = new TeamRepository();
     const createdTasks: TaskEntity[] = [];
+
+    // Pre-load teams with Azure Area Path configured for matching
+    const teamsWithAreaPath = await teamRepository.findAllWithAreaPath();
 
     for (const workItem of workItems) {
       // Check if work item was already imported
@@ -496,6 +510,12 @@ export class AzureDevOpsService {
       const startDate = workItem.createdDate || new Date();
       const endDate = workItem.changedDate || new Date();
 
+      // Resolve team by matching Area Path
+      const resolvedTeamId = this.resolveTeamByAreaPath(
+        workItem.areaPath,
+        teamsWithAreaPath,
+      );
+
       // Create new task using save method (which creates and saves)
       const savedTask = await taskRepository.save({
         title: workItem.title,
@@ -512,6 +532,7 @@ export class AzureDevOpsService {
         tags: workItem.tags ?? undefined,
         storyPoints: workItem.storyPoints ?? undefined,
         originalWorkItemType: workItem.originalWorkItemType ?? undefined,
+        teamId: resolvedTeamId ?? undefined,
       });
 
       createdTasks.push(savedTask);
@@ -566,6 +587,57 @@ export class AzureDevOpsService {
 
     // Default to pending for Novo, Em levantamento, Backlog comprometido, etc.
     return 'pending';
+  }
+
+  /**
+   * Resolve team ID by matching work item Area Path against teams with configured azureAreaPath.
+   * Each team can have multiple paths separated by ";".
+   * Supports exact match and hierarchical match (e.g., team path "Project\TeamA" matches work item "Project\TeamA\SubArea").
+   */
+  private resolveTeamByAreaPath(
+    areaPath: string | undefined | null,
+    teamsWithAreaPath: { id: number; azureAreaPath?: string }[],
+  ): number | null {
+    if (!areaPath || teamsWithAreaPath.length === 0) {
+      return null;
+    }
+
+    const normalizedAreaPath = areaPath
+      .replace(/^\\+/, '')
+      .trim()
+      .toLowerCase();
+
+    // Expand teams: each team may have multiple paths separated by ";"
+    const entries: { id: number; path: string }[] = [];
+    for (const team of teamsWithAreaPath) {
+      if (!team.azureAreaPath) continue;
+      const paths = team.azureAreaPath
+        .split(';')
+        .map((p) => p.trim())
+        .filter(Boolean);
+      for (const p of paths) {
+        entries.push({ id: team.id, path: p.replace(/^\\+/, '').trim() });
+      }
+    }
+
+    // First try exact match
+    for (const entry of entries) {
+      if (normalizedAreaPath === entry.path.toLowerCase()) {
+        return entry.id;
+      }
+    }
+
+    // Then try hierarchical match — most specific (longest) path first
+    const sorted = [...entries].sort((a, b) => b.path.length - a.path.length);
+
+    for (const entry of sorted) {
+      const prefix = entry.path.toLowerCase() + '\\';
+      if (normalizedAreaPath.startsWith(prefix)) {
+        return entry.id;
+      }
+    }
+
+    return null;
   }
 
   /**
@@ -632,6 +704,19 @@ export class AzureDevOpsService {
     task.storyPoints = workItem.storyPoints ?? undefined;
     task.originalWorkItemType = workItem.originalWorkItemType ?? undefined;
 
+    // Resolve team by Area Path if not already assigned
+    if (!task.teamId && workItem.areaPath) {
+      const teamRepository = new TeamRepository();
+      const teamsWithAreaPath = await teamRepository.findAllWithAreaPath();
+      const resolvedTeamId = this.resolveTeamByAreaPath(
+        workItem.areaPath,
+        teamsWithAreaPath,
+      );
+      if (resolvedTeamId) {
+        task.teamId = resolvedTeamId;
+      }
+    }
+
     // Save the updated task
     const updatedTask = await taskRepository.save(task);
 
@@ -686,7 +771,9 @@ export class AzureDevOpsService {
       const fullConfig = await this.getFullConfig();
 
       if (!fullConfig) {
-        logger.warn('Configuração do Azure DevOps não encontrada ao buscar iterations');
+        logger.warn(
+          'Configuração do Azure DevOps não encontrada ao buscar iterations',
+        );
         return [];
       }
 
@@ -705,11 +792,13 @@ export class AzureDevOpsService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        logger.error(`Erro ao buscar iterations: ${response.status} - ${errorText}`);
+        logger.error(
+          `Erro ao buscar iterations: ${response.status} - ${errorText}`,
+        );
         return [];
       }
 
-      const data = await response.json() as {
+      const data = (await response.json()) as {
         id: number;
         name: string;
         path: string;
@@ -718,7 +807,8 @@ export class AzureDevOpsService {
 
       return this.mapIterationNodes(data.children ?? []);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Erro desconhecido';
       logger.error(`Erro ao buscar iterations: ${errorMessage}`);
       return [];
     }
@@ -727,12 +817,16 @@ export class AzureDevOpsService {
   /**
    * Recursively maps raw API classification node objects to IterationNode[].
    */
-  private mapIterationNodes(nodes: Array<Record<string, unknown>>): IterationNode[] {
+  private mapIterationNodes(
+    nodes: Array<Record<string, unknown>>,
+  ): IterationNode[] {
     return nodes.map((node) => ({
       id: node.id as number,
       name: node.name as string,
       path: node.path as string,
-      children: this.mapIterationNodes((node.children as Array<Record<string, unknown>>) ?? []),
+      children: this.mapIterationNodes(
+        (node.children as Array<Record<string, unknown>>) ?? [],
+      ),
     }));
   }
 
@@ -772,7 +866,9 @@ export class AzureDevOpsService {
 
     if (!wiqlResponse.ok) {
       const errorText = await wiqlResponse.text();
-      throw new Error(`Erro ao buscar work items para relatório: ${wiqlResponse.status} - ${errorText}`);
+      throw new Error(
+        `Erro ao buscar work items para relatório: ${wiqlResponse.status} - ${errorText}`,
+      );
     }
 
     const wiqlResult = (await wiqlResponse.json()) as {
@@ -780,12 +876,24 @@ export class AzureDevOpsService {
     };
 
     if (!wiqlResult.workItems || wiqlResult.workItems.length === 0) {
-      return { totalItems: 0, byType: [], byStatus: [], byAssignee: [], byProject: [], items: [] };
+      return {
+        totalItems: 0,
+        byType: [],
+        byStatus: [],
+        byAssignee: [],
+        byProject: [],
+        items: [],
+      };
     }
 
     // Fetch details (batched internally, no limit)
     const workItemIds = wiqlResult.workItems.map((wi) => wi.id);
-    const workItems = await this.fetchWorkItemDetails(workItemIds, baseUrl, projectName, authHeader);
+    const workItems = await this.fetchWorkItemDetails(
+      workItemIds,
+      baseUrl,
+      projectName,
+      authHeader,
+    );
 
     // Build aggregation maps
     const typeMap = new Map<string, number>();
@@ -795,7 +903,9 @@ export class AzureDevOpsService {
 
     const items: ReportItem[] = workItems.map((wi) => {
       const assignee = wi.assignedTo || 'Não atribuído';
-      const project = wi.areaPath ? wi.areaPath.split('\\')[0] || 'Sem projeto' : 'Sem projeto';
+      const project = wi.areaPath
+        ? wi.areaPath.split('\\')[0] || 'Sem projeto'
+        : 'Sem projeto';
 
       typeMap.set(wi.type, (typeMap.get(wi.type) ?? 0) + 1);
       statusMap.set(wi.state, (statusMap.get(wi.state) ?? 0) + 1);
@@ -821,10 +931,21 @@ export class AzureDevOpsService {
 
     return {
       totalItems: workItems.length,
-      byType: Array.from(typeMap.entries()).map(([type, count]) => ({ type, count })),
-      byStatus: Array.from(statusMap.entries()).map(([status, count]) => ({ status, count })),
-      byAssignee: Array.from(assigneeMap.entries()).map(([assignee, count]) => ({ assignee, count })),
-      byProject: Array.from(projectMap.entries()).map(([project, count]) => ({ project, count })),
+      byType: Array.from(typeMap.entries()).map(([type, count]) => ({
+        type,
+        count,
+      })),
+      byStatus: Array.from(statusMap.entries()).map(([status, count]) => ({
+        status,
+        count,
+      })),
+      byAssignee: Array.from(assigneeMap.entries()).map(
+        ([assignee, count]) => ({ assignee, count }),
+      ),
+      byProject: Array.from(projectMap.entries()).map(([project, count]) => ({
+        project,
+        count,
+      })),
       items,
     };
   }
@@ -843,7 +964,9 @@ export class AzureDevOpsService {
     let lastSyncDate: Date | undefined;
     if (tasks.length > 0) {
       lastSyncDate = tasks.reduce((latest, task) => {
-        const taskDate = task.updatedAt ? new Date(task.updatedAt) : new Date(0);
+        const taskDate = task.updatedAt
+          ? new Date(task.updatedAt)
+          : new Date(0);
         return taskDate > latest ? taskDate : latest;
       }, new Date(0));
     }

@@ -145,7 +145,14 @@ export function SprintsPage() {
     );
   });
 
-  const { sortedItems: filteredSprints, sortConfig, handleSort } = useTableSort(filteredSprintsRaw, { property: 'startDate', direction: 'desc' });
+  const {
+    sortedItems: filteredSprints,
+    sortConfig,
+    handleSort,
+  } = useTableSort(filteredSprintsRaw, {
+    property: 'startDate',
+    direction: 'desc',
+  });
 
   const handleNewSprint = () => {
     setSelectedSprint(null);
@@ -350,11 +357,39 @@ export function SprintsPage() {
               <Table stickyHeader>
                 <TableHead>
                   <TableRow>
-                    <SortableTableCell id="name" label="Nome" sortConfig={sortConfig} onSort={handleSort} />
-                    <SortableTableCell id="startDate" label="Período" sortConfig={sortConfig} onSort={handleSort} />
-                    <SortableTableCell id="team.name" label="Equipe" sortConfig={sortConfig} onSort={handleSort} />
-                    <SortableTableCell id="status" label="Status" sortConfig={sortConfig} onSort={handleSort} noSort />
-                    <SortableTableCell id="actions" label="Ações" sortConfig={sortConfig} onSort={handleSort} noSort align="right" />
+                    <SortableTableCell
+                      id="name"
+                      label="Nome"
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    />
+                    <SortableTableCell
+                      id="startDate"
+                      label="Período"
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    />
+                    <SortableTableCell
+                      id="team.name"
+                      label="Equipe"
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    />
+                    <SortableTableCell
+                      id="status"
+                      label="Status"
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                      noSort
+                    />
+                    <SortableTableCell
+                      id="actions"
+                      label="Ações"
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                      noSort
+                      align="right"
+                    />
                   </TableRow>
                 </TableHead>
                 <TableBody>

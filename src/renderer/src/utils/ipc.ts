@@ -23,13 +23,17 @@ export function cloneIpcData<T>(data: T): T {
  * Usage:
  *   const safeApi = unfreezeIpcProxy(window.electronAPI.azureDevOps);
  */
-export function unfreezeIpcProxy<T extends Record<string, unknown>>(proxy: T): T {
+export function unfreezeIpcProxy<T extends Record<string, unknown>>(
+  proxy: T,
+): T {
   const handler: ProxyHandler<T> = {
     get(target, prop, receiver) {
       const value = Reflect.get(target, prop, receiver);
       if (typeof value === 'function') {
         return async (...args: unknown[]) => {
-          const result = await (value as (...a: unknown[]) => Promise<unknown>)(...args);
+          const result = await (value as (...a: unknown[]) => Promise<unknown>)(
+            ...args,
+          );
           return cloneIpcData(result);
         };
       }

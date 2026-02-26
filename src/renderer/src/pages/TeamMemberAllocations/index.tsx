@@ -161,7 +161,14 @@ export function TeamMemberAllocationsPage() {
     });
   }, [allocations, searchTerm]);
 
-  const { sortedItems: filteredAllocations, sortConfig, handleSort } = useTableSort(filteredAllocationsRaw, { property: 'startDate', direction: 'desc' });
+  const {
+    sortedItems: filteredAllocations,
+    sortConfig,
+    handleSort,
+  } = useTableSort(filteredAllocationsRaw, {
+    property: 'startDate',
+    direction: 'desc',
+  });
 
   const handleNewAllocation = () => {
     setSelectedAllocation(null);
@@ -394,12 +401,44 @@ export function TeamMemberAllocationsPage() {
             <Table stickyHeader>
               <TableHead>
                 <TableRow>
-                  <SortableTableCell id="teamMemberName" label="Membro" sortConfig={sortConfig} onSort={handleSort} />
-                  <SortableTableCell id="teamName" label="Equipe" sortConfig={sortConfig} onSort={handleSort} />
-                  <SortableTableCell id="startDate" label="Período" sortConfig={sortConfig} onSort={handleSort} />
-                  <SortableTableCell id="dedicationPercentage" label="Dedicação" sortConfig={sortConfig} onSort={handleSort} />
-                  <SortableTableCell id="isActive" label="Status" sortConfig={sortConfig} onSort={handleSort} />
-                  <SortableTableCell id="actions" label="Ações" sortConfig={sortConfig} onSort={handleSort} noSort align="right" />
+                  <SortableTableCell
+                    id="teamMemberName"
+                    label="Membro"
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                  />
+                  <SortableTableCell
+                    id="teamName"
+                    label="Equipe"
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                  />
+                  <SortableTableCell
+                    id="startDate"
+                    label="Período"
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                  />
+                  <SortableTableCell
+                    id="dedicationPercentage"
+                    label="Dedicação"
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                  />
+                  <SortableTableCell
+                    id="isActive"
+                    label="Status"
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                  />
+                  <SortableTableCell
+                    id="actions"
+                    label="Ações"
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                    noSort
+                    align="right"
+                  />
                 </TableRow>
               </TableHead>
               <TableBody>

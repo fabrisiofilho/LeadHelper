@@ -348,10 +348,10 @@ export class AzureDevOpsService {
         return [];
       }
 
-      // Get work item IDs (limit to 200 to avoid API limits)
-      const workItemIds = wiqlResult.workItems.slice(0, 200).map((wi) => wi.id);
+      // Get all work item IDs
+      const workItemIds = wiqlResult.workItems.map((wi) => wi.id);
 
-      // Fetch full work item details
+      // Fetch full work item details (batched internally)
       return await this.fetchWorkItemDetails(
         workItemIds,
         baseUrl,
@@ -385,49 +385,60 @@ export class AzureDevOpsService {
       return [];
     }
 
-    const idsParam = workItemIds.join(',');
     const fields =
       'System.Id,System.Title,System.WorkItemType,System.State,System.Description,System.AssignedTo,System.CreatedDate,System.ChangedDate,System.AreaPath,System.IterationPath,System.Tags,Microsoft.VSTS.Scheduling.StoryPoints,Microsoft.VSTS.Common.Priority';
-    const detailsUrl = `${baseUrl}/${encodeURIComponent(projectName)}/_apis/wit/workitems?ids=${idsParam}&fields=${fields}&api-version=7.0`;
 
-    const response = await fetch(detailsUrl, {
-      method: 'GET',
-      headers: {
-        Authorization: authHeader,
-        'Content-Type': 'application/json',
-      },
-    });
+    // Azure DevOps API accepts max 200 IDs per request — batch accordingly
+    const BATCH_SIZE = 200;
+    const allResults: WorkItem[] = [];
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(
-        `Erro ao buscar detalhes dos work items: ${response.status} - ${errorText}`,
-      );
+    for (let i = 0; i < workItemIds.length; i += BATCH_SIZE) {
+      const batch = workItemIds.slice(i, i + BATCH_SIZE);
+      const idsParam = batch.join(',');
+      const detailsUrl = `${baseUrl}/${encodeURIComponent(projectName)}/_apis/wit/workitems?ids=${idsParam}&fields=${fields}&api-version=7.0`;
+
+      const response = await fetch(detailsUrl, {
+        method: 'GET',
+        headers: {
+          Authorization: authHeader,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `Erro ao buscar detalhes dos work items: ${response.status} - ${errorText}`,
+        );
+      }
+
+      const result = (await response.json()) as {
+        value: Array<{ id: number; fields: Record<string, unknown> }>;
+      };
+
+      const mapped = result.value.map((wi) => ({
+        id: wi.id,
+        title: (wi.fields['System.Title'] as string) || '',
+        type: (wi.fields['System.WorkItemType'] as string) || '',
+        state: (wi.fields['System.State'] as string) || '',
+        description: wi.fields['System.Description'] as string | undefined,
+        assignedTo: (wi.fields['System.AssignedTo'] as { displayName?: string })
+          ?.displayName,
+        createdDate: new Date(wi.fields['System.CreatedDate'] as string),
+        changedDate: new Date(wi.fields['System.ChangedDate'] as string),
+        projectName: projectName,
+        areaPath: (wi.fields['System.AreaPath'] as string) ?? null,
+        iterationPath: (wi.fields['System.IterationPath'] as string) ?? null,
+        tags: (wi.fields['System.Tags'] as string) ?? null,
+        storyPoints: (wi.fields['Microsoft.VSTS.Scheduling.StoryPoints'] as number) ?? null,
+        priority: (wi.fields['Microsoft.VSTS.Common.Priority'] as number) ?? null,
+        originalWorkItemType: (wi.fields['System.WorkItemType'] as string) ?? null,
+      }));
+
+      allResults.push(...mapped);
     }
 
-    const result = (await response.json()) as {
-      value: Array<{ id: number; fields: Record<string, unknown> }>;
-    };
-
-    return result.value.map((wi) => ({
-      id: wi.id,
-      title: (wi.fields['System.Title'] as string) || '',
-      type: (wi.fields['System.WorkItemType'] as string) || '',
-      state: (wi.fields['System.State'] as string) || '',
-      description: wi.fields['System.Description'] as string | undefined,
-      assignedTo: (wi.fields['System.AssignedTo'] as { displayName?: string })
-        ?.displayName,
-      createdDate: new Date(wi.fields['System.CreatedDate'] as string),
-      changedDate: new Date(wi.fields['System.ChangedDate'] as string),
-      // Campos enriquecidos (V2)
-      projectName: projectName,
-      areaPath: (wi.fields['System.AreaPath'] as string) ?? null,
-      iterationPath: (wi.fields['System.IterationPath'] as string) ?? null,
-      tags: (wi.fields['System.Tags'] as string) ?? null,
-      storyPoints: (wi.fields['Microsoft.VSTS.Scheduling.StoryPoints'] as number) ?? null,
-      priority: (wi.fields['Microsoft.VSTS.Common.Priority'] as number) ?? null,
-      originalWorkItemType: (wi.fields['System.WorkItemType'] as string) ?? null,
-    }));
+    return allResults;
   }
 
   /**
@@ -772,8 +783,8 @@ export class AzureDevOpsService {
       return { totalItems: 0, byType: [], byStatus: [], byAssignee: [], byProject: [], items: [] };
     }
 
-    // Fetch details (limit to 200)
-    const workItemIds = wiqlResult.workItems.slice(0, 200).map((wi) => wi.id);
+    // Fetch details (batched internally, no limit)
+    const workItemIds = wiqlResult.workItems.map((wi) => wi.id);
     const workItems = await this.fetchWorkItemDetails(workItemIds, baseUrl, projectName, authHeader);
 
     // Build aggregation maps

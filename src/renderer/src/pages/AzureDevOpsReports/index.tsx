@@ -135,69 +135,92 @@ function SimpleBarChart({
   height?: number;
 }) {
   const maxVal = Math.max(...items.map((d) => d.value), 1);
+  // When many items, use a fixed min-width per bar and allow horizontal scroll
+  const needsScroll = items.length > 6;
   return (
     <Box
-      sx={{ display: 'flex', alignItems: 'flex-end', gap: 1.5, height, pt: 2 }}
+      sx={{
+        overflowX: needsScroll ? 'auto' : 'hidden',
+        overflowY: 'hidden',
+        pb: needsScroll ? 1 : 0,
+        // Thin scrollbar
+        '&::-webkit-scrollbar': { height: 6 },
+        '&::-webkit-scrollbar-thumb': {
+          bgcolor: 'action.disabled',
+          borderRadius: 3,
+        },
+      }}
     >
-      {items.map((item, i) => {
-        const pct = (item.value / maxVal) * 100;
-        return (
-          <MuiTooltip
-            key={i}
-            title={`${item.label}: ${item.value}`}
-            arrow
-            placement="top"
-          >
-            <Box
-              sx={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                height: '100%',
-                justifyContent: 'flex-end',
-                minWidth: 0,
-              }}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'flex-end',
+          gap: 1,
+          height,
+          pt: 2,
+          minWidth: needsScroll ? items.length * 64 : undefined,
+        }}
+      >
+        {items.map((item, i) => {
+          const pct = (item.value / maxVal) * 100;
+          return (
+            <MuiTooltip
+              key={i}
+              title={`${item.label}: ${item.value}`}
+              arrow
+              placement="top"
             >
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                sx={{ mb: 0.5 }}
-              >
-                {item.value}
-              </Typography>
               <Box
                 sx={{
-                  width: '100%',
-                  maxWidth: 64,
-                  height: `${Math.max(pct, 2)}%`,
-                  bgcolor: item.color,
-                  borderRadius: '6px 6px 0 0',
-                  transition: 'height 0.4s ease',
-                  minHeight: 4,
-                  '&:hover': { opacity: 0.8 },
-                }}
-              />
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                sx={{
-                  mt: 1,
-                  textAlign: 'center',
-                  fontSize: '0.7rem',
-                  lineHeight: 1.2,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  maxWidth: 80,
+                  flex: needsScroll ? '0 0 56px' : 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  height: '100%',
+                  justifyContent: 'flex-end',
+                  minWidth: 0,
                 }}
               >
-                {item.label}
-              </Typography>
-            </Box>
-          </MuiTooltip>
-        );
-      })}
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ mb: 0.5, fontSize: '0.7rem' }}
+                >
+                  {item.value}
+                </Typography>
+                <Box
+                  sx={{
+                    width: '100%',
+                    maxWidth: 48,
+                    height: `${Math.max(pct, 2)}%`,
+                    bgcolor: item.color,
+                    borderRadius: '6px 6px 0 0',
+                    transition: 'height 0.4s ease',
+                    minHeight: 4,
+                    '&:hover': { opacity: 0.8 },
+                  }}
+                />
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{
+                    mt: 0.5,
+                    textAlign: 'center',
+                    fontSize: '0.65rem',
+                    lineHeight: 1.2,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    maxWidth: 56,
+                  }}
+                >
+                  {item.label}
+                </Typography>
+              </Box>
+            </MuiTooltip>
+          );
+        })}
+      </Box>
     </Box>
   );
 }
@@ -604,13 +627,13 @@ function DashboardTab({
       </Box>
 
       {/* Charts */}
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
+      <Stack spacing={3}>
         <Box
           sx={{
-            flex: 1,
             bgcolor: 'background.default',
             borderRadius: '0.75rem',
             p: 2.5,
+            overflow: 'hidden',
           }}
         >
           <Typography variant="subtitle1" fontWeight={600} mb={1}>
@@ -626,10 +649,10 @@ function DashboardTab({
         </Box>
         <Box
           sx={{
-            flex: 1,
             bgcolor: 'background.default',
             borderRadius: '0.75rem',
             p: 2.5,
+            overflow: 'hidden',
           }}
         >
           <Typography variant="subtitle1" fontWeight={600} mb={1}>

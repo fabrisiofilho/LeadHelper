@@ -16,6 +16,7 @@ const PageContainer = styled(Box)(({ theme }) => ({
   padding: theme.spacing(3),
   maxWidth: 1200,
   width: '100%',
+  margin: '0 auto',
 }));
 
 interface SystemCard {
@@ -97,7 +98,7 @@ export function SystemSettingsPage() {
         Cadastros e configurações do sistema
       </Typography>
 
-      <Grid container spacing={2.5}>
+      <Grid container spacing={2.5} justifyContent="center">
         {SYSTEM_CARDS.map((card) => (
           <Grid size={{ xs: 12, sm: 6, md: 4 }} key={card.path}>
             <Paper

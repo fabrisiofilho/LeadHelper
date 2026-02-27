@@ -34,9 +34,12 @@ export function AzureDevOpsConfigPage() {
   const [syncResult, setSyncResult] = useState<string | null>(null);
   const [showSyncModal, setShowSyncModal] = useState(false);
 
-  const loadConfig = useCallback(async () => {
-    await getConfig();
-  }, [getConfig]);
+  const loadConfig = useCallback(
+    async (includePat = false) => {
+      await getConfig(includePat);
+    },
+    [getConfig],
+  );
 
   useEffect(() => {
     loadConfig();

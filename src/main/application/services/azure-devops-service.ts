@@ -25,6 +25,7 @@ export interface AzureDevOpsConfig {
   organizationUrl: string;
   projectName: string;
   isConfigured: boolean;
+  pat?: string; // Optional decrypted PAT for display purposes
 }
 
 export interface AzureDevOpsConfigInput {
@@ -50,6 +51,11 @@ export interface WorkItem {
   storyPoints?: number;
   priority?: number;
   originalWorkItemType?: string;
+  relations?: Array<{
+    rel: string;
+    url: string;
+    attributes?: Record<string, unknown>;
+  }>;
 }
 
 export interface WorkItemFilters {
@@ -168,7 +174,7 @@ export class AzureDevOpsService {
     }
   }
 
-  async getConfig(): Promise<AzureDevOpsConfig | null> {
+  async getConfig(includePat = false): Promise<AzureDevOpsConfig | null> {
     const repository = this.getRepository();
     const config = await repository.findOne({ where: {} });
 
@@ -176,11 +182,23 @@ export class AzureDevOpsService {
       return null;
     }
 
-    return {
+    const result: AzureDevOpsConfig = {
       organizationUrl: config.organizationUrl,
       projectName: config.projectName,
       isConfigured: true,
     };
+
+    // Optionally include decrypted PAT for display purposes
+    if (includePat) {
+      try {
+        result.pat = decryptPat(config.patEncrypted);
+      } catch (error) {
+        logger.error('Error decrypting PAT:', error);
+        // Don't include PAT if decryption fails
+      }
+    }
+
+    return result;
   }
 
   async testConnection(): Promise<boolean> {
@@ -385,7 +403,7 @@ export class AzureDevOpsService {
   }
 
   /**
-   * Fetch detailed information for specific work items
+   * Fetch detailed information for specific work items including relations
    */
   private async fetchWorkItemDetails(
     workItemIds: number[],
@@ -407,7 +425,8 @@ export class AzureDevOpsService {
     for (let i = 0; i < workItemIds.length; i += BATCH_SIZE) {
       const batch = workItemIds.slice(i, i + BATCH_SIZE);
       const idsParam = batch.join(',');
-      const detailsUrl = `${baseUrl}/${encodeURIComponent(projectName)}/_apis/wit/workitems?ids=${idsParam}&fields=${fields}&api-version=7.0`;
+      // Include $expand=relations to get parent/child relationships
+      const detailsUrl = `${baseUrl}/${encodeURIComponent(projectName)}/_apis/wit/workitems?ids=${idsParam}&fields=${fields}&$expand=relations&api-version=7.0`;
 
       const response = await fetch(detailsUrl, {
         method: 'GET',
@@ -425,7 +444,15 @@ export class AzureDevOpsService {
       }
 
       const result = (await response.json()) as {
-        value: Array<{ id: number; fields: Record<string, unknown> }>;
+        value: Array<{
+          id: number;
+          fields: Record<string, unknown>;
+          relations?: Array<{
+            rel: string;
+            url: string;
+            attributes?: Record<string, unknown>;
+          }>;
+        }>;
       };
 
       const mapped = result.value.map((wi) => ({
@@ -449,6 +476,7 @@ export class AzureDevOpsService {
           (wi.fields['Microsoft.VSTS.Common.Priority'] as number) ?? null,
         originalWorkItemType:
           (wi.fields['System.WorkItemType'] as string) ?? null,
+        relations: wi.relations,
       }));
 
       allResults.push(...mapped);
@@ -523,6 +551,28 @@ export class AzureDevOpsService {
         teamsWithAreaPath,
       );
 
+      // Extract parent ID from relations if exists
+      let parentExternalId: string | undefined;
+      if (workItem.relations) {
+        const parentRelation = workItem.relations.find(
+          (r) =>
+            r.rel === 'System.LinkTypes.Hierarchy-Reverse' || // Child -> Parent
+            r.rel === 'System.LinkTypes.Hierarchy-Forward', // Parent -> Child (we want reverse)
+        );
+        if (parentRelation && parentRelation.url) {
+          // Extract work item ID from URL (e.g., "https://dev.azure.com/org/project/_apis/wit/workItems/123")
+          const match = parentRelation.url.match(/workItems\/(\d+)$/);
+          if (match) {
+            parentExternalId = match[1];
+          }
+        }
+      }
+
+      // Serialize relations as JSON for storage
+      const workItemRelations = workItem.relations
+        ? JSON.stringify(workItem.relations)
+        : undefined;
+
       // Create new task using save method (which creates and saves)
       const savedTask = await taskRepository.save({
         title: workItem.title,
@@ -539,9 +589,40 @@ export class AzureDevOpsService {
         storyPoints: workItem.storyPoints ?? undefined,
         originalWorkItemType: workItem.originalWorkItemType ?? undefined,
         teamId: resolvedTeamId ?? undefined,
+        workItemRelations: workItemRelations,
       });
 
       createdTasks.push(savedTask);
+    }
+
+    // Second pass: Link parent-child relationships
+    for (const task of createdTasks) {
+      if (task.workItemRelations) {
+        try {
+          const relations = JSON.parse(task.workItemRelations);
+          const parentRelation = relations.find(
+            (r: any) => r.rel === 'System.LinkTypes.Hierarchy-Reverse',
+          );
+          if (parentRelation && parentRelation.url) {
+            const match = parentRelation.url.match(/workItems\/(\d+)$/);
+            if (match) {
+              const parentExternalId = match[1];
+              const parentTask = await taskRepository.findOne({
+                where: {
+                  externalId: parentExternalId,
+                  origin: 'azure_devops',
+                },
+              });
+              if (parentTask) {
+                task.parentId = parentTask.id;
+                await taskRepository.save(task);
+              }
+            }
+          }
+        } catch (error) {
+          logger.error('Error parsing work item relations:', error);
+        }
+      }
     }
 
     return createdTasks;
@@ -729,7 +810,7 @@ export class AzureDevOpsService {
       const fullConfig = await this.getFullConfig();
 
       if (!fullConfig) {
-        logger.warn(
+        logger.info(
           'Configuração do Azure DevOps não encontrada ao buscar iterations',
         );
         return [];
@@ -798,7 +879,7 @@ export class AzureDevOpsService {
       const fullConfig = await this.getFullConfig();
 
       if (!fullConfig) {
-        logger.warn(
+        logger.info(
           'Configuração do Azure DevOps não encontrada ao buscar iteration nodes',
         );
         return [];
@@ -881,7 +962,7 @@ export class AzureDevOpsService {
       const fullConfig = await this.getFullConfig();
 
       if (!fullConfig) {
-        logger.warn(
+        logger.info(
           'Configuração do Azure DevOps não encontrada ao buscar area paths',
         );
         return [];
@@ -983,31 +1064,27 @@ export class AzureDevOpsService {
       };
 
       if (!wiqlResult.workItems || wiqlResult.workItems.length === 0) {
+        logger.info('[fetchAllWorkItems] No work items found');
         return [];
       }
 
       const workItemIds = wiqlResult.workItems.map((wi) => wi.id);
+      logger.info(
+        `[fetchAllWorkItems] Found ${workItemIds.length} work item IDs`,
+      );
 
       const BATCH_SIZE = 200;
-      const fields = [
-        'System.Title',
-        'System.Description',
-        'System.WorkItemType',
-        'System.State',
-        'System.AreaPath',
-        'System.IterationPath',
-        'System.Tags',
-        'Microsoft.VSTS.Scheduling.StoryPoints',
-        'Microsoft.VSTS.Common.Priority',
-        'System.AssignedTo',
-      ].join(',');
+      // When using $expand=relations, we cannot use the fields parameter
+      // So we fetch all fields and filter later
 
       const allResults: AzureWorkItem[] = [];
 
       for (let i = 0; i < workItemIds.length; i += BATCH_SIZE) {
         const batch = workItemIds.slice(i, i + BATCH_SIZE);
         const idsParam = batch.join(',');
-        const detailsUrl = `${baseUrl}/${encodeURIComponent(projectName)}/_apis/wit/workitems?ids=${idsParam}&fields=${fields}&$expand=none&api-version=7.0`;
+        // Include $expand=relations to get parent/child relationships
+        // Note: Cannot use fields parameter with $expand
+        const detailsUrl = `${baseUrl}/${encodeURIComponent(projectName)}/_apis/wit/workitems?ids=${idsParam}&$expand=relations&api-version=7.0`;
 
         const response = await fetch(detailsUrl, {
           method: 'GET',
@@ -1028,6 +1105,11 @@ export class AzureDevOpsService {
           value: Array<{
             id: number;
             fields: Record<string, unknown>;
+            relations?: Array<{
+              rel: string;
+              url: string;
+              attributes?: Record<string, unknown>;
+            }>;
           }>;
         };
 
@@ -1062,13 +1144,18 @@ export class AzureDevOpsService {
                 }
               | undefined,
           },
+          relations: wi.relations,
         }));
 
         allResults.push(...mapped);
       }
 
+      logger.info(
+        `[fetchAllWorkItems] Returning ${allResults.length} work items`,
+      );
       return allResults;
     } catch (error) {
+      logger.error('[fetchAllWorkItems] Error:', error);
       if (error instanceof Error) {
         if (
           error.message.includes('Token de acesso') ||

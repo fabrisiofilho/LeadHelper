@@ -1,4 +1,4 @@
-import { useMemo, useEffect } from 'react';
+import { useMemo, useEffect, useState, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -12,6 +12,8 @@ import {
   Tooltip,
   Avatar,
   Button,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -32,11 +34,14 @@ import {
   Build as ImprovementIcon,
   Support as SupportIcon,
   OpenInNew as OpenInNewIcon,
+  AccountTree as HierarchyIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { Task } from '@shared/interfaces/config/index.types';
 import { useAzureDevOps } from '@renderer/hooks/useAzureDevOps';
+import { TaskHierarchy } from '@renderer/components/TaskHierarchy';
+import { useTasks } from '@renderer/hooks/useTasks';
 
 interface TaskViewModalProps {
   open: boolean;
@@ -68,6 +73,9 @@ const typeConfig = {
 
 export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
   const { config, getConfig } = useAzureDevOps();
+  const { findById } = useTasks();
+  const [activeTab, setActiveTab] = useState(0);
+  const [taskWithHierarchy, setTaskWithHierarchy] = useState<Task | null>(null);
 
   // Load Azure DevOps config when modal opens
   useEffect(() => {
@@ -75,6 +83,74 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
       getConfig();
     }
   }, [open, task, config, getConfig]);
+
+  // Load task with full hierarchy when modal opens
+  useEffect(() => {
+    const loadTaskWithHierarchy = async () => {
+      if (open && task) {
+        try {
+          console.log('[TaskViewModal] Loading task with hierarchy:', task.id);
+          const response = await window.electronAPI.task.findById(task.id);
+          console.log('[TaskViewModal] Response:', response);
+          if (response.success && response.data) {
+            console.log('[TaskViewModal] Task data:', {
+              id: response.data.id,
+              title: response.data.title,
+              hasParent: !!response.data.parent,
+              hasChildren: !!response.data.children && response.data.children.length > 0,
+              parentId: response.data.parentId,
+              childrenCount: response.data.children?.length || 0,
+            });
+            setTaskWithHierarchy(response.data);
+          } else {
+            console.log('[TaskViewModal] Using original task (no data in response)');
+            setTaskWithHierarchy(task);
+          }
+        } catch (error) {
+          console.error('Error loading task hierarchy:', error);
+          setTaskWithHierarchy(task);
+        }
+      }
+    };
+
+    loadTaskWithHierarchy();
+  }, [open, task]);
+
+  // Reset tab when modal closes
+  useEffect(() => {
+    if (!open) {
+      setActiveTab(0);
+      setTaskWithHierarchy(null);
+    }
+  }, [open]);
+
+  const handleTabChange = useCallback(
+    (_event: React.SyntheticEvent, newValue: number) => {
+      setActiveTab(newValue);
+    },
+    [],
+  );
+
+  const handleHierarchyTaskClick = useCallback(async (clickedTask: Task) => {
+    // Load full task data and update modal
+    try {
+      console.log('[TaskViewModal] Loading clicked task:', clickedTask.id);
+      const response = await window.electronAPI.task.findById(clickedTask.id);
+      console.log('[TaskViewModal] Clicked task response:', response);
+      if (response.success && response.data) {
+        console.log('[TaskViewModal] Updating modal with new task:', {
+          id: response.data.id,
+          title: response.data.title,
+          hasParent: !!response.data.parent,
+          hasChildren: !!response.data.children && response.data.children.length > 0,
+        });
+        setTaskWithHierarchy(response.data);
+        setActiveTab(0); // Switch back to details tab
+      }
+    } catch (error) {
+      console.error('[TaskViewModal] Error loading clicked task:', error);
+    }
+  }, []);
 
   const formatDate = (date?: Date) => {
     if (!date) return '-';
@@ -96,26 +172,34 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
       .toUpperCase();
   };
 
+  // Define displayTask before using it in useMemo
+  const displayTask = taskWithHierarchy || task;
+
   const tags = useMemo(() => {
-    if (!task?.tags) return [];
-    return task.tags
+    if (!displayTask?.tags) return [];
+    return displayTask.tags
       .split(';')
       .map((t) => t.trim())
       .filter(Boolean);
-  }, [task]);
+  }, [displayTask]);
 
   // Build Azure DevOps work item URL
   const azureDevOpsUrl = useMemo(() => {
-    if (!task || task.origin !== 'azure_devops' || !task.externalId || !config) {
+    if (
+      !displayTask ||
+      displayTask.origin !== 'azure_devops' ||
+      !displayTask.externalId ||
+      !config
+    ) {
       return null;
     }
 
     const baseUrl = config.organizationUrl.replace(/\/$/, '');
     const projectName = encodeURIComponent(config.projectName);
-    const workItemId = task.externalId;
+    const workItemId = displayTask.externalId;
 
     return `${baseUrl}/${projectName}/_workitems/edit/${workItemId}`;
-  }, [task, config]);
+  }, [displayTask, config]);
 
   const handleOpenInAzure = () => {
     if (azureDevOpsUrl) {
@@ -126,25 +210,41 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
   // Sanitize and render HTML description
   const renderDescription = (description?: string) => {
     if (!description) return { __html: '' };
-    
+
     // Basic HTML sanitization - remove script tags and dangerous attributes
     const sanitized = description
       .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
       .replace(/on\w+="[^"]*"/g, '')
       .replace(/on\w+='[^']*'/g, '');
-    
+
     return { __html: sanitized };
   };
 
   if (!task) return null;
 
-  const priority = priorityConfig[task.priority] || priorityConfig.medium;
-  const status = statusConfig[task.status as keyof typeof statusConfig] || {
-    label: task.status,
+  const hasHierarchy =
+    displayTask.parent ||
+    (displayTask.children && displayTask.children.length > 0);
+
+  console.log('[TaskViewModal] Render check:', {
+    taskId: displayTask.id,
+    taskTitle: displayTask.title,
+    hasParent: !!displayTask.parent,
+    hasChildren: !!displayTask.children && displayTask.children.length > 0,
+    childrenCount: displayTask.children?.length || 0,
+    hasHierarchy,
+  });
+
+  const priority =
+    priorityConfig[displayTask.priority] || priorityConfig.medium;
+  const status = statusConfig[
+    displayTask.status as keyof typeof statusConfig
+  ] || {
+    label: displayTask.status,
     color: '#9e9e9e',
   };
-  const type = typeConfig[task.type as keyof typeof typeConfig] || {
-    label: task.type,
+  const type = typeConfig[displayTask.type as keyof typeof typeConfig] || {
+    label: displayTask.type,
     color: '#2196f3',
     icon: TaskIcon,
   };
@@ -194,10 +294,12 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
           <Box flex={1}>
             <Stack direction="row" spacing={1} alignItems="center">
               <Typography variant="caption" color="text.secondary">
-                {task.origin === 'azure_devops' ? 'Azure DevOps' : 'Manual'}
-                {task.externalId && ` #${task.externalId}`}
+                {displayTask.origin === 'azure_devops'
+                  ? 'Azure DevOps'
+                  : 'Manual'}
+                {displayTask.externalId && ` #${displayTask.externalId}`}
               </Typography>
-              {task.origin === 'azure_devops' && (
+              {displayTask.origin === 'azure_devops' && (
                 <Chip
                   icon={<CloudIcon />}
                   label="Somente Leitura"
@@ -207,9 +309,19 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
                   sx={{ height: 20 }}
                 />
               )}
+              {hasHierarchy && (
+                <Chip
+                  icon={<HierarchyIcon />}
+                  label="Com Hierarquia"
+                  size="small"
+                  color="primary"
+                  variant="outlined"
+                  sx={{ height: 20 }}
+                />
+              )}
             </Stack>
             <Typography variant="h6" fontWeight={600} sx={{ mt: 0.5 }}>
-              {task.title}
+              {displayTask.title}
             </Typography>
           </Box>
         </Stack>
@@ -234,156 +346,51 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
       </Box>
 
       <DialogContent
-        sx={{ p: 0, display: 'flex', height: 'calc(100% - 80px)' }}
+        sx={{
+          p: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          height: 'calc(100% - 80px)',
+        }}
       >
-        <Box
-          sx={{
-            display: 'flex',
-            width: '100%',
-            height: '100%',
-            flexDirection: { xs: 'column', md: 'row' },
-          }}
-        >
-          {/* Main Content - Left Side */}
-          <Box
-            sx={{
-              flex: { xs: '1 1 auto', md: '1 1 66%' },
-              p: 3,
-              overflowY: 'auto',
-              borderRight: { md: '1px solid' },
-              borderColor: { md: 'divider' },
-            }}
-          >
-            <Stack spacing={3}>
-              {/* Description */}
-              <Box>
-                <Stack direction="row" spacing={1} alignItems="center" mb={1.5}>
-                  <DescriptionIcon fontSize="small" color="action" />
-                  <Typography variant="subtitle2" fontWeight={600}>
-                    Descrição
-                  </Typography>
-                </Stack>
-                {task.description ? (
-                  <Paper
-                    variant="outlined"
-                    sx={{
-                      p: 2,
-                      bgcolor: 'background.default',
-                      '& p': { margin: '0.5em 0' },
-                      '& ul, & ol': { paddingLeft: '1.5em', margin: '0.5em 0' },
-                      '& li': { margin: '0.25em 0' },
-                      '& h1, & h2, & h3, & h4, & h5, & h6': { 
-                        margin: '0.75em 0 0.5em 0',
-                        fontWeight: 600,
-                      },
-                      '& pre': {
-                        bgcolor: 'rgba(0,0,0,0.05)',
-                        p: 1,
-                        borderRadius: 1,
-                        overflow: 'auto',
-                      },
-                      '& code': {
-                        bgcolor: 'rgba(0,0,0,0.05)',
-                        px: 0.5,
-                        py: 0.25,
-                        borderRadius: 0.5,
-                        fontFamily: 'monospace',
-                        fontSize: '0.9em',
-                      },
-                      '& a': {
-                        color: 'primary.main',
-                        textDecoration: 'none',
-                        '&:hover': { textDecoration: 'underline' },
-                      },
-                      '& img': {
-                        maxWidth: '100%',
-                        height: 'auto',
-                      },
-                    }}
-                  >
-                    <Box
-                      dangerouslySetInnerHTML={renderDescription(task.description)}
-                      sx={{
-                        color: 'text.secondary',
-                        fontSize: '0.875rem',
-                        lineHeight: 1.6,
-                      }}
-                    />
-                  </Paper>
-                ) : (
-                  <Typography
-                    variant="body2"
-                    color="text.secondary"
-                    fontStyle="italic"
-                  >
-                    Sem descrição
-                  </Typography>
-                )}
-              </Box>
+        {/* Tabs */}
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', px: 3, pt: 2 }}>
+          <Tabs value={activeTab} onChange={handleTabChange}>
+            <Tab label="Detalhes" />
+            {hasHierarchy && (
+              <Tab
+                label="Hierarquia"
+                icon={<HierarchyIcon />}
+                iconPosition="start"
+              />
+            )}
+          </Tabs>
+        </Box>
 
-              <Divider />
-
-              {/* Dates */}
-              <Box>
-                <Stack direction="row" spacing={1} alignItems="center" mb={1.5}>
-                  <CalendarIcon fontSize="small" color="action" />
-                  <Typography variant="subtitle2" fontWeight={600}>
-                    Período
-                  </Typography>
-                </Stack>
-                <Box
-                  sx={{
-                    display: 'flex',
-                    gap: 2,
-                    flexDirection: { xs: 'column', sm: 'row' },
-                  }}
-                >
-                  <Paper
-                    variant="outlined"
-                    sx={{ p: 2, bgcolor: 'background.default', flex: 1 }}
-                  >
-                    <Typography
-                      variant="caption"
-                      color="text.secondary"
-                      display="block"
-                    >
-                      Data de Início
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      fontWeight={500}
-                      sx={{ mt: 0.5 }}
-                    >
-                      {formatDate(task.startDate)}
-                    </Typography>
-                  </Paper>
-                  <Paper
-                    variant="outlined"
-                    sx={{ p: 2, bgcolor: 'background.default', flex: 1 }}
-                  >
-                    <Typography
-                      variant="caption"
-                      color="text.secondary"
-                      display="block"
-                    >
-                      Data de Término
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      fontWeight={500}
-                      sx={{ mt: 0.5 }}
-                    >
-                      {formatDate(task.endDate)}
-                    </Typography>
-                  </Paper>
-                </Box>
-              </Box>
-
-              <Divider />
-
-              {/* Tags */}
-              {tags.length > 0 && (
-                <>
+        {/* Tab Content */}
+        <Box sx={{ flex: 1, overflow: 'hidden' }}>
+          {/* Details Tab */}
+          {activeTab === 0 && (
+            <Box
+              sx={{
+                display: 'flex',
+                width: '100%',
+                height: '100%',
+                flexDirection: { xs: 'column', md: 'row' },
+              }}
+            >
+              {/* Main Content - Left Side */}
+              <Box
+                sx={{
+                  flex: { xs: '1 1 auto', md: '1 1 66%' },
+                  p: 3,
+                  overflowY: 'auto',
+                  borderRight: { md: '1px solid' },
+                  borderColor: { md: 'divider' },
+                }}
+              >
+                <Stack spacing={3}>
+                  {/* Description */}
                   <Box>
                     <Stack
                       direction="row"
@@ -391,412 +398,342 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
                       alignItems="center"
                       mb={1.5}
                     >
-                      <LabelIcon fontSize="small" color="action" />
+                      <DescriptionIcon fontSize="small" color="action" />
                       <Typography variant="subtitle2" fontWeight={600}>
-                        Tags
+                        Descrição
                       </Typography>
                     </Stack>
-                    <Stack
-                      direction="row"
-                      spacing={1}
-                      flexWrap="wrap"
-                      useFlexGap
-                    >
-                      {tags.map((tag, index) => (
-                        <Chip
-                          key={index}
-                          label={tag}
-                          size="small"
-                          variant="outlined"
-                          sx={{ borderRadius: 1 }}
-                        />
-                      ))}
-                    </Stack>
-                  </Box>
-                  <Divider />
-                </>
-              )}
-
-              {/* Azure DevOps Info */}
-              {task.origin === 'azure_devops' && (
-                <>
-                  <Box>
-                    <Stack
-                      direction="row"
-                      spacing={1}
-                      alignItems="center"
-                      mb={1.5}
-                    >
-                      <CloudIcon fontSize="small" color="action" />
-                      <Typography variant="subtitle2" fontWeight={600}>
-                        Informações do Azure DevOps
-                      </Typography>
-                    </Stack>
-                    <Stack spacing={2}>
-                      {task.areaPath && (
-                        <Paper
-                          variant="outlined"
-                          sx={{ p: 2, bgcolor: 'background.default' }}
-                        >
-                          <Typography
-                            variant="caption"
-                            color="text.secondary"
-                            display="block"
-                          >
-                            Area Path
-                          </Typography>
-                          <Typography
-                            variant="body2"
-                            fontWeight={500}
-                            sx={{
-                              mt: 0.5,
-                              fontFamily: 'monospace',
-                              fontSize: '0.85rem',
-                            }}
-                          >
-                            {task.areaPath}
-                          </Typography>
-                        </Paper>
-                      )}
-                      {task.iterationPath && (
-                        <Paper
-                          variant="outlined"
-                          sx={{ p: 2, bgcolor: 'background.default' }}
-                        >
-                          <Typography
-                            variant="caption"
-                            color="text.secondary"
-                            display="block"
-                          >
-                            Iteration Path
-                          </Typography>
-                          <Typography
-                            variant="body2"
-                            fontWeight={500}
-                            sx={{
-                              mt: 0.5,
-                              fontFamily: 'monospace',
-                              fontSize: '0.85rem',
-                            }}
-                          >
-                            {task.iterationPath}
-                          </Typography>
-                        </Paper>
-                      )}
-                      {task.originalWorkItemType && (
-                        <Paper
-                          variant="outlined"
-                          sx={{ p: 2, bgcolor: 'background.default' }}
-                        >
-                          <Typography
-                            variant="caption"
-                            color="text.secondary"
-                            display="block"
-                          >
-                            Tipo Original do Work Item
-                          </Typography>
-                          <Typography
-                            variant="body2"
-                            fontWeight={500}
-                            sx={{ mt: 0.5 }}
-                          >
-                            {task.originalWorkItemType}
-                          </Typography>
-                        </Paper>
-                      )}
-                    </Stack>
-                  </Box>
-                  <Divider />
-                </>
-              )}
-
-              {/* Metadata */}
-              <Box>
-                <Stack direction="row" spacing={1} alignItems="center" mb={1.5}>
-                  <TimerIcon fontSize="small" color="action" />
-                  <Typography variant="subtitle2" fontWeight={600}>
-                    Metadados
-                  </Typography>
-                </Stack>
-                <Box
-                  sx={{
-                    display: 'flex',
-                    gap: 2,
-                    flexDirection: { xs: 'column', sm: 'row' },
-                  }}
-                >
-                  <Paper
-                    variant="outlined"
-                    sx={{ p: 2, bgcolor: 'background.default', flex: 1 }}
-                  >
-                    <Typography
-                      variant="caption"
-                      color="text.secondary"
-                      display="block"
-                    >
-                      Criado em
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      fontWeight={500}
-                      sx={{ mt: 0.5 }}
-                    >
-                      {formatDateTime(task.createdAt)}
-                    </Typography>
-                  </Paper>
-                  <Paper
-                    variant="outlined"
-                    sx={{ p: 2, bgcolor: 'background.default', flex: 1 }}
-                  >
-                    <Typography
-                      variant="caption"
-                      color="text.secondary"
-                      display="block"
-                    >
-                      Atualizado em
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      fontWeight={500}
-                      sx={{ mt: 0.5 }}
-                    >
-                      {formatDateTime(task.updatedAt)}
-                    </Typography>
-                  </Paper>
-                </Box>
-              </Box>
-            </Stack>
-          </Box>
-
-          {/* Sidebar - Right Side */}
-          <Box
-            sx={{
-              flex: { xs: '1 1 auto', md: '0 0 34%' },
-              p: 3,
-              bgcolor: 'background.default',
-              overflowY: 'auto',
-            }}
-          >
-            <Stack spacing={3}>
-              {/* Status */}
-              <Box>
-                <Stack direction="row" spacing={1} alignItems="center" mb={1}>
-                  <CategoryIcon fontSize="small" color="action" />
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    fontWeight={600}
-                  >
-                    STATUS
-                  </Typography>
-                </Stack>
-                <Chip
-                  label={status.label}
-                  sx={{
-                    bgcolor: status.color,
-                    color: 'white',
-                    fontWeight: 600,
-                    width: '100%',
-                    justifyContent: 'flex-start',
-                  }}
-                />
-              </Box>
-
-              <Divider />
-
-              {/* Priority */}
-              <Box>
-                <Stack direction="row" spacing={1} alignItems="center" mb={1}>
-                  <FlagIcon fontSize="small" color="action" />
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    fontWeight={600}
-                  >
-                    PRIORIDADE
-                  </Typography>
-                </Stack>
-                <Chip
-                  label={priority.label}
-                  sx={{
-                    bgcolor: priority.color,
-                    color: 'white',
-                    fontWeight: 600,
-                    width: '100%',
-                    justifyContent: 'flex-start',
-                  }}
-                />
-              </Box>
-
-              <Divider />
-
-              {/* Type */}
-              <Box>
-                <Stack direction="row" spacing={1} alignItems="center" mb={1}>
-                  <CategoryIcon fontSize="small" color="action" />
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    fontWeight={600}
-                  >
-                    TIPO
-                  </Typography>
-                </Stack>
-                <Chip
-                  icon={<TypeIcon sx={{ color: 'white !important' }} />}
-                  label={type.label}
-                  sx={{
-                    bgcolor: type.color,
-                    color: 'white',
-                    fontWeight: 600,
-                    width: '100%',
-                    justifyContent: 'flex-start',
-                  }}
-                />
-              </Box>
-
-              <Divider />
-
-              {/* Assignee */}
-              <Box>
-                <Stack direction="row" spacing={1} alignItems="center" mb={1}>
-                  <PersonIcon fontSize="small" color="action" />
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    fontWeight={600}
-                  >
-                    RESPONSÁVEL
-                  </Typography>
-                </Stack>
-                {task.assignedToName ? (
-                  <Stack direction="row" spacing={1.5} alignItems="center">
-                    <Avatar
-                      sx={{
-                        width: 32,
-                        height: 32,
-                        bgcolor: 'primary.main',
-                        fontSize: '0.875rem',
-                      }}
-                    >
-                      {getInitials(task.assignedToName)}
-                    </Avatar>
-                    <Box>
-                      <Typography variant="body2" fontWeight={500}>
-                        {task.assignedToName}
-                      </Typography>
-                      {task.assignedToEmail && (
-                        <Typography variant="caption" color="text.secondary">
-                          {task.assignedToEmail}
-                        </Typography>
-                      )}
-                    </Box>
-                  </Stack>
-                ) : (
-                  <Typography
-                    variant="body2"
-                    color="text.secondary"
-                    fontStyle="italic"
-                  >
-                    Não atribuído
-                  </Typography>
-                )}
-              </Box>
-
-              <Divider />
-
-              {/* Sprint */}
-              <Box>
-                <Stack direction="row" spacing={1} alignItems="center" mb={1}>
-                  <SprintIcon fontSize="small" color="action" />
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    fontWeight={600}
-                  >
-                    SPRINT
-                  </Typography>
-                </Stack>
-                {task.sprint ? (
-                  <Tooltip
-                    title={`${formatDate(task.sprint.startDate)} - ${formatDate(task.sprint.endDate)}`}
-                  >
-                    <Paper
-                      variant="outlined"
-                      sx={{
-                        p: 1.5,
-                        bgcolor: 'background.paper',
-                        cursor: 'help',
-                      }}
-                    >
-                      <Typography variant="body2" fontWeight={500}>
-                        {task.sprint.name}
-                      </Typography>
-                    </Paper>
-                  </Tooltip>
-                ) : (
-                  <Typography
-                    variant="body2"
-                    color="text.secondary"
-                    fontStyle="italic"
-                  >
-                    Sem sprint
-                  </Typography>
-                )}
-              </Box>
-
-              <Divider />
-
-              {/* Team */}
-              <Box>
-                <Stack direction="row" spacing={1} alignItems="center" mb={1}>
-                  <GroupIcon fontSize="small" color="action" />
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    fontWeight={600}
-                  >
-                    EQUIPE
-                  </Typography>
-                </Stack>
-                {task.team ? (
-                  <Paper
-                    variant="outlined"
-                    sx={{
-                      p: 1.5,
-                      bgcolor: 'background.paper',
-                    }}
-                  >
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <Box
+                    {displayTask.description ? (
+                      <Paper
+                        variant="outlined"
                         sx={{
-                          width: 12,
-                          height: 12,
-                          borderRadius: '50%',
-                          bgcolor: (task.team as any).color || '#2196f3',
+                          p: 2,
+                          bgcolor: 'background.default',
+                          '& p': { margin: '0.5em 0' },
+                          '& ul, & ol': {
+                            paddingLeft: '1.5em',
+                            margin: '0.5em 0',
+                          },
+                          '& li': { margin: '0.25em 0' },
+                          '& h1, & h2, & h3, & h4, & h5, & h6': {
+                            margin: '0.75em 0 0.5em 0',
+                            fontWeight: 600,
+                          },
+                          '& pre': {
+                            bgcolor: 'rgba(0,0,0,0.05)',
+                            p: 1,
+                            borderRadius: 1,
+                            overflow: 'auto',
+                          },
+                          '& code': {
+                            bgcolor: 'rgba(0,0,0,0.05)',
+                            px: 0.5,
+                            py: 0.25,
+                            borderRadius: 0.5,
+                            fontFamily: 'monospace',
+                            fontSize: '0.9em',
+                          },
+                          '& a': {
+                            color: 'primary.main',
+                            textDecoration: 'none',
+                            '&:hover': { textDecoration: 'underline' },
+                          },
+                          '& img': {
+                            maxWidth: '100%',
+                            height: 'auto',
+                          },
                         }}
-                      />
-                      <Typography variant="body2" fontWeight={500}>
-                        {task.team.name}
+                      >
+                        <Box
+                          dangerouslySetInnerHTML={renderDescription(
+                            displayTask.description,
+                          )}
+                          sx={{
+                            color: 'text.secondary',
+                            fontSize: '0.875rem',
+                            lineHeight: 1.6,
+                          }}
+                        />
+                      </Paper>
+                    ) : (
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        fontStyle="italic"
+                      >
+                        Sem descrição
+                      </Typography>
+                    )}
+                  </Box>
+
+                  <Divider />
+
+                  {/* Dates */}
+                  <Box>
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      alignItems="center"
+                      mb={1.5}
+                    >
+                      <CalendarIcon fontSize="small" color="action" />
+                      <Typography variant="subtitle2" fontWeight={600}>
+                        Período
                       </Typography>
                     </Stack>
-                  </Paper>
-                ) : (
-                  <Typography
-                    variant="body2"
-                    color="text.secondary"
-                    fontStyle="italic"
-                  >
-                    Sem equipe
-                  </Typography>
-                )}
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        gap: 2,
+                        flexDirection: { xs: 'column', sm: 'row' },
+                      }}
+                    >
+                      <Paper
+                        variant="outlined"
+                        sx={{ p: 2, bgcolor: 'background.default', flex: 1 }}
+                      >
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          display="block"
+                        >
+                          Data de Início
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          fontWeight={500}
+                          sx={{ mt: 0.5 }}
+                        >
+                          {formatDate(displayTask.startDate)}
+                        </Typography>
+                      </Paper>
+                      <Paper
+                        variant="outlined"
+                        sx={{ p: 2, bgcolor: 'background.default', flex: 1 }}
+                      >
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          display="block"
+                        >
+                          Data de Término
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          fontWeight={500}
+                          sx={{ mt: 0.5 }}
+                        >
+                          {formatDate(displayTask.endDate)}
+                        </Typography>
+                      </Paper>
+                    </Box>
+                  </Box>
+
+                  <Divider />
+
+                  {/* Tags */}
+                  {tags.length > 0 && (
+                    <>
+                      <Box>
+                        <Stack
+                          direction="row"
+                          spacing={1}
+                          alignItems="center"
+                          mb={1.5}
+                        >
+                          <LabelIcon fontSize="small" color="action" />
+                          <Typography variant="subtitle2" fontWeight={600}>
+                            Tags
+                          </Typography>
+                        </Stack>
+                        <Stack
+                          direction="row"
+                          spacing={1}
+                          flexWrap="wrap"
+                          useFlexGap
+                        >
+                          {tags.map((tag, index) => (
+                            <Chip
+                              key={index}
+                              label={tag}
+                              size="small"
+                              variant="outlined"
+                              sx={{ borderRadius: 1 }}
+                            />
+                          ))}
+                        </Stack>
+                      </Box>
+                      <Divider />
+                    </>
+                  )}
+
+                  {/* Azure DevOps Info */}
+                  {displayTask.origin === 'azure_devops' && (
+                    <>
+                      <Box>
+                        <Stack
+                          direction="row"
+                          spacing={1}
+                          alignItems="center"
+                          mb={1.5}
+                        >
+                          <CloudIcon fontSize="small" color="action" />
+                          <Typography variant="subtitle2" fontWeight={600}>
+                            Informações do Azure DevOps
+                          </Typography>
+                        </Stack>
+                        <Stack spacing={2}>
+                          {displayTask.areaPath && (
+                            <Paper
+                              variant="outlined"
+                              sx={{ p: 2, bgcolor: 'background.default' }}
+                            >
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                display="block"
+                              >
+                                Area Path
+                              </Typography>
+                              <Typography
+                                variant="body2"
+                                fontWeight={500}
+                                sx={{
+                                  mt: 0.5,
+                                  fontFamily: 'monospace',
+                                  fontSize: '0.85rem',
+                                }}
+                              >
+                                {displayTask.areaPath}
+                              </Typography>
+                            </Paper>
+                          )}
+                          {displayTask.iterationPath && (
+                            <Paper
+                              variant="outlined"
+                              sx={{ p: 2, bgcolor: 'background.default' }}
+                            >
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                display="block"
+                              >
+                                Iteration Path
+                              </Typography>
+                              <Typography
+                                variant="body2"
+                                fontWeight={500}
+                                sx={{
+                                  mt: 0.5,
+                                  fontFamily: 'monospace',
+                                  fontSize: '0.85rem',
+                                }}
+                              >
+                                {displayTask.iterationPath}
+                              </Typography>
+                            </Paper>
+                          )}
+                          {displayTask.originalWorkItemType && (
+                            <Paper
+                              variant="outlined"
+                              sx={{ p: 2, bgcolor: 'background.default' }}
+                            >
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                display="block"
+                              >
+                                Tipo Original do Work Item
+                              </Typography>
+                              <Typography
+                                variant="body2"
+                                fontWeight={500}
+                                sx={{ mt: 0.5 }}
+                              >
+                                {displayTask.originalWorkItemType}
+                              </Typography>
+                            </Paper>
+                          )}
+                        </Stack>
+                      </Box>
+                      <Divider />
+                    </>
+                  )}
+
+                  {/* Metadata */}
+                  <Box>
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      alignItems="center"
+                      mb={1.5}
+                    >
+                      <TimerIcon fontSize="small" color="action" />
+                      <Typography variant="subtitle2" fontWeight={600}>
+                        Metadados
+                      </Typography>
+                    </Stack>
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        gap: 2,
+                        flexDirection: { xs: 'column', sm: 'row' },
+                      }}
+                    >
+                      <Paper
+                        variant="outlined"
+                        sx={{ p: 2, bgcolor: 'background.default', flex: 1 }}
+                      >
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          display="block"
+                        >
+                          Criado em
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          fontWeight={500}
+                          sx={{ mt: 0.5 }}
+                        >
+                          {formatDateTime(displayTask.createdAt)}
+                        </Typography>
+                      </Paper>
+                      <Paper
+                        variant="outlined"
+                        sx={{ p: 2, bgcolor: 'background.default', flex: 1 }}
+                      >
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          display="block"
+                        >
+                          Atualizado em
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          fontWeight={500}
+                          sx={{ mt: 0.5 }}
+                        >
+                          {formatDateTime(displayTask.updatedAt)}
+                        </Typography>
+                      </Paper>
+                    </Box>
+                  </Box>
+                </Stack>
               </Box>
 
-              <Divider />
-
-              {/* Story Points */}
-              {task.storyPoints !== undefined && task.storyPoints !== null && (
-                <>
+              {/* Sidebar - Right Side */}
+              <Box
+                sx={{
+                  flex: { xs: '1 1 auto', md: '0 0 34%' },
+                  p: 3,
+                  bgcolor: 'background.default',
+                  overflowY: 'auto',
+                }}
+              >
+                <Stack spacing={3}>
+                  {/* Status */}
                   <Box>
                     <Stack
                       direction="row"
@@ -804,33 +741,309 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
                       alignItems="center"
                       mb={1}
                     >
-                      <SpeedIcon fontSize="small" color="action" />
+                      <CategoryIcon fontSize="small" color="action" />
                       <Typography
                         variant="caption"
                         color="text.secondary"
                         fontWeight={600}
                       >
-                        STORY POINTS
+                        STATUS
                       </Typography>
                     </Stack>
-                    <Paper
-                      variant="outlined"
+                    <Chip
+                      label={status.label}
                       sx={{
-                        p: 1.5,
-                        bgcolor: 'background.paper',
-                        textAlign: 'center',
+                        bgcolor: status.color,
+                        color: 'white',
+                        fontWeight: 600,
+                        width: '100%',
+                        justifyContent: 'flex-start',
                       }}
-                    >
-                      <Typography variant="h5" fontWeight={700} color="primary">
-                        {task.storyPoints}
-                      </Typography>
-                    </Paper>
+                    />
                   </Box>
+
                   <Divider />
-                </>
-              )}
-            </Stack>
-          </Box>
+
+                  {/* Priority */}
+                  <Box>
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      alignItems="center"
+                      mb={1}
+                    >
+                      <FlagIcon fontSize="small" color="action" />
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        fontWeight={600}
+                      >
+                        PRIORIDADE
+                      </Typography>
+                    </Stack>
+                    <Chip
+                      label={priority.label}
+                      sx={{
+                        bgcolor: priority.color,
+                        color: 'white',
+                        fontWeight: 600,
+                        width: '100%',
+                        justifyContent: 'flex-start',
+                      }}
+                    />
+                  </Box>
+
+                  <Divider />
+
+                  {/* Type */}
+                  <Box>
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      alignItems="center"
+                      mb={1}
+                    >
+                      <CategoryIcon fontSize="small" color="action" />
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        fontWeight={600}
+                      >
+                        TIPO
+                      </Typography>
+                    </Stack>
+                    <Chip
+                      icon={<TypeIcon sx={{ color: 'white !important' }} />}
+                      label={type.label}
+                      sx={{
+                        bgcolor: type.color,
+                        color: 'white',
+                        fontWeight: 600,
+                        width: '100%',
+                        justifyContent: 'flex-start',
+                      }}
+                    />
+                  </Box>
+
+                  <Divider />
+
+                  {/* Assignee */}
+                  <Box>
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      alignItems="center"
+                      mb={1}
+                    >
+                      <PersonIcon fontSize="small" color="action" />
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        fontWeight={600}
+                      >
+                        RESPONSÁVEL
+                      </Typography>
+                    </Stack>
+                    {displayTask.assignedToName ? (
+                      <Stack direction="row" spacing={1.5} alignItems="center">
+                        <Avatar
+                          sx={{
+                            width: 32,
+                            height: 32,
+                            bgcolor: 'primary.main',
+                            fontSize: '0.875rem',
+                          }}
+                        >
+                          {getInitials(displayTask.assignedToName)}
+                        </Avatar>
+                        <Box>
+                          <Typography variant="body2" fontWeight={500}>
+                            {displayTask.assignedToName}
+                          </Typography>
+                          {displayTask.assignedToEmail && (
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                            >
+                              {displayTask.assignedToEmail}
+                            </Typography>
+                          )}
+                        </Box>
+                      </Stack>
+                    ) : (
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        fontStyle="italic"
+                      >
+                        Não atribuído
+                      </Typography>
+                    )}
+                  </Box>
+
+                  <Divider />
+
+                  {/* Sprint */}
+                  <Box>
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      alignItems="center"
+                      mb={1}
+                    >
+                      <SprintIcon fontSize="small" color="action" />
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        fontWeight={600}
+                      >
+                        SPRINT
+                      </Typography>
+                    </Stack>
+                    {displayTask.sprint ? (
+                      <Tooltip
+                        title={`${formatDate(displayTask.sprint.startDate)} - ${formatDate(displayTask.sprint.endDate)}`}
+                      >
+                        <Paper
+                          variant="outlined"
+                          sx={{
+                            p: 1.5,
+                            bgcolor: 'background.paper',
+                            cursor: 'help',
+                          }}
+                        >
+                          <Typography variant="body2" fontWeight={500}>
+                            {displayTask.sprint.name}
+                          </Typography>
+                        </Paper>
+                      </Tooltip>
+                    ) : (
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        fontStyle="italic"
+                      >
+                        Sem sprint
+                      </Typography>
+                    )}
+                  </Box>
+
+                  <Divider />
+
+                  {/* Team */}
+                  <Box>
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      alignItems="center"
+                      mb={1}
+                    >
+                      <GroupIcon fontSize="small" color="action" />
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        fontWeight={600}
+                      >
+                        EQUIPE
+                      </Typography>
+                    </Stack>
+                    {displayTask.team ? (
+                      <Paper
+                        variant="outlined"
+                        sx={{
+                          p: 1.5,
+                          bgcolor: 'background.paper',
+                        }}
+                      >
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <Box
+                            sx={{
+                              width: 12,
+                              height: 12,
+                              borderRadius: '50%',
+                              bgcolor:
+                                (displayTask.team as any).color || '#2196f3',
+                            }}
+                          />
+                          <Typography variant="body2" fontWeight={500}>
+                            {displayTask.team.name}
+                          </Typography>
+                        </Stack>
+                      </Paper>
+                    ) : (
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        fontStyle="italic"
+                      >
+                        Sem equipe
+                      </Typography>
+                    )}
+                  </Box>
+
+                  <Divider />
+
+                  {/* Story Points */}
+                  {displayTask.storyPoints !== undefined &&
+                    displayTask.storyPoints !== null && (
+                      <>
+                        <Box>
+                          <Stack
+                            direction="row"
+                            spacing={1}
+                            alignItems="center"
+                            mb={1}
+                          >
+                            <SpeedIcon fontSize="small" color="action" />
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                              fontWeight={600}
+                            >
+                              STORY POINTS
+                            </Typography>
+                          </Stack>
+                          <Paper
+                            variant="outlined"
+                            sx={{
+                              p: 1.5,
+                              bgcolor: 'background.paper',
+                              textAlign: 'center',
+                            }}
+                          >
+                            <Typography
+                              variant="h5"
+                              fontWeight={700}
+                              color="primary"
+                            >
+                              {displayTask.storyPoints}
+                            </Typography>
+                          </Paper>
+                        </Box>
+                        <Divider />
+                      </>
+                    )}
+                </Stack>
+              </Box>
+            </Box>
+          )}
+
+          {/* Hierarchy Tab */}
+          {activeTab === 1 && hasHierarchy && (
+            <Box
+              sx={{
+                p: 3,
+                height: '100%',
+                overflowY: 'auto',
+              }}
+            >
+              <TaskHierarchy
+                task={displayTask}
+                onTaskClick={handleHierarchyTaskClick}
+                maxLevel={10}
+              />
+            </Box>
+          )}
         </Box>
       </DialogContent>
     </Dialog>

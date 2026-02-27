@@ -168,9 +168,13 @@ export class SyncService {
     let workItems: AzureWorkItem[] = [];
     try {
       workItems = await this.azureDevOpsService.fetchAllWorkItems();
+      logger.info(
+        `[fullSync] Fetched ${workItems.length} work items from Azure DevOps`,
+      );
     } catch (error) {
       const msg = `Erro ao buscar work items: ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
       logger.error(msg);
+      logger.error('[fullSync] Error details:', error);
       errors.push(msg);
     }
 
@@ -470,6 +474,7 @@ export class SyncService {
 
   /**
    * Sync tasks: parse work items → resolve relationships (sprint, team) → upsert by externalId + origin.
+   * Then link parent-child relationships in a second pass.
    * Optimized with batch processing.
    */
   private async syncTasks(
@@ -487,7 +492,7 @@ export class SyncService {
     const parsedTasks = parseTaskMany(workItems);
     const totalTasks = parsedTasks.length;
 
-    // Process tasks in batches for better performance
+    // FIRST PASS: Create/update all tasks without parent relationships
     for (let i = 0; i < parsedTasks.length; i += this.BATCH_SIZE) {
       const batch = parsedTasks.slice(i, i + this.BATCH_SIZE);
       const batchPromises = batch.map((parsed) =>
@@ -502,7 +507,7 @@ export class SyncService {
 
       // Emit progress for tasks
       const processed = Math.min(i + this.BATCH_SIZE, totalTasks);
-      const percentage = 80 + Math.floor((processed / totalTasks) * 20);
+      const percentage = 80 + Math.floor((processed / totalTasks) * 15);
       this.emitProgress({
         step: 'tasks',
         message: `Sincronizando tarefas: ${processed}/${totalTasks}`,
@@ -511,6 +516,17 @@ export class SyncService {
         percentage,
       });
     }
+
+    // SECOND PASS: Link parent-child relationships
+    this.emitProgress({
+      step: 'tasks',
+      message: 'Vinculando hierarquia de tarefas...',
+      current: totalTasks,
+      total: totalTasks,
+      percentage: 95,
+    });
+
+    await this.linkTaskHierarchy(workItems);
 
     result.total = result.created + result.updated;
     return result;
@@ -681,14 +697,11 @@ export class SyncService {
 
       // Check if task path contains sprint path
       if (normalizedTaskPath.includes(sprintPath)) {
-        logger.debug(
-          '[resolveSprintByIterationPath] Contains match found:',
-          {
-            sprintId: sprint.id,
-            sprintName: sprint.name,
-            sprintPath,
-          },
-        );
+        logger.debug('[resolveSprintByIterationPath] Contains match found:', {
+          sprintId: sprint.id,
+          sprintName: sprint.name,
+          sprintPath,
+        });
         return sprint.id;
       }
 
@@ -706,7 +719,7 @@ export class SyncService {
       }
     }
 
-    logger.warn('[resolveSprintByIterationPath] No match found for:', {
+    logger.error('[resolveSprintByIterationPath] No match found for:', {
       taskIterationPath: iterationPath,
     });
     return null;
@@ -801,7 +814,7 @@ export class SyncService {
       // Check if all team segments exist in task segments in the same order
       let taskIndex = 0;
       let matchCount = 0;
-      
+
       for (const teamSegment of entry.segments) {
         // Find this team segment in remaining task segments
         while (taskIndex < taskSegments.length) {
@@ -813,7 +826,7 @@ export class SyncService {
           taskIndex++;
         }
       }
-      
+
       // If all team segments were found in order, it's a match
       if (matchCount === entry.segments.length && entry.segments.length >= 2) {
         logger.debug('[resolveTeamByAreaPath] Flexible match found:', {
@@ -825,9 +838,91 @@ export class SyncService {
       }
     }
 
-    logger.warn('[resolveTeamByAreaPath] No match found for:', {
+    logger.error('[resolveTeamByAreaPath] No match found for:', {
       taskAreaPath: areaPath,
     });
     return null;
+  }
+
+  /**
+   * Link parent-child relationships between tasks based on Azure DevOps relations.
+   * This runs after all tasks have been created/updated.
+   */
+  private async linkTaskHierarchy(workItems: AzureWorkItem[]): Promise<void> {
+    let linkedCount = 0;
+    let errorCount = 0;
+
+    for (const workItem of workItems) {
+      if (!workItem.relations || workItem.relations.length === 0) {
+        continue;
+      }
+
+      // Find parent relation (Child -> Parent)
+      const parentRelation = workItem.relations.find(
+        (r) => r.rel === 'System.LinkTypes.Hierarchy-Reverse',
+      );
+
+      if (!parentRelation) {
+        continue;
+      }
+
+      try {
+        // Extract parent work item ID from URL
+        const match = parentRelation.url.match(/workItems\/(\d+)$/);
+        if (!match) {
+          continue;
+        }
+
+        const parentExternalId = match[1];
+        const childExternalId = String(workItem.id);
+
+        // Find both tasks in database
+        const [childTask] = await this.taskRepository.find({
+          where: {
+            externalId: childExternalId,
+            origin: 'azure_devops',
+          },
+        });
+
+        const [parentTask] = await this.taskRepository.find({
+          where: {
+            externalId: parentExternalId,
+            origin: 'azure_devops',
+          },
+        });
+
+        if (childTask && parentTask) {
+          // Link child to parent
+          await this.taskRepository.update(
+            { id: childTask.id },
+            { parentId: parentTask.id },
+          );
+          linkedCount++;
+
+          if (linkedCount <= 5) {
+            logger.info('[linkTaskHierarchy] Linked task:', {
+              childId: childTask.id,
+              childTitle: childTask.title,
+              parentId: parentTask.id,
+              parentTitle: parentTask.title,
+            });
+          }
+        }
+      } catch (error) {
+        errorCount++;
+        if (errorCount <= 5) {
+          logger.error('[linkTaskHierarchy] Error linking task:', {
+            workItemId: workItem.id,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+    }
+
+    logger.info('[linkTaskHierarchy] Summary:', {
+      totalWorkItems: workItems.length,
+      linkedCount,
+      errorCount,
+    });
   }
 }

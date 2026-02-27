@@ -11,12 +11,14 @@ export interface CreateTeamMemberInput {
   name: string;
   email: string;
   role: TeamMemberRole;
+  positionId?: number;
 }
 
 export interface UpdateTeamMemberInput {
   name?: string;
   email?: string;
   role?: TeamMemberRole;
+  positionId?: number;
 }
 
 export interface TeamMember {
@@ -25,6 +27,8 @@ export interface TeamMember {
   email: string;
   role: TeamMemberRole;
   isActive: boolean;
+  positionId?: number;
+  position?: { id: number; name: string; description?: string };
   teams?: { id: number; name: string; isActive: boolean }[];
   createdAt?: Date;
   updatedAt?: Date;
@@ -53,6 +57,7 @@ export class TeamMemberService {
       name: trimmedName,
       email: input.email,
       role: input.role,
+      positionId: input.positionId,
       isActive: true,
     });
 
@@ -84,6 +89,10 @@ export class TeamMemberService {
 
     if (input.role !== undefined) {
       entity.role = input.role;
+    }
+
+    if (input.positionId !== undefined) {
+      entity.positionId = input.positionId;
     }
 
     const updated = await this.repository.save(entity);
@@ -149,6 +158,14 @@ export class TeamMemberService {
       email: entity.email,
       role: entity.role,
       isActive: entity.isActive,
+      positionId: entity.positionId,
+      position: entity.position
+        ? {
+            id: entity.position.id,
+            name: entity.position.name,
+            description: entity.position.description,
+          }
+        : undefined,
       teams: entity.teams?.map((t) => ({
         id: t.id,
         name: t.name,

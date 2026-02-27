@@ -105,6 +105,19 @@ export class TaskEntity extends AuditableEntity {
   @Column({ name: 'assigned_to_email', nullable: true })
   assignedToEmail?: string;
 
+  @Column({ name: 'parent_id', nullable: true })
+  parentId?: number;
+
+  @ManyToOne('TaskEntity', 'children')
+  @JoinColumn({ name: 'parent_id' })
+  parent?: TaskEntity;
+
+  @OneToMany('TaskEntity', 'parent')
+  children?: TaskEntity[];
+
+  @Column({ name: 'work_item_relations', type: 'text', nullable: true })
+  workItemRelations?: string; // JSON string with relations data
+
   @OneToMany('TaskCommentEntity', 'task')
   comments?: TaskCommentEntity[];
 }

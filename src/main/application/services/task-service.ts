@@ -6,6 +6,7 @@ import {
   TaskType,
 } from '../entities/task.entity';
 import { TaskRepository } from '../repositories/task-repository';
+import { logger } from '@main/infrastructure/log/logger';
 
 export interface CreateTaskInput {
   title: string;
@@ -57,6 +58,9 @@ export interface Task {
   team?: { id: number; name: string };
   assignedToName?: string;
   assignedToEmail?: string;
+  parentId?: number;
+  parent?: Task;
+  children?: Task[];
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -122,10 +126,20 @@ export class TaskService {
   async findById(id: number): Promise<Task | null> {
     const entity = await this.repository.findOne({
       where: { id },
-      relations: ['sprint', 'team'],
+      relations: ['sprint', 'team', 'parent', 'children'],
     });
 
     if (!entity) return null;
+
+    logger.info('[TaskService.findById] Task loaded:', {
+      id: entity.id,
+      title: entity.title,
+      hasParent: !!entity.parent,
+      parentId: entity.parentId,
+      hasChildren: !!entity.children && entity.children.length > 0,
+      childrenCount: entity.children?.length || 0,
+    });
+
     return this.mapToDto(entity);
   }
 
@@ -244,6 +258,11 @@ export class TaskService {
         : undefined,
       assignedToName: entity.assignedToName,
       assignedToEmail: entity.assignedToEmail,
+      parentId: entity.parentId,
+      parent: entity.parent ? this.mapToDto(entity.parent) : undefined,
+      children: entity.children
+        ? entity.children.map((child) => this.mapToDto(child))
+        : undefined,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
     };

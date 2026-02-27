@@ -67,29 +67,33 @@ export function useAzureDevOps() {
     [],
   );
 
-  const getConfig = useCallback(async (): Promise<AzureDevOpsConfig | null> => {
-    setLoading(true);
-    try {
-      const response = await window.electronAPI.azureDevOps.getConfig();
-      if (!response.success) {
-        setError(
-          response.error || 'Erro ao buscar configuração do Azure DevOps',
-        );
+  const getConfig = useCallback(
+    async (includePat = false): Promise<AzureDevOpsConfig | null> => {
+      setLoading(true);
+      try {
+        const response =
+          await window.electronAPI.azureDevOps.getConfig(includePat);
+        if (!response.success) {
+          setError(
+            response.error || 'Erro ao buscar configuração do Azure DevOps',
+          );
+          return null;
+        }
+        const data = cloneIpcData(response.data) || null;
+        setState((prev) => ({
+          ...prev,
+          loading: false,
+          config: data,
+          isConnected: data?.isConfigured || false,
+        }));
+        return data;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erro de comunicação');
         return null;
       }
-      const data = cloneIpcData(response.data) || null;
-      setState((prev) => ({
-        ...prev,
-        loading: false,
-        config: data,
-        isConnected: data?.isConfigured || false,
-      }));
-      return data;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro de comunicação');
-      return null;
-    }
-  }, []);
+    },
+    [],
+  );
 
   const testConnection = useCallback(async (): Promise<boolean> => {
     setLoading(true);

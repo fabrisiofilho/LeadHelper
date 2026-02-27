@@ -29,11 +29,11 @@ import {
   PersonOff as PersonOffIcon,
   PersonAdd as PersonAddIcon,
   Search as SearchIcon,
-  FilterList as FilterIcon,
 } from '@mui/icons-material';
 import { useForm, Controller } from 'react-hook-form';
 import { Modal } from '@renderer/components/Modal';
 import { useTeamMembers } from '@renderer/hooks/useTeamMembers';
+import { usePositions } from '@renderer/hooks/usePositions';
 import { useTableSort } from '@renderer/hooks/useTableSort';
 import { SortableTableCell } from '@renderer/components/SortableTableCell';
 import {
@@ -44,7 +44,6 @@ import {
 } from './styles';
 import type {
   TeamMember,
-  TeamMemberRole,
   CreateTeamMemberInput,
   UpdateTeamMemberInput,
   TeamMemberFilters,
@@ -57,49 +56,16 @@ import type {
  * Requirements: 1.1, 1.2, 1.3, 1.4, 1.7
  */
 
-const roleOptions: { value: TeamMemberRole; label: string }[] = [
-  { value: 'developer', label: 'Desenvolvedor' },
-  { value: 'analyst', label: 'Analista' },
-  { value: 'qa', label: 'QA' },
-  { value: 'tech_lead', label: 'Tech Lead' },
-  { value: 'devops', label: 'DevOps' },
-  { value: 'designer', label: 'Designer' },
-  { value: 'product_owner', label: 'Product Owner' },
-];
-
 const statusOptions = [
   { value: 'all', label: 'Todos' },
   { value: 'active', label: 'Ativos' },
   { value: 'inactive', label: 'Inativos' },
 ];
 
-const getRoleLabel = (role: TeamMemberRole): string => {
-  const option = roleOptions.find((opt) => opt.value === role);
-  return option?.label ?? role;
-};
-
-const getRoleColor = (
-  role: TeamMemberRole,
-): 'primary' | 'secondary' | 'success' | 'warning' | 'info' | 'error' => {
-  const colorMap: Record<
-    TeamMemberRole,
-    'primary' | 'secondary' | 'success' | 'warning' | 'info' | 'error'
-  > = {
-    developer: 'primary',
-    analyst: 'info',
-    qa: 'success',
-    tech_lead: 'warning',
-    devops: 'secondary',
-    designer: 'error',
-    product_owner: 'warning',
-  };
-  return colorMap[role] ?? 'primary';
-};
-
 interface TeamMemberFormData {
   name: string;
   email: string;
-  role: TeamMemberRole;
+  positionId?: number;
 }
 
 export function TeamMembersPage() {
@@ -115,6 +81,12 @@ export function TeamMembersPage() {
     clearError,
   } = useTeamMembers();
 
+  const {
+    positions,
+    loading: positionsLoading,
+    findAll: findAllPositions,
+  } = usePositions();
+
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
   const [formLoading, setFormLoading] = useState(false);
@@ -123,7 +95,7 @@ export function TeamMembersPage() {
   const [statusLoading, setStatusLoading] = useState(false);
 
   // Filters
-  const [roleFilter, setRoleFilter] = useState<TeamMemberRole | ''>('');
+  const [positionFilter, setPositionFilter] = useState<number | ''>('');
   const [statusFilter, setStatusFilter] = useState<
     'all' | 'active' | 'inactive'
   >('all');
@@ -142,15 +114,20 @@ export function TeamMembersPage() {
     defaultValues: {
       name: '',
       email: '',
-      role: 'developer',
+      positionId: undefined,
     },
   });
+
+  // Load positions on mount
+  useEffect(() => {
+    findAllPositions({ isActive: true });
+  }, [findAllPositions]);
 
   const loadTeamMembers = useCallback(async () => {
     const filters: TeamMemberFilters = {};
 
-    if (roleFilter) {
-      filters.role = roleFilter;
+    if (positionFilter) {
+      filters.positionId = positionFilter;
     }
 
     if (statusFilter !== 'all') {
@@ -158,7 +135,7 @@ export function TeamMembersPage() {
     }
 
     await findAll(filters);
-  }, [findAll, roleFilter, statusFilter]);
+  }, [findAll, positionFilter, statusFilter]);
 
   useEffect(() => {
     loadTeamMembers();
@@ -170,7 +147,8 @@ export function TeamMembersPage() {
     const search = searchTerm.toLowerCase();
     return (
       member.name.toLowerCase().includes(search) ||
-      member.email.toLowerCase().includes(search)
+      member.email.toLowerCase().includes(search) ||
+      member.position?.name.toLowerCase().includes(search)
     );
   });
 
@@ -185,7 +163,7 @@ export function TeamMembersPage() {
     reset({
       name: '',
       email: '',
-      role: 'developer',
+      positionId: undefined,
     });
     setIsFormOpen(true);
   };
@@ -195,7 +173,7 @@ export function TeamMembersPage() {
     reset({
       name: member.name,
       email: member.email,
-      role: member.role,
+      positionId: member.positionId,
     });
     setIsFormOpen(true);
   };
@@ -214,7 +192,7 @@ export function TeamMembersPage() {
         const updateData: UpdateTeamMemberInput = {
           name: data.name,
           email: data.email,
-          role: data.role,
+          positionId: data.positionId || undefined,
         };
         const result = await update(selectedMember.id, updateData);
         if (result) {
@@ -224,7 +202,8 @@ export function TeamMembersPage() {
         const createData: CreateTeamMemberInput = {
           name: data.name,
           email: data.email,
-          role: data.role,
+          role: 'developer', // Default role required by backend
+          positionId: data.positionId || undefined,
         };
         const result = await create(createData);
         if (result) {
@@ -268,10 +247,11 @@ export function TeamMembersPage() {
     setPage(0);
   };
 
-  const handleRoleFilterChange = (
+  const handlePositionFilterChange = (
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
-    setRoleFilter(event.target.value as TeamMemberRole | '');
+    const value = event.target.value;
+    setPositionFilter(value === '' ? '' : Number(value));
     setPage(0);
   };
 
@@ -353,7 +333,7 @@ export function TeamMembersPage() {
       <FiltersContainer>
         <TextField
           size="small"
-          placeholder="Buscar por nome ou email..."
+          placeholder="Buscar por nome, email ou cargo..."
           value={searchTerm}
           onChange={(e) => {
             setSearchTerm(e.target.value);
@@ -373,10 +353,10 @@ export function TeamMembersPage() {
         <TextField
           select
           size="small"
-          label="Função"
-          value={roleFilter}
-          onChange={handleRoleFilterChange}
-          sx={{ minWidth: 150 }}
+          label="Cargo"
+          value={positionFilter}
+          onChange={handlePositionFilterChange}
+          sx={{ minWidth: 180 }}
           slotProps={{
             select: {
               displayEmpty: true,
@@ -384,10 +364,10 @@ export function TeamMembersPage() {
             inputLabel: { shrink: true },
           }}
         >
-          <MenuItem value="">Todas</MenuItem>
-          {roleOptions.map((option) => (
-            <MenuItem key={option.value} value={option.value}>
-              {option.label}
+          <MenuItem value="">Todos</MenuItem>
+          {positions.map((position) => (
+            <MenuItem key={position.id} value={position.id}>
+              {position.name}
             </MenuItem>
           ))}
         </TextField>
@@ -432,8 +412,8 @@ export function TeamMembersPage() {
                     onSort={handleSort}
                   />
                   <SortableTableCell
-                    id="role"
-                    label="Função"
+                    id="position"
+                    label="Cargo"
                     sortConfig={sortConfig}
                     onSort={handleSort}
                   />
@@ -465,12 +445,22 @@ export function TeamMembersPage() {
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Chip
-                        label={getRoleLabel(member.role)}
-                        color={getRoleColor(member.role)}
-                        size="small"
-                        variant="outlined"
-                      />
+                      {member.position ? (
+                        <Chip
+                          label={member.position.name}
+                          color="primary"
+                          size="small"
+                          variant="outlined"
+                        />
+                      ) : (
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          fontStyle="italic"
+                        >
+                          Sem cargo
+                        </Typography>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Chip
@@ -526,16 +516,16 @@ export function TeamMembersPage() {
         <PlaceholderContent>
           <PeopleIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
           <Typography variant="h6" color="text.secondary" gutterBottom>
-            {searchTerm || roleFilter || statusFilter !== 'all'
+            {searchTerm || positionFilter || statusFilter !== 'all'
               ? 'Nenhum membro encontrado com os filtros aplicados'
               : 'Nenhum membro cadastrado'}
           </Typography>
           <Typography variant="body2" color="text.secondary" mb={3}>
-            {searchTerm || roleFilter || statusFilter !== 'all'
+            {searchTerm || positionFilter || statusFilter !== 'all'
               ? 'Tente ajustar os filtros de busca'
               : 'Clique em "Novo Membro" para adicionar o primeiro membro da equipe'}
           </Typography>
-          {!searchTerm && !roleFilter && statusFilter === 'all' && (
+          {!searchTerm && !positionFilter && statusFilter === 'all' && (
             <Button
               variant="contained"
               startIcon={<AddIcon />}
@@ -607,22 +597,34 @@ export function TeamMembersPage() {
           />
 
           <Controller
-            name="role"
+            name="positionId"
             control={control}
-            rules={{ required: 'Função é obrigatória' }}
+            rules={{ required: 'Cargo é obrigatório' }}
             render={({ field }) => (
               <TextField
                 {...field}
                 select
-                label="Função"
+                label="Cargo"
                 fullWidth
+                value={field.value || ''}
+                onChange={(e) =>
+                  field.onChange(
+                    e.target.value ? Number(e.target.value) : undefined,
+                  )
+                }
+                disabled={positionsLoading}
                 required
-                error={!!errors.role}
-                helperText={errors.role?.message}
+                error={!!errors.positionId}
+                helperText={
+                  errors.positionId?.message || 'Selecione o cargo do membro'
+                }
               >
-                {roleOptions.map((option) => (
-                  <MenuItem key={option.value} value={option.value}>
-                    {option.label}
+                <MenuItem value="">
+                  <em>Selecione um cargo</em>
+                </MenuItem>
+                {positions.map((position) => (
+                  <MenuItem key={position.id} value={position.id}>
+                    {position.name}
                   </MenuItem>
                 ))}
               </TextField>

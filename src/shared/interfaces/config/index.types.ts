@@ -209,8 +209,21 @@ export interface Task {
   tags?: string;
   storyPoints?: number;
   originalWorkItemType?: string;
+  parentId?: number;
+  parent?: Task;
+  children?: Task[];
+  workItemRelations?: WorkItemRelation[];
   createdAt?: Date;
   updatedAt?: Date;
+}
+
+export interface WorkItemRelation {
+  rel: string; // e.g., "System.LinkTypes.Hierarchy-Forward", "System.LinkTypes.Related"
+  url: string;
+  attributes?: {
+    name?: string;
+    isLocked?: boolean;
+  };
 }
 
 export interface CreateTaskInput {
@@ -410,6 +423,7 @@ export interface AzureDevOpsConfig {
   organizationUrl: string;
   projectName: string;
   isConfigured: boolean;
+  pat?: string; // Optional decrypted PAT for display purposes
 }
 
 export interface AzureDevOpsConfigInput {
@@ -435,6 +449,11 @@ export interface WorkItem {
   storyPoints?: number;
   priority?: number;
   originalWorkItemType?: string;
+  relations?: Array<{
+    rel: string;
+    url: string;
+    attributes?: Record<string, unknown>;
+  }>;
 }
 
 export interface WorkItemFilters {
@@ -589,7 +608,9 @@ export interface FullSyncResult {
 
 export interface IAzureDevOpsController {
   saveConfig(config: AzureDevOpsConfigInput): Promise<ApiResponse<void>>;
-  getConfig(): Promise<ApiResponse<AzureDevOpsConfig | null>>;
+  getConfig(
+    includePat?: boolean,
+  ): Promise<ApiResponse<AzureDevOpsConfig | null>>;
   testConnection(): Promise<ApiResponse<boolean>>;
   fetchWorkItems(filters?: WorkItemFilters): Promise<ApiResponse<WorkItem[]>>;
   fetchIterations(): Promise<ApiResponse<IterationNode[]>>;

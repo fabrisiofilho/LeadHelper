@@ -35,6 +35,11 @@ export interface AzureWorkItem {
     'Microsoft.VSTS.Scheduling.FinishDate'?: string;
     'Microsoft.VSTS.Scheduling.TargetDate'?: string;
   };
+  relations?: Array<{
+    rel: string;
+    url: string;
+    attributes?: Record<string, unknown>;
+  }>;
 }
 
 export interface ParsedTask {

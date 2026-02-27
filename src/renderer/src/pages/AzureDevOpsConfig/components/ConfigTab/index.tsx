@@ -36,13 +36,14 @@ interface ConfigTabProps {
     organizationUrl: string;
     projectName: string;
     isConfigured: boolean;
+    pat?: string;
   } | null;
   loading?: boolean;
   error: string | null;
   isConnected: boolean;
   onSaveConfig: (data: AzureDevOpsConfigInput) => Promise<boolean>;
   onTestConnection: () => Promise<boolean>;
-  onLoadConfig?: () => Promise<void>;
+  onLoadConfig?: (includePat?: boolean) => Promise<void>;
   onClearError: () => void;
 }
 
@@ -52,11 +53,13 @@ export function ConfigTab({
   isConnected,
   onSaveConfig,
   onTestConnection,
+  onLoadConfig,
   onClearError,
 }: ConfigTabProps) {
   const [showPat, setShowPat] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
   const [testLoading, setTestLoading] = useState(false);
+  const [patLoading, setPatLoading] = useState(false);
   const [testResult, setTestResult] = useState<{
     success: boolean;
     message: string;
@@ -67,6 +70,7 @@ export function ConfigTab({
     control,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors: formErrors, isDirty },
   } = useForm<ConfigFormData>({
     defaultValues: { organizationUrl: '', projectName: '', pat: '' },
@@ -77,7 +81,7 @@ export function ConfigTab({
       reset({
         organizationUrl: config.organizationUrl || '',
         projectName: config.projectName || '',
-        pat: '',
+        pat: config.pat || '',
       });
     }
   }, [config, reset]);
@@ -122,6 +126,19 @@ export function ConfigTab({
     } finally {
       setTestLoading(false);
     }
+  };
+
+  const handleToggleShowPat = async () => {
+    if (!showPat && config?.isConfigured && !config.pat && onLoadConfig) {
+      // Load PAT from backend when showing for the first time
+      setPatLoading(true);
+      try {
+        await onLoadConfig(true);
+      } finally {
+        setPatLoading(false);
+      }
+    }
+    setShowPat(!showPat);
   };
 
   const canTestConnection = config?.isConfigured && !isDirty;
@@ -273,12 +290,15 @@ export function ConfigTab({
                       endAdornment: (
                         <InputAdornment position="end">
                           <IconButton
-                            onClick={() => setShowPat(!showPat)}
+                            onClick={handleToggleShowPat}
                             edge="end"
                             size="small"
                             title={showPat ? 'Ocultar token' : 'Mostrar token'}
+                            disabled={patLoading}
                           >
-                            {showPat ? (
+                            {patLoading ? (
+                              <CircularProgress size={20} />
+                            ) : showPat ? (
                               <VisibilityOffIcon />
                             ) : (
                               <VisibilityIcon />

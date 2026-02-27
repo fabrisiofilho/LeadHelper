@@ -30,11 +30,11 @@ export class AzureDevOpsController extends BaseHandler {
   }
 
   @IpcMethod('azure-devops:getConfig')
-  async getConfig(): Promise<
-    ApiResponse<azureDevopsService.AzureDevOpsConfig | null>
-  > {
+  async getConfig(
+    includePat = false,
+  ): Promise<ApiResponse<azureDevopsService.AzureDevOpsConfig | null>> {
     try {
-      const result = await this.service.getConfig();
+      const result = await this.service.getConfig(includePat);
       return { success: true, data: result };
     } catch (error) {
       const message =

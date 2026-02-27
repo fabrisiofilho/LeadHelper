@@ -7,7 +7,6 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { AuditableEntity } from './config/auditable-entity';
-import type { AllocationEntity } from './allocation.entity';
 import type { SprintEntity } from './sprint.entity';
 import type { TeamEntity } from './team.entity';
 import type { TaskCommentEntity } from './task-comment.entity';
@@ -20,7 +19,6 @@ export type TaskStatus =
   | 'cancelled'
   | (string & {});
 export type TaskOrigin = 'manual' | 'azure_devops';
-export type EstimationType = 'points' | 'hours';
 export type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
 export type TaskType =
   | 'task'
@@ -72,9 +70,6 @@ export class TaskEntity extends AuditableEntity {
   @Column({ name: 'external_id', type: 'text', nullable: true })
   externalId?: string;
 
-  @Column({ name: 'external_source', type: 'text', nullable: true })
-  externalSource?: string;
-
   @ManyToOne('SprintEntity', 'tasks')
   @JoinColumn({ name: 'sprint_id' })
   sprint?: SprintEntity;
@@ -88,15 +83,6 @@ export class TaskEntity extends AuditableEntity {
 
   @Column({ name: 'team_id', nullable: true })
   teamId?: number;
-
-  @Column({ name: 'estimation_points', type: 'real', nullable: true })
-  estimationPoints?: number;
-
-  @Column({ name: 'estimation_hours', type: 'real', nullable: true })
-  estimationHours?: number;
-
-  @Column({ name: 'estimation_type', type: 'text', nullable: true })
-  estimationType?: EstimationType;
 
   @Column({ name: 'area_path', type: 'text', nullable: true })
   areaPath?: string;
@@ -113,8 +99,11 @@ export class TaskEntity extends AuditableEntity {
   @Column({ name: 'original_work_item_type', type: 'text', nullable: true })
   originalWorkItemType?: string;
 
-  @OneToMany('AllocationEntity', 'task')
-  allocations?: AllocationEntity[];
+  @Column({ name: 'assigned_to_name', nullable: true })
+  assignedToName?: string;
+
+  @Column({ name: 'assigned_to_email', nullable: true })
+  assignedToEmail?: string;
 
   @OneToMany('TaskCommentEntity', 'task')
   comments?: TaskCommentEntity[];

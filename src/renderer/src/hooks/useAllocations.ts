@@ -1,13 +1,33 @@
 import { useState, useCallback } from 'react';
 import type {
-  Allocation,
-  CreateAllocationInput,
-  UpdateAllocationInput,
-} from '@shared/interfaces/allocation.interface';
-import type {
   GanttData,
   GanttFilters,
 } from '@shared/interfaces/config/index.types';
+
+/** @deprecated — member-task allocations have been removed from the schema */
+interface Allocation {
+  id: number;
+  teamMemberId: number;
+  taskId: number;
+  startDate: Date;
+  endDate: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+/** @deprecated */
+interface CreateAllocationInput {
+  teamMemberId: number;
+  taskId: number;
+  startDate: Date;
+  endDate: Date;
+}
+
+/** @deprecated */
+interface UpdateAllocationInput {
+  startDate?: Date;
+  endDate?: Date;
+}
 
 interface UseAllocationsState {
   loading: boolean;

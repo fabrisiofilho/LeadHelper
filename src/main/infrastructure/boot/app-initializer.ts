@@ -45,6 +45,12 @@ export class AppInitializer {
 
       this.mainWindow = createMainWindow();
 
+      // Set main window for sync progress
+      const { setSyncControllerWindow } = await import(
+        '../../application/controllers/config/index'
+      );
+      setSyncControllerWindow(this.mainWindow);
+
       const autoUpdater = AutoUpdaterService.getInstance();
       autoUpdater.setMainWindow(this.mainWindow);
 

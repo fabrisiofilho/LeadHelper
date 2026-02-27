@@ -1,6 +1,5 @@
 import { BaseRepository } from './base-repository';
 import { TaskEntity, TaskStatus, TaskOrigin } from '../entities/task.entity';
-import { AllocationEntity } from '../entities/allocation.entity';
 import { EntityManager } from 'typeorm';
 import { getDataSource } from '@main/infrastructure/database/data-source';
 import { dateLte, dateGte } from '@main/infrastructure/utils/date-utils';
@@ -9,12 +8,7 @@ import { dateLte, dateGte } from '@main/infrastructure/utils/date-utils';
  * Relations padrão para queries de tasks.
  * Sempre incluir sprint e team para evitar colunas vazias na UI.
  */
-const TASK_RELATIONS = [
-  'sprint',
-  'team',
-  'allocations',
-  'allocations.teamMember',
-] as const;
+const TASK_RELATIONS = ['sprint', 'team'] as const;
 
 export class TaskRepository extends BaseRepository<TaskEntity> {
   constructor(manager?: EntityManager) {
@@ -58,11 +52,10 @@ export class TaskRepository extends BaseRepository<TaskEntity> {
       order: { createdAt: 'DESC' },
     });
   }
-
-  async hasAllocations(taskId: number): Promise<boolean> {
-    const dataSource = getDataSource();
-    const allocationRepository = dataSource.getRepository(AllocationEntity);
-    const count = await allocationRepository.count({ where: { taskId } });
-    return count > 0;
+  async findByAssignedToEmail(email: string): Promise<TaskEntity[]> {
+    return await this.find({
+      where: { assignedToEmail: email },
+      relations: [...TASK_RELATIONS],
+    });
   }
 }

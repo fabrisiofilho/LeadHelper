@@ -6,6 +6,8 @@ import {
   Tooltip,
   CircularProgress,
   Stack,
+  Alert,
+  AlertTitle,
 } from '@mui/material';
 import {
   GroupWork as GroupWorkIcon,
@@ -25,6 +27,7 @@ import { AllocationModal } from '@renderer/components/AllocationModal';
 import type {
   Team,
   TeamMemberAllocation,
+  AllocationConflict,
   CreateTeamInput,
   UpdateTeamInput,
   CreateTeamMemberInput,
@@ -49,6 +52,9 @@ export function TeamAllocationPage() {
 
   const [editingAllocation, setEditingAllocation] =
     useState<TeamMemberAllocation | null>(null);
+
+  const [conflicts, setConflicts] = useState<AllocationConflict[]>([]);
+  const [conflictsLoading, setConflictsLoading] = useState(false);
 
   // Hooks
   const {
@@ -93,11 +99,26 @@ export function TeamAllocationPage() {
     await findAllMembers();
   }, [findAllMembers]);
 
+  const loadConflicts = useCallback(async () => {
+    setConflictsLoading(true);
+    try {
+      const response = await window.electronAPI.allocation.detectConflicts();
+      if (response.success && response.data) {
+        setConflicts(response.data);
+      }
+    } catch {
+      // Silently fail — conflicts are informational
+    } finally {
+      setConflictsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadTeams();
     loadTeamMembers();
     findAllAllocations({ isActive: true });
-  }, [loadTeams, loadTeamMembers, findAllAllocations]);
+    loadConflicts();
+  }, [loadTeams, loadTeamMembers, findAllAllocations, loadConflicts]);
 
   useEffect(() => {
     if (selectedTeam) {
@@ -204,6 +225,7 @@ export function TeamAllocationPage() {
             await findActiveByTeam(selectedTeam.id);
           }
           await findAllAllocations({ isActive: true });
+          await loadConflicts();
         }
       } else {
         const result = await createAllocation(
@@ -215,6 +237,7 @@ export function TeamAllocationPage() {
             await findActiveByTeam(selectedTeam.id);
           }
           await findAllAllocations({ isActive: true });
+          await loadConflicts();
         }
       }
     } finally {
@@ -239,6 +262,7 @@ export function TeamAllocationPage() {
           await findActiveByTeam(selectedTeam.id);
         }
         await findAllAllocations({ isActive: true });
+        await loadConflicts();
       }
     } finally {
       setRemoveAllocationLoading(false);
@@ -249,6 +273,7 @@ export function TeamAllocationPage() {
     await loadTeams();
     await loadTeamMembers();
     await findAllAllocations({ isActive: true });
+    await loadConflicts();
     if (selectedTeam) {
       await findActiveByTeam(selectedTeam.id);
     }
@@ -320,6 +345,21 @@ export function TeamAllocationPage() {
           )}
         </Stack>
       </Stack>
+
+      {/* Conflict alerts */}
+      {conflicts.length > 0 && (
+        <Stack spacing={1} sx={{ mb: 2 }}>
+          {conflicts.map((conflict, index) => (
+            <Alert key={index} severity="warning" variant="outlined">
+              <AlertTitle>Conflito de Alocação</AlertTitle>
+              <strong>{conflict.memberName}</strong> está alocado na equipe{' '}
+              <strong>{conflict.allocatedTeamName}</strong>, mas possui a tarefa{' '}
+              <strong>&quot;{conflict.taskTitle}&quot;</strong> na equipe{' '}
+              <strong>{conflict.taskTeamName}</strong>.
+            </Alert>
+          ))}
+        </Stack>
+      )}
 
       <AllocationOverview
         teams={teams}

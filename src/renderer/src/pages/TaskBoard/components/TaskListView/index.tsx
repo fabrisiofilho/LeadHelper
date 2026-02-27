@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Box,
   Typography,
@@ -10,33 +10,15 @@ import {
   TableRow,
   TablePagination,
   Chip,
-  IconButton,
   Tooltip,
   Stack,
   CircularProgress,
-  Button,
-  Menu,
-  MenuItem,
-  ListItemAvatar,
-  ListItemText,
-  Avatar,
-  Divider,
 } from '@mui/material';
-import {
-  Edit as EditIcon,
-  Delete as DeleteIcon,
-  Add as AddIcon,
-  Timer as TimerIcon,
-  Speed as SpeedIcon,
-  PersonOff as PersonOffIcon,
-  PersonAdd as PersonAddIcon,
-} from '@mui/icons-material';
+import { Cloud as CloudIcon } from '@mui/icons-material';
 import type {
   Task,
   TaskStatusConfig,
-  TeamMember,
 } from '@shared/interfaces/config/index.types';
-import { getInitials, getRoleColor } from '@renderer/utils/member';
 import { getTaskTypeOption } from '@renderer/utils/task-type';
 import { useTableSort } from '@renderer/hooks/useTableSort';
 import { SortableTableCell } from '@renderer/components/SortableTableCell';
@@ -44,12 +26,9 @@ import { SortableTableCell } from '@renderer/components/SortableTableCell';
 interface TaskListViewProps {
   tasks: Task[];
   statuses: TaskStatusConfig[];
-  teamMembers: TeamMember[];
   loading: boolean;
-  onNewTask: () => void;
-  onEditTask: (task: Task) => void;
-  onRemoveTask: (task: Task) => void;
-  onAssignTask: (taskId: number, memberId: number | null) => Promise<void>;
+  onReadOnlyAction: () => void;
+  onTaskClick?: (task: Task) => void;
 }
 
 const PRIORITY_LABELS: Record<string, { label: string; color: string }> = {
@@ -68,17 +47,12 @@ const formatDate = (date: Date | string | undefined): string => {
 export function TaskListView({
   tasks,
   statuses,
-  teamMembers,
   loading,
-  onNewTask,
-  onEditTask,
-  onRemoveTask,
-  onAssignTask,
+  onReadOnlyAction,
+  onTaskClick,
 }: TaskListViewProps) {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(15);
-  const [assignAnchor, setAssignAnchor] = useState<HTMLElement | null>(null);
-  const [assignTask, setAssignTask] = useState<Task | null>(null);
 
   const {
     sortedItems: sortedTasks,
@@ -94,50 +68,12 @@ export function TaskListView({
     return map;
   }, [statuses]);
 
-  // Lookup role by member id for avatar colors
-  const memberRoleMap = useMemo(() => {
-    const map: Record<number, string> = {};
-    for (const m of teamMembers) map[m.id] = m.role;
-    return map;
-  }, [teamMembers]);
-
   const paginatedTasks = useMemo(() => {
     return sortedTasks.slice(
       page * rowsPerPage,
       page * rowsPerPage + rowsPerPage,
     );
   }, [sortedTasks, page, rowsPerPage]);
-
-  // Show all active team members (teams relation is not always populated)
-  const availableMembers = teamMembers;
-
-  const handleAssignClick = useCallback(
-    (e: React.MouseEvent<HTMLElement>, task: Task) => {
-      e.stopPropagation();
-      setAssignAnchor(e.currentTarget);
-      setAssignTask(task);
-    },
-    [],
-  );
-
-  const handleAssignClose = useCallback(() => {
-    setAssignAnchor(null);
-    // Don't clear assignTask here — let onExited do it to avoid flash
-  }, []);
-
-  const handleMenuExited = useCallback(() => {
-    setAssignTask(null);
-  }, []);
-
-  const handleAssignMember = useCallback(
-    (memberId: number | null) => {
-      if (assignTask) {
-        onAssignTask(assignTask.id, memberId);
-      }
-      handleAssignClose();
-    },
-    [assignTask, onAssignTask, handleAssignClose],
-  );
 
   if (loading) {
     return (
@@ -156,23 +92,6 @@ export function TaskListView({
         overflow: 'hidden',
       }}
     >
-      <Stack
-        direction="row"
-        justifyContent="flex-end"
-        px={2}
-        py={1}
-        flexShrink={0}
-      >
-        <Button
-          variant="contained"
-          size="small"
-          startIcon={<AddIcon />}
-          onClick={onNewTask}
-        >
-          Nova Tarefa
-        </Button>
-      </Stack>
-
       <TableContainer sx={{ flex: 1, overflow: 'auto' }}>
         <Table size="small" stickyHeader>
           <TableHead>
@@ -214,14 +133,8 @@ export function TaskListView({
                 onSort={handleSort}
               />
               <SortableTableCell
-                id="assignee.name"
+                id="assignedToName"
                 label="Responsável"
-                sortConfig={sortConfig}
-                onSort={handleSort}
-              />
-              <SortableTableCell
-                id="estimationPoints"
-                label="Estimativa"
                 sortConfig={sortConfig}
                 onSort={handleSort}
               />
@@ -232,12 +145,12 @@ export function TaskListView({
                 onSort={handleSort}
               />
               <SortableTableCell
-                id="actions"
-                label="Ações"
+                id="origin"
+                label="Origem"
                 sortConfig={sortConfig}
                 onSort={handleSort}
                 noSort
-                align="right"
+                align="center"
               />
             </TableRow>
           </TableHead>
@@ -263,7 +176,7 @@ export function TaskListView({
                     key={task.id}
                     hover
                     sx={{ cursor: 'pointer' }}
-                    onClick={() => onEditTask(task)}
+                    onClick={() => onTaskClick?.(task)}
                   >
                     <TableCell>
                       <Typography
@@ -346,73 +259,9 @@ export function TaskListView({
                       />
                     </TableCell>
                     <TableCell>
-                      <Tooltip title="Clique para atribuir">
-                        <Chip
-                          icon={
-                            task.assignee ? (
-                              <Avatar
-                                sx={{
-                                  width: 20,
-                                  height: 20,
-                                  fontSize: '0.6rem',
-                                  bgcolor: getRoleColor(
-                                    memberRoleMap[task.assignee.id],
-                                  ),
-                                }}
-                              >
-                                {getInitials(task.assignee.name)}
-                              </Avatar>
-                            ) : (
-                              <PersonAddIcon sx={{ fontSize: 16 }} />
-                            )
-                          }
-                          label={task.assignee?.name || 'Atribuir'}
-                          size="small"
-                          variant={task.assignee ? 'filled' : 'outlined'}
-                          color={task.assignee ? 'primary' : 'default'}
-                          onClick={(e) => handleAssignClick(e as any, task)}
-                          sx={{
-                            cursor: 'pointer',
-                            fontWeight: 500,
-                            fontSize: '0.75rem',
-                          }}
-                        />
-                      </Tooltip>
-                    </TableCell>
-                    <TableCell>
-                      {task.estimationType === 'points' &&
-                      task.estimationPoints != null ? (
-                        <Stack
-                          direction="row"
-                          alignItems="center"
-                          spacing={0.5}
-                        >
-                          <SpeedIcon
-                            sx={{ fontSize: 14, color: 'text.secondary' }}
-                          />
-                          <Typography variant="caption">
-                            {task.estimationPoints} pts
-                          </Typography>
-                        </Stack>
-                      ) : task.estimationType === 'hours' &&
-                        task.estimationHours != null ? (
-                        <Stack
-                          direction="row"
-                          alignItems="center"
-                          spacing={0.5}
-                        >
-                          <TimerIcon
-                            sx={{ fontSize: 14, color: 'text.secondary' }}
-                          />
-                          <Typography variant="caption">
-                            {task.estimationHours}h
-                          </Typography>
-                        </Stack>
-                      ) : (
-                        <Typography variant="caption" color="text.secondary">
-                          -
-                        </Typography>
-                      )}
+                      <Typography variant="body2">
+                        {task.assignedToName || '-'}
+                      </Typography>
                     </TableCell>
                     <TableCell>
                       <Typography variant="caption">
@@ -420,36 +269,12 @@ export function TaskListView({
                         {formatDate(task.endDate)}
                       </Typography>
                     </TableCell>
-                    <TableCell align="right">
-                      <Stack
-                        direction="row"
-                        spacing={0.5}
-                        justifyContent="flex-end"
-                      >
-                        <Tooltip title="Editar">
-                          <IconButton
-                            size="small"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onEditTask(task);
-                            }}
-                          >
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Excluir">
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onRemoveTask(task);
-                            }}
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </Stack>
+                    <TableCell align="center">
+                      <Tooltip title="Azure DevOps">
+                        <CloudIcon
+                          sx={{ fontSize: 16, color: 'text.disabled' }}
+                        />
+                      </Tooltip>
                     </TableCell>
                   </TableRow>
                 );
@@ -473,64 +298,6 @@ export function TaskListView({
         labelRowsPerPage="Por página:"
         sx={{ flexShrink: 0 }}
       />
-
-      {/* Assignee selection menu */}
-      <Menu
-        anchorEl={assignAnchor}
-        open={Boolean(assignAnchor)}
-        onClose={handleAssignClose}
-        TransitionProps={{ onExited: handleMenuExited }}
-        slotProps={{ paper: { sx: { maxHeight: 320, minWidth: 220 } } }}
-      >
-        {assignTask?.assignee && (
-          <MenuItem onClick={() => handleAssignMember(null)}>
-            <ListItemAvatar sx={{ minWidth: 36 }}>
-              <PersonOffIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
-            </ListItemAvatar>
-            <ListItemText
-              primary="Remover responsável"
-              primaryTypographyProps={{
-                variant: 'body2',
-                color: 'text.secondary',
-              }}
-            />
-          </MenuItem>
-        )}
-        {assignTask?.assignee && <Divider />}
-        {availableMembers.length === 0 ? (
-          <MenuItem disabled>
-            <ListItemText
-              primary="Nenhum membro disponível"
-              primaryTypographyProps={{ variant: 'body2' }}
-            />
-          </MenuItem>
-        ) : (
-          availableMembers.map((member) => (
-            <MenuItem
-              key={member.id}
-              selected={member.id === assignTask?.assignee?.id}
-              onClick={() => handleAssignMember(member.id)}
-            >
-              <ListItemAvatar sx={{ minWidth: 36 }}>
-                <Avatar
-                  sx={{
-                    width: 26,
-                    height: 26,
-                    fontSize: '0.7rem',
-                    bgcolor: getRoleColor(member.role),
-                  }}
-                >
-                  {getInitials(member.name)}
-                </Avatar>
-              </ListItemAvatar>
-              <ListItemText
-                primary={member.name}
-                primaryTypographyProps={{ variant: 'body2' }}
-              />
-            </MenuItem>
-          ))
-        )}
-      </Menu>
     </Box>
   );
 }

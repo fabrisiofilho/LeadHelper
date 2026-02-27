@@ -40,6 +40,6 @@ export class TeamMemberRepository extends BaseRepository<TeamMemberEntity> {
       where.isActive = filters.isActive;
     }
 
-    return await this.find({ where, relations: ['teams'] });
+    return await this.find({ where });
   }
 }

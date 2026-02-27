@@ -1,42 +1,25 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo } from 'react';
 import {
   Box,
   Typography,
   Paper,
   Chip,
   Stack,
-  Button,
   CircularProgress,
   Tooltip,
-  Menu,
-  MenuItem,
-  ListItemAvatar,
-  ListItemText,
-  Avatar,
-  Divider,
 } from '@mui/material';
-import {
-  Add as AddIcon,
-  Timer as TimerIcon,
-  Speed as SpeedIcon,
-  PersonOff as PersonOffIcon,
-} from '@mui/icons-material';
+import { Cloud as CloudIcon } from '@mui/icons-material';
 import type {
   Task,
   TaskStatusConfig,
-  TeamMember,
 } from '@shared/interfaces/config/index.types';
-import { getInitials, getRoleColor } from '@renderer/utils/member';
 import { getTaskTypeOption } from '@renderer/utils/task-type';
 
 interface TaskKanbanViewProps {
   tasks: Task[];
   statuses: TaskStatusConfig[];
-  teamMembers: TeamMember[];
   loading: boolean;
-  onNewTask: () => void;
-  onEditTask: (task: Task) => void;
-  onAssignTask: (taskId: number, memberId: number | null) => Promise<void>;
+  onReadOnlyAction: () => void;
 }
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -49,15 +32,9 @@ const PRIORITY_COLORS: Record<string, string> = {
 export function TaskKanbanView({
   tasks,
   statuses,
-  teamMembers,
   loading,
-  onNewTask,
-  onEditTask,
-  onAssignTask,
+  onReadOnlyAction,
 }: TaskKanbanViewProps) {
-  const [assignAnchor, setAssignAnchor] = useState<HTMLElement | null>(null);
-  const [assignTask, setAssignTask] = useState<Task | null>(null);
-
   const columns = useMemo(() => {
     const kanbanStatuses = statuses.filter((s) => s.showInKanban);
     return kanbanStatuses.map((status) => ({
@@ -65,43 +42,6 @@ export function TaskKanbanView({
       tasks: tasks.filter((t) => t.status === status.name),
     }));
   }, [statuses, tasks]);
-
-  // Show all active team members (teams relation is not always populated)
-  const availableMembers = teamMembers;
-
-  // Lookup role by member id for avatar colors
-  const memberRoleMap = useMemo(() => {
-    const map: Record<number, string> = {};
-    for (const m of teamMembers) map[m.id] = m.role;
-    return map;
-  }, [teamMembers]);
-
-  const handleAssignClick = useCallback(
-    (e: React.MouseEvent<HTMLElement>, task: Task) => {
-      e.stopPropagation();
-      setAssignAnchor(e.currentTarget);
-      setAssignTask(task);
-    },
-    [],
-  );
-
-  const handleAssignClose = useCallback(() => {
-    setAssignAnchor(null);
-  }, []);
-
-  const handleMenuExited = useCallback(() => {
-    setAssignTask(null);
-  }, []);
-
-  const handleAssignMember = useCallback(
-    (memberId: number | null) => {
-      if (assignTask) {
-        onAssignTask(assignTask.id, memberId);
-      }
-      handleAssignClose();
-    },
-    [assignTask, onAssignTask, handleAssignClose],
-  );
 
   if (loading) {
     return (
@@ -120,30 +60,13 @@ export function TaskKanbanView({
         overflow: 'hidden',
       }}
     >
-      <Stack
-        direction="row"
-        justifyContent="flex-end"
-        px={2}
-        py={1}
-        flexShrink={0}
-      >
-        <Button
-          variant="contained"
-          size="small"
-          startIcon={<AddIcon />}
-          onClick={onNewTask}
-        >
-          Nova Tarefa
-        </Button>
-      </Stack>
-
       <Box
         sx={{
           flex: 1,
           display: 'flex',
           gap: 2,
           px: 2,
-          pb: 2,
+          py: 2,
           overflowX: 'auto',
           overflowY: 'hidden',
         }}
@@ -192,24 +115,39 @@ export function TaskKanbanView({
                   <Paper
                     key={task.id}
                     elevation={0}
-                    onClick={() => onEditTask(task)}
+                    onClick={onReadOnlyAction}
                     sx={{
                       p: 1.5,
-                      cursor: 'pointer',
+                      cursor: 'default',
                       border: '1px solid',
                       borderColor: 'divider',
                       borderRadius: 1.5,
                       borderLeft: `3px solid ${PRIORITY_COLORS[task.priority] || '#757575'}`,
                       transition: 'all 0.15s',
                       '&:hover': {
-                        borderColor: 'primary.light',
-                        boxShadow: 1,
+                        borderColor: 'divider',
                       },
                     }}
                   >
-                    <Typography variant="body2" fontWeight={500} noWrap>
-                      {task.title}
-                    </Typography>
+                    <Stack direction="row" alignItems="center" spacing={0.5}>
+                      <Typography
+                        variant="body2"
+                        fontWeight={500}
+                        noWrap
+                        sx={{ flex: 1 }}
+                      >
+                        {task.title}
+                      </Typography>
+                      <Tooltip title="Azure DevOps">
+                        <CloudIcon
+                          sx={{
+                            fontSize: 14,
+                            color: 'text.disabled',
+                            flexShrink: 0,
+                          }}
+                        />
+                      </Tooltip>
+                    </Stack>
 
                     <Stack
                       direction="row"
@@ -251,73 +189,20 @@ export function TaskKanbanView({
                       )}
                     </Stack>
 
-                    {/* Assignee chip — clickable */}
-                    <Tooltip title="Clique para atribuir responsável">
+                    {/* Assigned to — read-only display */}
+                    {task.assignedToName && (
                       <Chip
-                        icon={
-                          task.assignee ? (
-                            <Avatar
-                              sx={{
-                                width: 18,
-                                height: 18,
-                                fontSize: '0.55rem',
-                                bgcolor: getRoleColor(
-                                  memberRoleMap[task.assignee.id],
-                                ),
-                              }}
-                            >
-                              {getInitials(task.assignee.name)}
-                            </Avatar>
-                          ) : undefined
-                        }
-                        label={task.assignee?.name || 'Atribuir'}
+                        label={task.assignedToName}
                         size="small"
-                        variant={task.assignee ? 'filled' : 'outlined'}
-                        color={task.assignee ? 'primary' : 'default'}
-                        onClick={(e) => handleAssignClick(e as any, task)}
+                        variant="outlined"
                         sx={{
                           mt: 0.75,
                           height: 22,
                           fontSize: '0.65rem',
-                          cursor: 'pointer',
                           fontWeight: 500,
+                          cursor: 'default',
                         }}
                       />
-                    </Tooltip>
-
-                    {task.estimationType && (
-                      <Stack
-                        direction="row"
-                        alignItems="center"
-                        spacing={0.5}
-                        mt={0.5}
-                      >
-                        {task.estimationType === 'points' ? (
-                          <>
-                            <SpeedIcon
-                              sx={{ fontSize: 12, color: 'text.secondary' }}
-                            />
-                            <Typography
-                              variant="caption"
-                              color="text.secondary"
-                            >
-                              {task.estimationPoints} pts
-                            </Typography>
-                          </>
-                        ) : (
-                          <>
-                            <TimerIcon
-                              sx={{ fontSize: 12, color: 'text.secondary' }}
-                            />
-                            <Typography
-                              variant="caption"
-                              color="text.secondary"
-                            >
-                              {task.estimationHours}h
-                            </Typography>
-                          </>
-                        )}
-                      </Stack>
                     )}
                   </Paper>
                 ))}
@@ -326,64 +211,6 @@ export function TaskKanbanView({
           </Box>
         ))}
       </Box>
-
-      {/* Assignee selection menu */}
-      <Menu
-        anchorEl={assignAnchor}
-        open={Boolean(assignAnchor)}
-        onClose={handleAssignClose}
-        TransitionProps={{ onExited: handleMenuExited }}
-        slotProps={{ paper: { sx: { maxHeight: 320, minWidth: 220 } } }}
-      >
-        {assignTask?.assignee && (
-          <MenuItem onClick={() => handleAssignMember(null)}>
-            <ListItemAvatar sx={{ minWidth: 36 }}>
-              <PersonOffIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
-            </ListItemAvatar>
-            <ListItemText
-              primary="Remover responsável"
-              primaryTypographyProps={{
-                variant: 'body2',
-                color: 'text.secondary',
-              }}
-            />
-          </MenuItem>
-        )}
-        {assignTask?.assignee && <Divider />}
-        {availableMembers.length === 0 ? (
-          <MenuItem disabled>
-            <ListItemText
-              primary="Nenhum membro disponível"
-              primaryTypographyProps={{ variant: 'body2' }}
-            />
-          </MenuItem>
-        ) : (
-          availableMembers.map((member) => (
-            <MenuItem
-              key={member.id}
-              selected={member.id === assignTask?.assignee?.id}
-              onClick={() => handleAssignMember(member.id)}
-            >
-              <ListItemAvatar sx={{ minWidth: 36 }}>
-                <Avatar
-                  sx={{
-                    width: 26,
-                    height: 26,
-                    fontSize: '0.7rem',
-                    bgcolor: getRoleColor(member.role),
-                  }}
-                >
-                  {getInitials(member.name)}
-                </Avatar>
-              </ListItemAvatar>
-              <ListItemText
-                primary={member.name}
-                primaryTypographyProps={{ variant: 'body2' }}
-              />
-            </MenuItem>
-          ))
-        )}
-      </Menu>
     </Box>
   );
 }

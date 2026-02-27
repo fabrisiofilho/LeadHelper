@@ -9,9 +9,6 @@ export * from './team-member.interface';
 // Task types
 export * from './task.interface';
 
-// Allocation types
-export * from './allocation.interface';
-
 // Dashboard types
 export * from './dashboard.interface';
 

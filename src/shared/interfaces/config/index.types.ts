@@ -56,7 +56,6 @@ export interface Team {
   description?: string;
   isActive: boolean;
   azureAreaPath?: string;
-  members?: TeamMember[];
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -178,7 +177,6 @@ export type TaskStatus =
   | 'cancelled'
   | (string & {});
 export type TaskOrigin = 'manual' | 'azure_devops';
-export type EstimationType = 'points' | 'hours';
 export type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
 export type TaskType =
   | 'task'
@@ -199,15 +197,13 @@ export interface Task {
   type: TaskType;
   origin: TaskOrigin;
   externalId?: string;
-  externalSource?: string;
   sprintId?: number;
   sprint?: Sprint;
   teamId?: number;
   team?: Team;
   assignee?: { id: number; name: string };
-  estimationPoints?: number;
-  estimationHours?: number;
-  estimationType?: EstimationType;
+  assignedToName?: string;
+  assignedToEmail?: string;
   areaPath?: string;
   iterationPath?: string;
   tags?: string;
@@ -227,9 +223,6 @@ export interface CreateTaskInput {
   type?: TaskType;
   sprintId?: number;
   teamId?: number;
-  estimationPoints?: number;
-  estimationHours?: number;
-  estimationType?: EstimationType;
 }
 
 export interface UpdateTaskInput {
@@ -242,9 +235,6 @@ export interface UpdateTaskInput {
   type?: TaskType;
   sprintId?: number;
   teamId?: number;
-  estimationPoints?: number;
-  estimationHours?: number;
-  estimationType?: EstimationType;
 }
 
 export interface TaskFilters {
@@ -254,34 +244,6 @@ export interface TaskFilters {
   origin?: TaskOrigin;
   sprintId?: number;
   teamId?: number;
-}
-
-// ============================================================================
-// Allocation Types
-// ============================================================================
-
-export interface Allocation {
-  id: number;
-  teamMemberId: number;
-  teamMember?: TeamMember;
-  taskId: number;
-  task?: Task;
-  startDate: Date;
-  endDate: Date;
-  createdAt?: Date;
-  updatedAt?: Date;
-}
-
-export interface CreateAllocationInput {
-  teamMemberId: number;
-  taskId: number;
-  startDate: Date;
-  endDate: Date;
-}
-
-export interface UpdateAllocationInput {
-  startDate?: Date;
-  endDate?: Date;
 }
 
 // ============================================================================
@@ -296,7 +258,6 @@ export interface TeamMemberAllocation {
   teamName?: string;
   startDate: Date;
   endDate?: Date;
-  dedicationPercentage: number;
   notes?: string;
   isActive: boolean;
   createdAt?: Date;
@@ -308,14 +269,12 @@ export interface CreateTeamMemberAllocationInput {
   teamId: number;
   startDate: Date;
   endDate?: Date;
-  dedicationPercentage?: number;
-  notes?: string;
+  notes: string; // Campo "Motivo" — obrigatório
 }
 
 export interface UpdateTeamMemberAllocationInput {
   startDate?: Date;
   endDate?: Date;
-  dedicationPercentage?: number;
   notes?: string;
   isActive?: boolean;
 }
@@ -332,12 +291,10 @@ export interface TeamCapacitySummary {
   teamId: number;
   teamName: string;
   totalMembers: number;
-  totalDedication: number;
   members: {
     id: number;
     name: string;
     role: string;
-    dedicationPercentage: number;
     startDate: Date;
     endDate?: Date;
   }[];
@@ -392,7 +349,6 @@ export interface DashboardPeriod {
 export interface TeamMemberWorkload {
   teamMember: TeamMember;
   totalWorkload: number;
-  allocations: Allocation[];
 }
 
 export interface DashboardSummary {
@@ -401,6 +357,49 @@ export interface DashboardSummary {
   totalAllocations: number;
   membersWithHighWorkload: TeamMemberWorkload[];
   membersWithoutAllocation: TeamMember[];
+}
+
+export interface AllocationConflict {
+  memberId: number;
+  memberName: string;
+  allocatedTeamId: number;
+  allocatedTeamName: string;
+  taskTeamId: number;
+  taskTeamName: string;
+  taskTitle: string;
+}
+
+export interface AllocationDashboard {
+  activeAllocations: number;
+  membersAllocated: number;
+  membersWithoutAllocation: TeamMember[];
+  allocationConflicts: AllocationConflict[];
+  allocationsByTeam: { teamName: string; count: number }[];
+}
+
+export interface TaskManagementDashboard {
+  totalTasks: number;
+  tasksByStatus: { status: string; count: number }[];
+  tasksByType: { type: string; count: number }[];
+  tasksByTeam: { teamName: string; count: number }[];
+  unassignedTasks: number;
+}
+
+export interface SprintSummary {
+  id: number;
+  name: string;
+  startDate: Date;
+  endDate: Date;
+  totalTasks: number;
+  completedTasks: number;
+  totalStoryPoints: number;
+}
+
+export interface SprintDashboard {
+  activeSprints: SprintSummary[];
+  completedSprints: number;
+  tasksBySprint: { sprintName: string; total: number; completed: number }[];
+  velocity: { sprintName: string; storyPoints: number }[];
 }
 
 // ============================================================================
@@ -564,23 +563,6 @@ export interface ITaskController {
   findBySprint(sprintId: number): Promise<ApiResponse<Task[]>>;
 }
 
-export interface IAllocationController {
-  create(data: CreateAllocationInput): Promise<ApiResponse<Allocation>>;
-  update(
-    id: number,
-    data: UpdateAllocationInput,
-  ): Promise<ApiResponse<Allocation>>;
-  delete(id: number): Promise<ApiResponse<void>>;
-  findById(id: number): Promise<ApiResponse<Allocation | null>>;
-  findByTeamMember(teamMemberId: number): Promise<ApiResponse<Allocation[]>>;
-  findByTask(taskId: number): Promise<ApiResponse<Allocation[]>>;
-  findByPeriod(
-    startDate: Date,
-    endDate: Date,
-  ): Promise<ApiResponse<Allocation[]>>;
-  getGanttData(filters: GanttFilters): Promise<ApiResponse<GanttData>>;
-}
-
 export interface IDashboardController {
   getSummary(period: DashboardPeriod): Promise<ApiResponse<DashboardSummary>>;
   getActiveMembers(): Promise<ApiResponse<number>>;
@@ -591,6 +573,18 @@ export interface IDashboardController {
   getMembersWithoutAllocation(
     period: DashboardPeriod,
   ): Promise<ApiResponse<TeamMember[]>>;
+  getAllocationDashboard(): Promise<ApiResponse<AllocationDashboard>>;
+  getTaskManagementDashboard(): Promise<ApiResponse<TaskManagementDashboard>>;
+  getSprintDashboard(): Promise<ApiResponse<SprintDashboard>>;
+}
+
+export interface FullSyncResult {
+  sprints: { created: number; updated: number; total: number };
+  teams: { created: number; updated: number; total: number };
+  members: { created: number; updated: number; total: number };
+  tasks: { created: number; updated: number; total: number };
+  errors: string[];
+  syncedAt: Date;
 }
 
 export interface IAzureDevOpsController {
@@ -598,13 +592,15 @@ export interface IAzureDevOpsController {
   getConfig(): Promise<ApiResponse<AzureDevOpsConfig | null>>;
   testConnection(): Promise<ApiResponse<boolean>>;
   fetchWorkItems(filters?: WorkItemFilters): Promise<ApiResponse<WorkItem[]>>;
-  importWorkItems(workItemIds: number[]): Promise<ApiResponse<Task[]>>;
-  syncTask(taskId: number): Promise<ApiResponse<Task>>;
-  syncAllImportedTasks(): Promise<ApiResponse<SyncResult>>;
   fetchIterations(): Promise<ApiResponse<IterationNode[]>>;
-  getReportData(period: ReportPeriod): Promise<ApiResponse<ReportData>>;
-  getDashboardMetrics(): Promise<ApiResponse<DashboardMetrics>>;
-  exportPdf(period: ReportPeriod): Promise<ApiResponse<ExportResult>>;
+  fullSync(): Promise<ApiResponse<FullSyncResult>>;
+}
+
+export interface IAllocationController {
+  getGanttData(filters: GanttFilters): Promise<ApiResponse<GanttData>>;
+  detectConflicts(
+    teamMemberId?: number,
+  ): Promise<ApiResponse<AllocationConflict[]>>;
 }
 
 export interface ITeamMemberAllocationController {
@@ -644,7 +640,7 @@ export interface ITeamMemberAllocationController {
 }
 
 // ============================================================================
-// Task Status Config Types
+// Task Status Config Types (data types only — backend entity removed)
 // ============================================================================
 
 export interface TaskStatusConfig {
@@ -670,19 +666,6 @@ export interface UpdateTaskStatusConfigInput {
   color?: string;
   order?: number;
   showInKanban?: boolean;
-}
-
-export interface ITaskStatusConfigController {
-  findAll(): Promise<ApiResponse<TaskStatusConfig[]>>;
-  findKanban(): Promise<ApiResponse<TaskStatusConfig[]>>;
-  create(
-    data: CreateTaskStatusConfigInput,
-  ): Promise<ApiResponse<TaskStatusConfig>>;
-  update(
-    id: number,
-    data: UpdateTaskStatusConfigInput,
-  ): Promise<ApiResponse<TaskStatusConfig>>;
-  delete(id: number): Promise<ApiResponse<void>>;
 }
 
 // ============================================================================
@@ -735,11 +718,12 @@ export interface CustomElectronAPI {
   azureDevOps: IAzureDevOpsController;
   autoUpdater: IAutoUpdaterController;
   auth: IAuthController;
-  taskStatusConfig: ITaskStatusConfigController;
   taskComment: ITaskCommentController;
 
   // Utility methods
   openExternalUrl: (url: string) => void;
   onIpcResult: (callback: (event: IpcResultEvent) => void) => () => void;
   onAutoUpdaterStatus: (callback: (state: UpdateState) => void) => () => void;
+  onSyncProgress: (callback: (event: any, progress: any) => void) => () => void;
+  offSyncProgress?: (callback: (event: any, progress: any) => void) => void;
 }

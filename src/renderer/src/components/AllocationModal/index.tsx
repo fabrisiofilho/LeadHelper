@@ -3,7 +3,6 @@ import {
   TextField,
   Typography,
   Stack,
-  Slider,
   Box,
   Autocomplete,
   Avatar,
@@ -33,7 +32,6 @@ interface AllocationFormData {
   teamId: number | null;
   startDate: Date | null;
   endDate: Date | null;
-  dedicationPercentage: number;
   notes: string;
 }
 
@@ -98,7 +96,6 @@ export function AllocationModal({
       teamId: fixedTeam?.id ?? null,
       startDate: new Date(),
       endDate: null,
-      dedicationPercentage: 100,
       notes: '',
     },
   });
@@ -117,7 +114,6 @@ export function AllocationModal({
             ? new Date(allocation.startDate)
             : new Date(),
           endDate: allocation.endDate ? new Date(allocation.endDate) : null,
-          dedicationPercentage: allocation.dedicationPercentage ?? 100,
           notes: allocation.notes ?? '',
         });
         setMemberAvailability(100);
@@ -127,7 +123,6 @@ export function AllocationModal({
           teamId: fixedTeam?.id ?? null,
           startDate: new Date(),
           endDate: null,
-          dedicationPercentage: 100,
           notes: '',
         });
         setMemberAvailability(100);
@@ -141,21 +136,17 @@ export function AllocationModal({
       setAvailabilityLoading(true);
       getMemberAvailability(watchedMemberId).then((availability) => {
         setMemberAvailability(availability);
-        if (availability < 100) {
-          setValue('dedicationPercentage', Math.min(availability, 100));
-        }
         setAvailabilityLoading(false);
       });
     }
-  }, [watchedMemberId, isEditing, getMemberAvailability, setValue]);
+  }, [watchedMemberId, isEditing, getMemberAvailability]);
 
   const onSubmit = async (data: AllocationFormData) => {
     if (isEditing) {
       const updateData: UpdateTeamMemberAllocationInput = {
         startDate: data.startDate ?? undefined,
         endDate: data.endDate ?? undefined,
-        dedicationPercentage: data.dedicationPercentage,
-        notes: data.notes || undefined,
+        notes: data.notes,
       };
       await onSave(updateData);
     } else {
@@ -168,8 +159,7 @@ export function AllocationModal({
         teamId,
         startDate: data.startDate,
         endDate: data.endDate ?? undefined,
-        dedicationPercentage: data.dedicationPercentage,
-        notes: data.notes || undefined,
+        notes: data.notes,
       };
       await onSave(createData);
     }
@@ -177,15 +167,13 @@ export function AllocationModal({
 
   const activeMembers = teamMembers.filter((m) => m.isActive);
   const availableTeams = teams.filter((t) => t.isActive);
-  const maxDedication = isEditing ? 100 : Math.max(memberAvailability, 1);
 
   // Build allocation info per member
   const memberAllocationInfo = useMemo(() => {
     const info = new Map<
       number,
       {
-        teams: { name: string; dedication: number }[];
-        totalDedication: number;
+        teams: { name: string }[];
         isInCurrentTeam: boolean;
       }
     >();
@@ -195,14 +183,11 @@ export function AllocationModal({
       if (!alloc.isActive) continue;
       const existing = info.get(alloc.teamMemberId) || {
         teams: [],
-        totalDedication: 0,
         isInCurrentTeam: false,
       };
       existing.teams.push({
         name: alloc.teamName || `Equipe #${alloc.teamId}`,
-        dedication: alloc.dedicationPercentage,
       });
-      existing.totalDedication += alloc.dedicationPercentage;
       if (currentTeamId && alloc.teamId === currentTeamId) {
         existing.isInCurrentTeam = true;
       }
@@ -373,13 +358,9 @@ export function AllocationModal({
                                     sx={{ fontSize: '14px !important' }}
                                   />
                                 }
-                                label={`${info.totalDedication}% alocado`}
+                                label="Alocado em outra equipe"
                                 size="small"
-                                color={
-                                  info.totalDedication >= 100
-                                    ? 'error'
-                                    : 'warning'
-                                }
+                                color="warning"
                                 variant="outlined"
                                 sx={{ height: 22, fontSize: '0.65rem' }}
                               />
@@ -460,58 +441,23 @@ export function AllocationModal({
             endLabel="Data Fim (opcional)"
           />
 
-          {/* Dedication percentage slider */}
-          <Controller
-            name="dedicationPercentage"
-            control={control}
-            rules={{
-              required: 'Dedicação é obrigatória',
-              min: { value: 1, message: 'Mínimo 1%' },
-              max: {
-                value: maxDedication,
-                message: `Máximo ${maxDedication}%`,
-              },
-            }}
-            render={({ field }) => (
-              <Box>
-                <Typography variant="body2" gutterBottom>
-                  Percentual de Dedicação: {field.value}%
-                </Typography>
-                <Slider
-                  {...field}
-                  min={1}
-                  max={maxDedication}
-                  valueLabelDisplay="auto"
-                  disabled={loading}
-                  marks={[
-                    { value: 25, label: '25%' },
-                    { value: 50, label: '50%' },
-                    { value: 75, label: '75%' },
-                    { value: 100, label: '100%' },
-                  ].filter((m) => m.value <= maxDedication)}
-                />
-                {errors.dedicationPercentage && (
-                  <Typography color="error" variant="caption">
-                    {errors.dedicationPercentage.message}
-                  </Typography>
-                )}
-              </Box>
-            )}
-          />
-
-          {/* Notes field */}
+          {/* Notes field - Motivo */}
           <Controller
             name="notes"
             control={control}
+            rules={{ required: 'Motivo é obrigatório' }}
             render={({ field }) => (
               <TextField
                 {...field}
-                label="Observações"
-                placeholder="Observações sobre a alocação..."
+                label="Motivo"
+                placeholder="Motivo da alocação..."
                 fullWidth
                 multiline
                 rows={2}
+                required
                 disabled={loading}
+                error={!!errors.notes}
+                helperText={errors.notes?.message}
               />
             )}
           />

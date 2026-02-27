@@ -38,6 +38,9 @@ export class SprintEntity extends AuditableEntity {
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive!: boolean;
 
+  @Column({ name: 'iteration_path', nullable: true })
+  iterationPath?: string;
+
   @OneToMany('TaskEntity', 'sprint')
   tasks?: TaskEntity[];
 }

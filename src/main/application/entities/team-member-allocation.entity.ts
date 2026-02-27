@@ -40,9 +40,6 @@ export class TeamMemberAllocationEntity extends AuditableEntity {
   })
   endDate?: Date;
 
-  @Column({ name: 'dedication_percentage', type: 'integer', default: 100 })
-  dedicationPercentage!: number;
-
   @Column({ type: 'text', nullable: true })
   notes?: string;
 

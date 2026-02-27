@@ -4,7 +4,6 @@ import {
   TaskOrigin,
   TaskPriority,
   TaskType,
-  EstimationType,
 } from '../entities/task.entity';
 import { TaskRepository } from '../repositories/task-repository';
 
@@ -18,9 +17,6 @@ export interface CreateTaskInput {
   type?: TaskType;
   sprintId?: number;
   teamId?: number;
-  estimationPoints?: number;
-  estimationHours?: number;
-  estimationType?: EstimationType;
 }
 
 export interface UpdateTaskInput {
@@ -33,9 +29,6 @@ export interface UpdateTaskInput {
   type?: TaskType;
   sprintId?: number;
   teamId?: number;
-  estimationPoints?: number;
-  estimationHours?: number;
-  estimationType?: EstimationType;
 }
 
 export interface TaskFilters {
@@ -58,15 +51,12 @@ export interface Task {
   type: TaskType;
   origin: TaskOrigin;
   externalId?: string;
-  externalSource?: string;
   sprintId?: number;
   sprint?: { id: number; name: string };
   teamId?: number;
   team?: { id: number; name: string };
-  assignee?: { id: number; name: string };
-  estimationPoints?: number;
-  estimationHours?: number;
-  estimationType?: EstimationType;
+  assignedToName?: string;
+  assignedToEmail?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -78,39 +68,10 @@ export class TaskService {
     this.repository = repository ?? new TaskRepository();
   }
 
-  async create(input: CreateTaskInput): Promise<Task> {
-    const trimmedTitle = input.title?.trim();
-
-    if (!trimmedTitle) {
-      throw new Error('Título é obrigatório');
-    }
-
-    if (input.startDate && input.endDate) {
-      this.validateDates(input.startDate, input.endDate);
-    }
-
-    const entity = await this.repository.save({
-      title: trimmedTitle,
-      description: input.description,
-      startDate: input.startDate,
-      endDate: input.endDate,
-      status: input.status ?? 'pending',
-      priority: input.priority ?? 'medium',
-      type: input.type ?? 'task',
-      origin: 'manual',
-      sprintId: input.sprintId,
-      teamId: input.teamId,
-      estimationPoints: input.estimationPoints,
-      estimationHours: input.estimationHours,
-      estimationType: input.estimationType,
-    });
-
-    const reloaded = await this.repository.findOne({
-      where: { id: entity.id },
-      relations: ['sprint', 'team', 'allocations', 'allocations.teamMember'],
-    });
-
-    return this.mapToDto(reloaded ?? entity);
+  async create(_input: CreateTaskInput): Promise<Task> {
+    throw new Error(
+      'Criação manual de tarefas não é permitida. Todas as tarefas são gerenciadas no Azure DevOps.',
+    );
   }
 
   async update(id: number, input: UpdateTaskInput): Promise<Task> {
@@ -118,6 +79,12 @@ export class TaskService {
 
     if (!entity) {
       throw new Error('Tarefa não encontrada');
+    }
+
+    if (entity.origin === 'azure_devops') {
+      throw new Error(
+        'Esta tarefa é gerenciada no Azure DevOps e não pode ser editada localmente.',
+      );
     }
 
     if (input.title !== undefined) {
@@ -141,18 +108,12 @@ export class TaskService {
     if (input.type !== undefined) entity.type = input.type;
     if (input.sprintId !== undefined) entity.sprintId = input.sprintId;
     if (input.teamId !== undefined) entity.teamId = input.teamId;
-    if (input.estimationPoints !== undefined)
-      entity.estimationPoints = input.estimationPoints;
-    if (input.estimationHours !== undefined)
-      entity.estimationHours = input.estimationHours;
-    if (input.estimationType !== undefined)
-      entity.estimationType = input.estimationType;
 
     const updated = await this.repository.save(entity);
 
     const reloaded = await this.repository.findOne({
       where: { id: updated.id },
-      relations: ['sprint', 'team', 'allocations', 'allocations.teamMember'],
+      relations: ['sprint', 'team'],
     });
 
     return this.mapToDto(reloaded ?? updated);
@@ -161,7 +122,7 @@ export class TaskService {
   async findById(id: number): Promise<Task | null> {
     const entity = await this.repository.findOne({
       where: { id },
-      relations: ['sprint', 'team', 'allocations', 'allocations.teamMember'],
+      relations: ['sprint', 'team'],
     });
 
     if (!entity) return null;
@@ -172,9 +133,10 @@ export class TaskService {
     const entity = await this.repository.findOneBy({ id });
     if (!entity) throw new Error('Tarefa não encontrada');
 
-    const hasAllocations = await this.repository.hasAllocations(id);
-    if (hasAllocations) {
-      throw new Error('Não é possível excluir tarefa com alocações vinculadas');
+    if (entity.origin === 'azure_devops') {
+      throw new Error(
+        'Esta tarefa é gerenciada no Azure DevOps e não pode ser editada localmente.',
+      );
     }
 
     await this.repository.delete({ id } as any);
@@ -261,15 +223,6 @@ export class TaskService {
   }
 
   private mapToDto(entity: TaskEntity): Task {
-    // Derive assignee from the first allocation (if any)
-    const firstAllocation = entity.allocations?.[0];
-    const assignee = firstAllocation?.teamMember
-      ? {
-          id: firstAllocation.teamMember.id,
-          name: firstAllocation.teamMember.name,
-        }
-      : undefined;
-
     return {
       id: entity.id,
       title: entity.title,
@@ -281,7 +234,6 @@ export class TaskService {
       type: entity.type ?? 'task',
       origin: entity.origin,
       externalId: entity.externalId,
-      externalSource: entity.externalSource,
       sprintId: entity.sprintId,
       sprint: entity.sprint
         ? { id: entity.sprint.id, name: entity.sprint.name }
@@ -290,10 +242,8 @@ export class TaskService {
       team: entity.team
         ? { id: entity.team.id, name: entity.team.name }
         : undefined,
-      assignee,
-      estimationPoints: entity.estimationPoints,
-      estimationHours: entity.estimationHours,
-      estimationType: entity.estimationType,
+      assignedToName: entity.assignedToName,
+      assignedToEmail: entity.assignedToEmail,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
     };

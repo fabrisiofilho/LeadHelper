@@ -34,7 +34,6 @@ export class TeamRepository {
   async findById(id: number): Promise<TeamEntity | null> {
     return this.repository.findOne({
       where: { id },
-      relations: ['members'],
     });
   }
 
@@ -50,7 +49,6 @@ export class TeamRepository {
     return this.repository.find({
       where,
       order: { name: 'ASC' },
-      relations: ['members'],
     });
   }
 
@@ -64,34 +62,31 @@ export class TeamRepository {
     return this.findById(id);
   }
 
+  /**
+   * @deprecated Use TeamMemberAllocationRepository to manage team-member relationships
+   * This method is kept for backward compatibility but does nothing
+   */
   async addMember(teamId: number, memberId: number): Promise<boolean> {
-    const team = await this.repository.findOne({
-      where: { id: teamId },
-      relations: ['members'],
-    });
+    // Verify entities exist
+    const team = await this.repository.findOne({ where: { id: teamId } });
     if (!team) return false;
 
     const memberRepo = getDataSource().getRepository(TeamMemberEntity);
     const member = await memberRepo.findOne({ where: { id: memberId } });
     if (!member) return false;
 
-    if (!team.members) team.members = [];
-    if (!team.members.find((m) => m.id === memberId)) {
-      team.members.push(member);
-      await this.repository.save(team);
-    }
+    // Team-member relationship is now managed via TeamMemberAllocationEntity
+    // This method does nothing but returns true if both entities exist
     return true;
   }
 
+  /**
+   * @deprecated Use TeamMemberAllocationRepository to manage team-member relationships
+   * This method is kept for backward compatibility but does nothing
+   */
   async removeMember(teamId: number, memberId: number): Promise<boolean> {
-    const team = await this.repository.findOne({
-      where: { id: teamId },
-      relations: ['members'],
-    });
-    if (!team || !team.members) return false;
-
-    team.members = team.members.filter((m) => m.id !== memberId);
-    await this.repository.save(team);
+    // Team-member relationship is now managed via TeamMemberAllocationEntity
+    // This method does nothing but returns true
     return true;
   }
 

@@ -7,14 +7,12 @@ import { runMigrations } from './migration-runner';
 // Team Management System entities
 import { TeamMemberEntity } from '@main/application/entities/team-member.entity';
 import { TaskEntity } from '@main/application/entities/task.entity';
-import { AllocationEntity } from '@main/application/entities/allocation.entity';
 import { TeamMemberAllocationEntity } from '@main/application/entities/team-member-allocation.entity';
 import { AzureDevOpsConfigEntity } from '@main/application/entities/azure-devops-config.entity';
 import { UserEntity } from '@main/application/entities/user.entity';
 import { PositionEntity } from '@main/application/entities/position.entity';
 import { TeamEntity } from '@main/application/entities/team.entity';
 import { SprintEntity } from '@main/application/entities/sprint.entity';
-import { TaskStatusConfigEntity } from '@main/application/entities/task-status-config.entity';
 import { TaskCommentEntity } from '@main/application/entities/task-comment.entity';
 
 const isDev = process.env.NODE_ENV === 'development';
@@ -57,14 +55,12 @@ function createDataSource(): DataSource {
     entities: [
       TeamMemberEntity,
       TaskEntity,
-      AllocationEntity,
       TeamMemberAllocationEntity,
       AzureDevOpsConfigEntity,
       UserEntity,
       PositionEntity,
       TeamEntity,
       SprintEntity,
-      TaskStatusConfigEntity,
       TaskCommentEntity,
     ],
     migrations: [],

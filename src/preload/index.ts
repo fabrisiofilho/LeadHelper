@@ -12,7 +12,6 @@ import {
   ITeamMemberAllocationController,
   IDashboardController,
   IAzureDevOpsController,
-  ITaskStatusConfigController,
   ITaskCommentController,
 } from '@shared/interfaces/config/index.types';
 import {
@@ -97,12 +96,12 @@ const teamMemberController = createControllerFromConfig(
 const taskController = createControllerFromConfig(
   'task',
 ) as unknown as ITaskController;
-const allocationController = createControllerFromConfig(
-  'allocation',
-) as unknown as IAllocationController;
 const teamMemberAllocationController = createControllerFromConfig(
   'teamMemberAllocation',
 ) as unknown as ITeamMemberAllocationController;
+const allocationController = createControllerFromConfig(
+  'allocation',
+) as unknown as IAllocationController;
 const dashboardController = createControllerFromConfig(
   'dashboard',
 ) as unknown as IDashboardController;
@@ -115,9 +114,6 @@ const autoUpdaterController = createControllerFromConfig(
 const authController = createControllerFromConfig(
   'auth',
 ) as unknown as IAuthController;
-const taskStatusConfigController = createControllerFromConfig(
-  'taskStatusConfig',
-) as unknown as ITaskStatusConfigController;
 const taskCommentController = createControllerFromConfig(
   'taskComment',
 ) as unknown as ITaskCommentController;
@@ -135,7 +131,6 @@ const api: CustomElectronAPI = {
   azureDevOps: azureDevOpsController,
   autoUpdater: autoUpdaterController,
   auth: authController,
-  taskStatusConfig: taskStatusConfigController,
   taskComment: taskCommentController,
 
   // Utility methods
@@ -160,6 +155,22 @@ const api: CustomElectronAPI = {
     return () => {
       ipcRenderer.removeListener('autoUpdater:statusUpdate', handler);
     };
+  },
+
+  onSyncProgress: (
+    callback: (event: any, progress: any) => void,
+  ): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: any) => {
+      callback(_event, progress);
+    };
+    ipcRenderer.on('sync:progress', handler);
+    return () => {
+      ipcRenderer.removeListener('sync:progress', handler);
+    };
+  },
+
+  offSyncProgress: (callback: (event: any, progress: any) => void): void => {
+    ipcRenderer.removeListener('sync:progress', callback as any);
   },
 };
 

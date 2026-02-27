@@ -6,7 +6,13 @@ import { TaskRepository } from '../repositories/task-repository';
 import { TaskEntity } from '../entities/task.entity';
 import { TeamRepository } from '../repositories/team-repository';
 import { logger } from '@main/infrastructure/log/logger';
-import { mapWorkItemType } from './work-item-type-mapper';
+import {
+  mapWorkItemType,
+  mapWorkItemStateToTaskStatus,
+} from './work-item-type-mapper';
+import { AzureAreaNode } from '../parsers/team-parser';
+import { AzureWorkItem } from '../parsers/task-parser';
+import { AzureIterationNode } from '../parsers/sprint-parser';
 import {
   DashboardMetrics,
   IterationNode,
@@ -453,6 +459,7 @@ export class AzureDevOpsService {
 
   /**
    * Import work items from Azure DevOps as local Tasks
+   * @deprecated Substituído por `SyncService.fullSync()`, que realiza sincronização completa de todos os work items.
    * @param workItemIds Array of work item IDs to import
    * @returns Array of created Task entities
    */
@@ -496,7 +503,7 @@ export class AzureDevOpsService {
       const existingTasks = await taskRepository.find({
         where: {
           externalId: String(workItem.id),
-          externalSource: 'azure_devops',
+          origin: 'azure_devops',
         },
       });
 
@@ -522,11 +529,10 @@ export class AzureDevOpsService {
         description: workItem.description || undefined,
         startDate: startDate,
         endDate: endDate >= startDate ? endDate : startDate,
-        status: this.mapWorkItemStateToTaskStatus(workItem.state),
+        status: mapWorkItemStateToTaskStatus(workItem.state),
         type: mapWorkItemType(workItem.type),
         origin: 'azure_devops',
         externalId: String(workItem.id),
-        externalSource: 'azure_devops',
         areaPath: workItem.areaPath ?? undefined,
         iterationPath: workItem.iterationPath ?? undefined,
         tags: workItem.tags ?? undefined,
@@ -539,54 +545,6 @@ export class AzureDevOpsService {
     }
 
     return createdTasks;
-  }
-
-  /**
-   * Map Azure DevOps work item state to local Task status
-   */
-  private mapWorkItemStateToTaskStatus(
-    state: string,
-  ): 'pending' | 'in_progress' | 'completed' | 'cancelled' {
-    const normalizedState = state.toLowerCase();
-
-    // Completed states
-    if (
-      normalizedState === 'done' ||
-      normalizedState === 'closed' ||
-      normalizedState === 'resolved' ||
-      normalizedState === 'finalizado'
-    ) {
-      return 'completed';
-    }
-
-    // In-progress states
-    if (
-      normalizedState === 'active' ||
-      normalizedState === 'in progress' ||
-      normalizedState === 'committed' ||
-      normalizedState === 'em andamento' ||
-      normalizedState === 'em desenvolvimento' ||
-      normalizedState === 'em auditoria' ||
-      normalizedState === 'em homologação' ||
-      normalizedState === 'aguardando auditoria' ||
-      normalizedState === 'aguardando validação' ||
-      normalizedState === 'aguardando implantação' ||
-      normalizedState === 'preparando para dev'
-    ) {
-      return 'in_progress';
-    }
-
-    // Cancelled states
-    if (
-      normalizedState === 'removed' ||
-      normalizedState === 'cut' ||
-      normalizedState === 'cancelado'
-    ) {
-      return 'cancelled';
-    }
-
-    // Default to pending for Novo, Em levantamento, Backlog comprometido, etc.
-    return 'pending';
   }
 
   /**
@@ -694,7 +652,7 @@ export class AzureDevOpsService {
     // Update the task with new data from Azure DevOps
     task.title = workItem.title;
     task.description = workItem.description || undefined;
-    task.status = this.mapWorkItemStateToTaskStatus(workItem.state);
+    task.status = mapWorkItemStateToTaskStatus(workItem.state);
     task.type = mapWorkItemType(workItem.type);
 
     // Update enriched fields with current values from Azure DevOps API
@@ -831,8 +789,303 @@ export class AzureDevOpsService {
   }
 
   /**
+   * Fetch iteration nodes from Azure DevOps Classification Nodes API,
+   * preserving attributes (startDate, finishDate) needed by the SprintParser.
+   * Returns AzureIterationNode[] with full attribute data.
+   */
+  async fetchIterationNodes(): Promise<AzureIterationNode[]> {
+    try {
+      const fullConfig = await this.getFullConfig();
+
+      if (!fullConfig) {
+        logger.warn(
+          'Configuração do Azure DevOps não encontrada ao buscar iteration nodes',
+        );
+        return [];
+      }
+
+      const { organizationUrl, projectName, pat } = fullConfig;
+      const baseUrl = organizationUrl.replace(/\/$/, '');
+      const authHeader = `Basic ${Buffer.from(`:${pat}`).toString('base64')}`;
+
+      const url = `${baseUrl}/${encodeURIComponent(projectName)}/_apis/wit/classificationnodes/Iterations?$depth=10&api-version=7.0`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Authorization: authHeader,
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error(
+          `Erro ao buscar iteration nodes: ${response.status} - ${errorText}`,
+        );
+        return [];
+      }
+
+      const data = (await response.json()) as Record<string, unknown>;
+
+      return this.mapToAzureIterationNodes(
+        (data.children as Array<Record<string, unknown>>) ?? [],
+      );
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Erro desconhecido';
+      logger.error(`Erro ao buscar iteration nodes: ${errorMessage}`);
+      return [];
+    }
+  }
+
+  /**
+   * Recursively maps raw API classification node objects to AzureIterationNode[],
+   * preserving attributes (startDate, finishDate).
+   */
+  private mapToAzureIterationNodes(
+    nodes: Array<Record<string, unknown>>,
+  ): AzureIterationNode[] {
+    return nodes.map((node) => {
+      const attributes = node.attributes as Record<string, unknown> | undefined;
+      const result: AzureIterationNode = {
+        id: node.id as number,
+        name: node.name as string,
+        path: node.path as string,
+      };
+
+      if (attributes) {
+        result.attributes = {
+          startDate: attributes.startDate as string | undefined,
+          finishDate: attributes.finishDate as string | undefined,
+        };
+      }
+
+      const children = node.children as
+        | Array<Record<string, unknown>>
+        | undefined;
+      if (children && children.length > 0) {
+        result.children = this.mapToAzureIterationNodes(children);
+      }
+
+      return result;
+    });
+  }
+
+  /**
+   * Fetch area paths from Azure DevOps Classification Nodes API.
+   * GET {org}/{project}/_apis/wit/classificationnodes/Areas?$depth=10&api-version=7.0
+   * @returns AzureAreaNode[] — flat children of the root area node
+   */
+  async fetchAreaPaths(): Promise<AzureAreaNode[]> {
+    try {
+      const fullConfig = await this.getFullConfig();
+
+      if (!fullConfig) {
+        logger.warn(
+          'Configuração do Azure DevOps não encontrada ao buscar area paths',
+        );
+        return [];
+      }
+
+      const { organizationUrl, projectName, pat } = fullConfig;
+      const baseUrl = organizationUrl.replace(/\/$/, '');
+      const authHeader = `Basic ${Buffer.from(`:${pat}`).toString('base64')}`;
+
+      const url = `${baseUrl}/${encodeURIComponent(projectName)}/_apis/wit/classificationnodes/Areas?$depth=10&api-version=7.0`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Authorization: authHeader,
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error(
+          `Erro ao buscar area paths: ${response.status} - ${errorText}`,
+        );
+        return [];
+      }
+
+      const data = (await response.json()) as {
+        id: number;
+        name: string;
+        path: string;
+        children?: Array<Record<string, unknown>>;
+      };
+
+      return this.mapAreaNodes(data.children ?? []);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Erro desconhecido';
+      logger.error(`Erro ao buscar area paths: ${errorMessage}`);
+      return [];
+    }
+  }
+
+  /**
+   * Recursively maps raw API classification node objects to AzureAreaNode[].
+   */
+  private mapAreaNodes(nodes: Array<Record<string, unknown>>): AzureAreaNode[] {
+    return nodes.map((node) => ({
+      id: node.id as number,
+      name: node.name as string,
+      path: node.path as string,
+      children: this.mapAreaNodes(
+        (node.children as Array<Record<string, unknown>>) ?? [],
+      ),
+    }));
+  }
+
+  /**
+   * Fetch ALL work items from the Azure DevOps project via WIQL.
+   * Executes a WIQL query without specific ID filters to get every work item,
+   * then fetches details in batches of 200 IDs.
+   * @returns AzureWorkItem[] — all work items with full field details
+   */
+  async fetchAllWorkItems(): Promise<AzureWorkItem[]> {
+    const fullConfig = await this.getFullConfig();
+
+    if (!fullConfig) {
+      throw new Error('Configuração do Azure DevOps não encontrada');
+    }
+
+    const { organizationUrl, projectName, pat } = fullConfig;
+    const baseUrl = organizationUrl.replace(/\/$/, '');
+    const authHeader = `Basic ${Buffer.from(`:${pat}`).toString('base64')}`;
+
+    const wiqlQuery = `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '${projectName}'`;
+    const wiqlUrl = `${baseUrl}/${encodeURIComponent(projectName)}/_apis/wit/wiql?api-version=7.0`;
+
+    try {
+      const wiqlResponse = await fetch(wiqlUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: authHeader,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ query: wiqlQuery }),
+      });
+
+      if (!wiqlResponse.ok) {
+        if (wiqlResponse.status === 401) {
+          throw new Error('Token de acesso inválido ou expirado');
+        }
+        const errorText = await wiqlResponse.text();
+        throw new Error(
+          `Erro ao buscar work items: ${wiqlResponse.status} - ${errorText}`,
+        );
+      }
+
+      const wiqlResult = (await wiqlResponse.json()) as {
+        workItems: Array<{ id: number }>;
+      };
+
+      if (!wiqlResult.workItems || wiqlResult.workItems.length === 0) {
+        return [];
+      }
+
+      const workItemIds = wiqlResult.workItems.map((wi) => wi.id);
+
+      const BATCH_SIZE = 200;
+      const fields = [
+        'System.Title',
+        'System.Description',
+        'System.WorkItemType',
+        'System.State',
+        'System.AreaPath',
+        'System.IterationPath',
+        'System.Tags',
+        'Microsoft.VSTS.Scheduling.StoryPoints',
+        'Microsoft.VSTS.Common.Priority',
+        'System.AssignedTo',
+      ].join(',');
+
+      const allResults: AzureWorkItem[] = [];
+
+      for (let i = 0; i < workItemIds.length; i += BATCH_SIZE) {
+        const batch = workItemIds.slice(i, i + BATCH_SIZE);
+        const idsParam = batch.join(',');
+        const detailsUrl = `${baseUrl}/${encodeURIComponent(projectName)}/_apis/wit/workitems?ids=${idsParam}&fields=${fields}&$expand=none&api-version=7.0`;
+
+        const response = await fetch(detailsUrl, {
+          method: 'GET',
+          headers: {
+            Authorization: authHeader,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(
+            `Erro ao buscar detalhes dos work items: ${response.status} - ${errorText}`,
+          );
+        }
+
+        const result = (await response.json()) as {
+          value: Array<{
+            id: number;
+            fields: Record<string, unknown>;
+          }>;
+        };
+
+        const mapped: AzureWorkItem[] = result.value.map((wi) => ({
+          id: wi.id,
+          fields: {
+            'System.Title': (wi.fields['System.Title'] as string) || '',
+            'System.Description': wi.fields['System.Description'] as
+              | string
+              | undefined,
+            'System.WorkItemType':
+              (wi.fields['System.WorkItemType'] as string) || '',
+            'System.State': (wi.fields['System.State'] as string) || '',
+            'System.AreaPath': wi.fields['System.AreaPath'] as
+              | string
+              | undefined,
+            'System.IterationPath': wi.fields['System.IterationPath'] as
+              | string
+              | undefined,
+            'System.Tags': wi.fields['System.Tags'] as string | undefined,
+            'Microsoft.VSTS.Scheduling.StoryPoints': wi.fields[
+              'Microsoft.VSTS.Scheduling.StoryPoints'
+            ] as number | undefined,
+            'Microsoft.VSTS.Common.Priority': wi.fields[
+              'Microsoft.VSTS.Common.Priority'
+            ] as number | undefined,
+            'System.AssignedTo': wi.fields['System.AssignedTo'] as
+              | {
+                  displayName: string;
+                  uniqueName: string;
+                  id?: string;
+                }
+              | undefined,
+          },
+        }));
+
+        allResults.push(...mapped);
+      }
+
+      return allResults;
+    } catch (error) {
+      if (error instanceof Error) {
+        if (
+          error.message.includes('Token de acesso') ||
+          error.message.includes('Erro ao buscar')
+        ) {
+          throw error;
+        }
+        throw new Error(`Erro ao buscar work items: ${error.message}`);
+      }
+      throw new Error('Erro ao buscar work items');
+    }
+  }
+
+  /**
    * Get report data by fetching work items directly from the Azure DevOps API
    * within a given period. Aggregates by type, status, assignee, and project.
+   * @deprecated Substituído por `DashboardService` que utiliza dados do Banco_Local após sincronização, sem buscar diretamente da API.
    * @param period The date range to filter work items by creation date
    * @returns ReportData with totals, aggregations, and item list
    */
@@ -950,6 +1203,9 @@ export class AzureDevOpsService {
     };
   }
 
+  /**
+   * @deprecated Substituído pelo `DashboardService` expandido com dashboards por contexto (Alocação, Tarefas, Sprints).
+   */
   async getDashboardMetrics(): Promise<DashboardMetrics> {
     const taskRepository = new TaskRepository();
 

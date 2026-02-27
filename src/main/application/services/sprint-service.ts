@@ -24,8 +24,8 @@ export interface UpdateSprintInput {
 export class SprintService {
   private repository: SprintRepository;
 
-  constructor() {
-    this.repository = new SprintRepository();
+  constructor(repository?: SprintRepository) {
+    this.repository = repository ?? new SprintRepository();
   }
 
   async create(data: CreateSprintInput): Promise<SprintEntity> {
@@ -53,6 +53,12 @@ export class SprintService {
       throw new Error('Sprint não encontrada');
     }
 
+    if (sprint.iterationPath) {
+      throw new Error(
+        'Esta sprint é gerenciada no Azure DevOps e não pode ser editada localmente.',
+      );
+    }
+
     const startDate = data.startDate ?? sprint.startDate;
     const endDate = data.endDate ?? sprint.endDate;
 
@@ -74,6 +80,12 @@ export class SprintService {
     const sprint = await this.repository.findById(id);
     if (!sprint) {
       throw new Error('Sprint não encontrada');
+    }
+
+    if (sprint.iterationPath) {
+      throw new Error(
+        'Esta sprint é gerenciada no Azure DevOps e não pode ser editada localmente.',
+      );
     }
 
     // Check if sprint has tasks

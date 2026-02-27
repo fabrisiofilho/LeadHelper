@@ -8,16 +8,12 @@ import {
   MenuItem,
   FormHelperText,
   Autocomplete,
-  ToggleButton,
-  ToggleButtonGroup,
   Box,
   IconButton,
   Tooltip,
   Divider,
 } from '@mui/material';
 import {
-  Timer as TimerIcon,
-  Speed as SpeedIcon,
   Send as SendIcon,
   Delete as DeleteIcon,
   Cloud as CloudIcon,
@@ -37,7 +33,6 @@ import type {
   TaskStatusConfig,
   TaskPriority,
   TaskType,
-  EstimationType,
   CreateTaskInput,
   UpdateTaskInput,
 } from '@shared/interfaces/config/index.types';
@@ -54,9 +49,6 @@ interface TaskFormData {
   endDate: Date | null;
   sprintId: number | null;
   teamId: number | null;
-  estimationType: EstimationType | null;
-  estimationPoints: number | null;
-  estimationHours: number | null;
 }
 
 export interface TaskModalProps {
@@ -139,13 +131,9 @@ export function TaskModal({
       endDate: null,
       sprintId: fixedSprint?.id ?? null,
       teamId: null,
-      estimationType: null,
-      estimationPoints: null,
-      estimationHours: null,
     },
   });
 
-  const watchedEstimationType = watch('estimationType');
   const startDateValue = watch('startDate');
 
   useEffect(() => {
@@ -161,9 +149,6 @@ export function TaskModal({
         endDate: task?.endDate ? new Date(task.endDate) : null,
         sprintId: task?.sprintId ?? fixedSprint?.id ?? null,
         teamId: task?.teamId ?? null,
-        estimationType: task?.estimationType ?? null,
-        estimationPoints: task?.estimationPoints ?? null,
-        estimationHours: task?.estimationHours ?? null,
       });
       if (task?.id) findByTask(task.id);
     }
@@ -180,9 +165,6 @@ export function TaskModal({
       endDate: data.endDate || undefined,
       sprintId: data.sprintId ?? undefined,
       teamId: data.teamId ?? undefined,
-      estimationType: data.estimationType ?? undefined,
-      estimationPoints: data.estimationPoints ?? undefined,
-      estimationHours: data.estimationHours ?? undefined,
     });
   };
 
@@ -607,88 +589,6 @@ export function TaskModal({
                 startError={errors.startDate?.message}
                 endError={errors.endDate?.message}
               />
-            </Box>
-
-            <Divider sx={{ my: 0.5 }} />
-
-            {/* Row 5: Estimativa — toggle + field inline */}
-            <Box>
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                fontWeight={600}
-                sx={{ mb: 0.25, display: 'block' }}
-              >
-                Estimativa
-              </Typography>
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Controller
-                  name="estimationType"
-                  control={control}
-                  render={({ field }) => (
-                    <ToggleButtonGroup
-                      value={field.value}
-                      exclusive
-                      onChange={(_, v) => field.onChange(v)}
-                      size="small"
-                      disabled={loading}
-                    >
-                      <ToggleButton value="points" sx={{ px: 1.5 }}>
-                        <SpeedIcon sx={{ mr: 0.5 }} fontSize="small" />
-                        Pts
-                      </ToggleButton>
-                      <ToggleButton value="hours" sx={{ px: 1.5 }}>
-                        <TimerIcon sx={{ mr: 0.5 }} fontSize="small" />
-                        Hrs
-                      </ToggleButton>
-                    </ToggleButtonGroup>
-                  )}
-                />
-                {watchedEstimationType === 'points' && (
-                  <Controller
-                    name="estimationPoints"
-                    control={control}
-                    render={({ field }) => (
-                      <TextField
-                        {...field}
-                        type="number"
-                        label="Pontos"
-                        size="small"
-                        sx={{ flex: 1 }}
-                        disabled={loading}
-                        slotProps={{ htmlInput: { min: 0 } }}
-                        onChange={(e) =>
-                          field.onChange(
-                            e.target.value ? Number(e.target.value) : null,
-                          )
-                        }
-                      />
-                    )}
-                  />
-                )}
-                {watchedEstimationType === 'hours' && (
-                  <Controller
-                    name="estimationHours"
-                    control={control}
-                    render={({ field }) => (
-                      <TextField
-                        {...field}
-                        type="number"
-                        label="Horas"
-                        size="small"
-                        sx={{ flex: 1 }}
-                        disabled={loading}
-                        slotProps={{ htmlInput: { min: 0, step: 0.5 } }}
-                        onChange={(e) =>
-                          field.onChange(
-                            e.target.value ? Number(e.target.value) : null,
-                          )
-                        }
-                      />
-                    )}
-                  />
-                )}
-              </Stack>
             </Box>
 
             {task?.origin === 'azure_devops' && (

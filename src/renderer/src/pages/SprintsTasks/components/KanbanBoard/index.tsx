@@ -21,8 +21,6 @@ import {
   Delete as DeleteIcon,
   Assignment as AssignmentIcon,
   Settings as SettingsIcon,
-  Timer as TimerIcon,
-  Speed as SpeedIcon,
   CalendarMonth as CalendarIcon,
   Group as GroupIcon,
   FiberManualRecord as DotIcon,
@@ -205,24 +203,6 @@ function CardContent({
             '& .MuiChip-icon': { ml: '4px' },
           }}
         />
-        {task.estimationType === 'points' && task.estimationPoints != null && (
-          <Chip
-            icon={<SpeedIcon sx={{ fontSize: '14px !important' }} />}
-            label={`${task.estimationPoints} pts`}
-            size="small"
-            variant="outlined"
-            sx={{ height: 24, fontSize: '0.75rem' }}
-          />
-        )}
-        {task.estimationType === 'hours' && task.estimationHours != null && (
-          <Chip
-            icon={<TimerIcon sx={{ fontSize: '14px !important' }} />}
-            label={`${task.estimationHours}h`}
-            size="small"
-            variant="outlined"
-            sx={{ height: 24, fontSize: '0.75rem' }}
-          />
-        )}
       </Stack>
 
       {/* Footer: assignee + dates + team */}

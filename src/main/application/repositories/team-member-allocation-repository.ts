@@ -64,7 +64,7 @@ export class TeamMemberAllocationRepository extends BaseRepository<TeamMemberAll
         '(allocation.end_date IS NULL OR allocation.end_date >= :dateStr)',
         { dateStr },
       )
-      .orderBy('allocation.dedication_percentage', 'DESC')
+      .orderBy('allocation.start_date', 'DESC')
       .getMany();
   }
 
@@ -89,8 +89,39 @@ export class TeamMemberAllocationRepository extends BaseRepository<TeamMemberAll
         '(allocation.end_date IS NULL OR allocation.end_date >= :dateStr)',
         { dateStr },
       )
-      .orderBy('allocation.dedication_percentage', 'DESC')
+      .orderBy('allocation.start_date', 'DESC')
       .getMany();
+  }
+
+  /**
+   * Find active allocations for a member across ALL teams that overlap with a given period.
+   * Used for cross-team uniqueness validation.
+   */
+  async findOverlappingCrossTeam(
+    teamMemberId: number,
+    startDate: Date,
+    endDate?: Date,
+    excludeId?: number,
+  ): Promise<TeamMemberAllocationEntity[]> {
+    const startStr = toDateString(startDate);
+    const endStr = endDate ? toDateString(endDate) : '2099-12-31';
+
+    const qb = this.repository
+      .createQueryBuilder('allocation')
+      .leftJoinAndSelect('allocation.team', 'team')
+      .where('allocation.team_member_id = :teamMemberId', { teamMemberId })
+      .andWhere('allocation.is_active = 1')
+      .andWhere('allocation.start_date <= :endStr', { endStr })
+      .andWhere(
+        '(allocation.end_date IS NULL OR allocation.end_date >= :startStr)',
+        { startStr },
+      );
+
+    if (excludeId) {
+      qb.andWhere('allocation.id != :excludeId', { excludeId });
+    }
+
+    return await qb.getMany();
   }
 
   /**
@@ -122,30 +153,6 @@ export class TeamMemberAllocationRepository extends BaseRepository<TeamMemberAll
     }
 
     return await qb.getMany();
-  }
-
-  /**
-   * Calculate total dedication percentage for a team member on a specific date
-   */
-  async getTotalDedication(
-    teamMemberId: number,
-    referenceDate?: Date,
-  ): Promise<number> {
-    const dateStr = toDateString(referenceDate ?? new Date());
-
-    const result = await this.repository
-      .createQueryBuilder('allocation')
-      .select('SUM(allocation.dedication_percentage)', 'total')
-      .where('allocation.team_member_id = :teamMemberId', { teamMemberId })
-      .andWhere('allocation.is_active = 1')
-      .andWhere('allocation.start_date <= :dateStr', { dateStr })
-      .andWhere(
-        '(allocation.end_date IS NULL OR allocation.end_date >= :dateStr)',
-        { dateStr },
-      )
-      .getRawOne();
-
-    return result?.total ?? 0;
   }
 
   /**

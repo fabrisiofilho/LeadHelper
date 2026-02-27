@@ -6,7 +6,6 @@
 export type {
   TaskStatus,
   TaskOrigin,
-  EstimationType,
   TaskPriority,
   TaskType,
   Task,

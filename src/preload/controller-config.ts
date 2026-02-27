@@ -72,16 +72,7 @@ export const CONTROLLER_CONFIG = {
   },
   allocation: {
     prefix: 'allocation',
-    methods: [
-      'create',
-      'update',
-      'delete',
-      'findById',
-      'findByTeamMember',
-      'findByTask',
-      'findByPeriod',
-      'getGanttData',
-    ] as const,
+    methods: ['getGanttData', 'detectConflicts'] as const,
   },
   teamMemberAllocation: {
     prefix: 'team-member-allocation',
@@ -108,6 +99,9 @@ export const CONTROLLER_CONFIG = {
       'getTasksInProgress',
       'getMembersWithHighWorkload',
       'getMembersWithoutAllocation',
+      'getAllocationDashboard',
+      'getTaskManagementDashboard',
+      'getSprintDashboard',
     ] as const,
   },
   azureDevOps: {
@@ -117,14 +111,8 @@ export const CONTROLLER_CONFIG = {
       'getConfig',
       'testConnection',
       'fetchWorkItems',
-      'importWorkItems',
-      'syncTask',
-      'syncAllImportedTasks',
-      // Novos métodos V2
       'fetchIterations',
-      'getReportData',
-      'getDashboardMetrics',
-      'exportPdf',
+      'fullSync',
     ] as const,
   },
   autoUpdater: {
@@ -148,10 +136,6 @@ export const CONTROLLER_CONFIG = {
       'updateProfile',
       'changePassword',
     ] as const,
-  },
-  taskStatusConfig: {
-    prefix: 'task-status-config',
-    methods: ['findAll', 'findKanban', 'create', 'update', 'delete'] as const,
   },
   taskComment: {
     prefix: 'task-comment',

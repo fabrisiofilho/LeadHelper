@@ -6,21 +6,14 @@ import {
   Chip,
   Paper,
   LinearProgress,
-  Tooltip,
 } from '@mui/material';
-import {
-  CalendarMonth as CalendarIcon,
-  Add as AddIcon,
-  Edit as EditIcon,
-} from '@mui/icons-material';
+import { CalendarMonth as CalendarIcon } from '@mui/icons-material';
 import type { Sprint } from '@shared/interfaces/config/index.types';
 
 interface SprintOverviewProps {
   sprints: Sprint[];
   selectedSprint: Sprint | null;
   onSelectSprint: (sprint: Sprint) => void;
-  onNewSprint: () => void;
-  onEditSprint: (sprint: Sprint) => void;
 }
 
 type SprintStatus = {
@@ -38,11 +31,11 @@ const getSprintStatus = (sprint: Sprint): SprintStatus => {
   end.setHours(0, 0, 0, 0);
 
   if (today >= start && today <= end) {
-    return { label: 'Em Andamento', color: '#2e7d32', bgColor: '#2e7d3220' };
+    return { label: 'Em Andamento', color: '#2e7d32', bgColor: '#4caf5020' };
   } else if (today < start) {
-    return { label: 'Futura', color: '#1565c0', bgColor: '#1565c020' };
+    return { label: 'Futura', color: '#1976d2', bgColor: '#2196f320' };
   }
-  return { label: 'Finalizada', color: '#757575', bgColor: '#75757520' };
+  return { label: 'Finalizada', color: '#616161', bgColor: '#9e9e9e20' };
 };
 
 const formatDate = (date: Date | string | undefined): string => {
@@ -64,12 +57,42 @@ export function SprintOverview({
   sprints,
   selectedSprint,
   onSelectSprint,
-  onNewSprint,
-  onEditSprint,
 }: SprintOverviewProps) {
   const sortedSprints = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
     return [...sprints].sort((a, b) => {
-      return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
+      const aStart = new Date(a.startDate);
+      aStart.setHours(0, 0, 0, 0);
+      const aEnd = new Date(a.endDate);
+      aEnd.setHours(0, 0, 0, 0);
+      const bStart = new Date(b.startDate);
+      bStart.setHours(0, 0, 0, 0);
+      const bEnd = new Date(b.endDate);
+      bEnd.setHours(0, 0, 0, 0);
+
+      // Check if sprint is current (today is between start and end)
+      const aIsCurrent = today >= aStart && today <= aEnd;
+      const bIsCurrent = today >= bStart && today <= bEnd;
+
+      // Check if sprint is finished
+      const aIsFinished = today > aEnd;
+      const bIsFinished = today > bEnd;
+
+      // Current sprint comes first
+      if (aIsCurrent && !bIsCurrent) return -1;
+      if (!aIsCurrent && bIsCurrent) return 1;
+
+      // Future sprints come before finished sprints
+      if (!aIsFinished && bIsFinished) return -1;
+      if (aIsFinished && !bIsFinished) return 1;
+
+      // If both are current or both are not current, sort by proximity to today
+      const aDistance = Math.abs(aStart.getTime() - today.getTime());
+      const bDistance = Math.abs(bStart.getTime() - today.getTime());
+
+      return aDistance - bDistance;
     });
   }, [sprints]);
 
@@ -109,9 +132,11 @@ export function SprintOverview({
               borderRadius: 2,
               transition: 'all 0.2s',
               flexShrink: 0,
+              opacity: status.label === 'Finalizada' && !isSelected ? 0.7 : 1,
               '&:hover': {
                 borderColor: isSelected ? 'primary.main' : 'primary.light',
                 bgcolor: isSelected ? 'primary.main' : 'action.hover',
+                opacity: 1,
               },
             }}
           >
@@ -131,24 +156,6 @@ export function SprintOverview({
               >
                 {sprint.name}
               </Typography>
-              {isSelected && (
-                <Tooltip title="Editar sprint">
-                  <Box
-                    component="span"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onEditSprint(sprint);
-                    }}
-                    sx={{
-                      display: 'flex',
-                      cursor: 'pointer',
-                      '&:hover': { opacity: 0.8 },
-                    }}
-                  >
-                    <EditIcon sx={{ fontSize: 16, color: '#fff' }} />
-                  </Box>
-                </Tooltip>
-              )}
             </Stack>
 
             <Typography
@@ -215,48 +222,6 @@ export function SprintOverview({
           </Paper>
         );
       })}
-
-      {/* Add new sprint card — sticky on the right */}
-      <Box
-        sx={{
-          position: 'sticky',
-          right: 0,
-          flexShrink: 0,
-          display: 'flex',
-          alignItems: 'stretch',
-          pl: 1.5,
-          background: (theme) =>
-            `linear-gradient(to right, transparent, ${theme.palette.background.default} 12px)`,
-        }}
-      >
-        <Paper
-          variant="outlined"
-          onClick={onNewSprint}
-          sx={{
-            p: 1.5,
-            minWidth: 120,
-            cursor: 'pointer',
-            borderStyle: 'dashed',
-            borderColor: 'divider',
-            borderRadius: 2,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-            transition: 'all 0.2s',
-            '&:hover': {
-              borderColor: 'primary.main',
-              bgcolor: 'action.hover',
-            },
-          }}
-        >
-          <AddIcon sx={{ color: 'text.secondary', mb: 0.5 }} />
-          <Typography variant="caption" color="text.secondary" fontWeight={500}>
-            Nova Sprint
-          </Typography>
-        </Paper>
-      </Box>
     </Box>
   );
 }

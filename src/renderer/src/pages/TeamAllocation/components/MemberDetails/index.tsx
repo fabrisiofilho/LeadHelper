@@ -24,7 +24,6 @@ import {
   HeaderContainer,
   ContentContainer,
   MemberItem,
-  DedicationProgress,
   EmptyState,
 } from './styles';
 
@@ -47,14 +46,6 @@ export function MemberDetails({
   onEditAllocation,
   onRemoveAllocation,
 }: MemberDetailsProps) {
-  const getDedicationColor = (
-    percentage: number,
-  ): 'primary' | 'warning' | 'error' => {
-    if (percentage <= 50) return 'primary';
-    if (percentage <= 80) return 'warning';
-    return 'error';
-  };
-
   if (loading) {
     return (
       <MemberDetailsContainer>
@@ -169,40 +160,12 @@ export function MemberDetails({
                     </Stack>
 
                     <Stack spacing={0.5}>
-                      <Stack
-                        direction="row"
-                        alignItems="center"
-                        justifyContent="space-between"
-                      >
+                      {allocation.notes && (
                         <Typography variant="body2" color="text.secondary">
-                          Dedicação
+                          Motivo: {allocation.notes}
                         </Typography>
-                        <Typography
-                          variant="body2"
-                          fontWeight={500}
-                          color={`${getDedicationColor(allocation.dedicationPercentage)}.main`}
-                        >
-                          {allocation.dedicationPercentage}%
-                        </Typography>
-                      </Stack>
-                      <DedicationProgress
-                        variant="determinate"
-                        value={Math.min(allocation.dedicationPercentage, 100)}
-                        color={getDedicationColor(
-                          allocation.dedicationPercentage,
-                        )}
-                      />
+                      )}
                     </Stack>
-
-                    {allocation.notes && (
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        sx={{ mt: 1, display: 'block' }}
-                      >
-                        {allocation.notes}
-                      </Typography>
-                    )}
                   </Box>
 
                   <Stack direction="row" spacing={0.5} ml={2}>

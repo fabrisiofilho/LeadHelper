@@ -5,6 +5,7 @@ import {
 } from '../repositories/team-member-allocation-repository';
 import { TeamMemberRepository } from '../repositories/team-member-repository';
 import { TeamRepository } from '../repositories/team-repository';
+import { TaskRepository } from '../repositories/task-repository';
 import { logger } from '@main/infrastructure/log/logger';
 
 export interface CreateTeamMemberAllocationInput {
@@ -12,14 +13,12 @@ export interface CreateTeamMemberAllocationInput {
   teamId: number;
   startDate: Date;
   endDate?: Date;
-  dedicationPercentage?: number;
-  notes?: string;
+  notes: string; // Campo "Motivo" — obrigatório
 }
 
 export interface UpdateTeamMemberAllocationInput {
   startDate?: Date;
   endDate?: Date;
-  dedicationPercentage?: number;
   notes?: string;
   isActive?: boolean;
 }
@@ -32,7 +31,6 @@ export interface TeamMemberAllocation {
   teamName?: string;
   startDate: Date;
   endDate?: Date;
-  dedicationPercentage: number;
   notes?: string;
   isActive: boolean;
   createdAt?: Date;
@@ -43,37 +41,53 @@ export interface TeamCapacitySummary {
   teamId: number;
   teamName: string;
   totalMembers: number;
-  totalDedication: number;
   members: {
     id: number;
     name: string;
     role: string;
-    dedicationPercentage: number;
     startDate: Date;
     endDate?: Date;
   }[];
+}
+
+export interface AllocationConflict {
+  memberId: number;
+  memberName: string;
+  allocatedTeamId: number;
+  allocatedTeamName: string;
+  taskTeamId: number;
+  taskTeamName: string;
+  taskTitle: string;
 }
 
 export class TeamMemberAllocationService {
   private repository: TeamMemberAllocationRepository;
   private teamMemberRepository: TeamMemberRepository;
   private teamRepository: TeamRepository;
+  private taskRepository: TaskRepository;
 
   constructor(
     repository?: TeamMemberAllocationRepository,
     teamMemberRepository?: TeamMemberRepository,
     teamRepository?: TeamRepository,
+    taskRepository?: TaskRepository,
   ) {
     this.repository = repository ?? new TeamMemberAllocationRepository();
     this.teamMemberRepository =
       teamMemberRepository ?? new TeamMemberRepository();
     this.teamRepository = teamRepository ?? new TeamRepository();
+    this.taskRepository = taskRepository ?? new TaskRepository();
   }
 
   async create(
     input: CreateTeamMemberAllocationInput,
   ): Promise<TeamMemberAllocation> {
     logger.info('Creating team member allocation', input);
+
+    // Validate notes (campo "Motivo") is not empty
+    if (!input.notes || input.notes.trim() === '') {
+      throw new Error('O campo Motivo é obrigatório para a alocação.');
+    }
 
     // Validate team member exists
     const teamMember = await this.teamMemberRepository.findOneBy({
@@ -92,48 +106,21 @@ export class TeamMemberAllocationService {
     // Validate dates
     this.validateDates(input.startDate, input.endDate);
 
-    // Validate dedication percentage
-    const dedicationPercentage = input.dedicationPercentage ?? 100;
-    if (dedicationPercentage < 1 || dedicationPercentage > 100) {
-      throw new Error('Percentual de dedicação deve estar entre 1 e 100');
-    }
-
-    // Check for overlapping allocations in the same team
-    const overlapping = await this.repository.findOverlapping(
+    // Validate cross-team uniqueness: member cannot be active in any other team
+    await this.validateCrossTeamUniqueness(
       input.teamMemberId,
-      input.teamId,
       input.startDate,
       input.endDate,
     );
-    if (overlapping.length > 0) {
-      throw new Error(
-        'Já existe uma alocação ativa para este membro nesta equipe no período informado',
-      );
-    }
-
-    // Check total dedication doesn't exceed 100%
-    const currentDedication = await this.repository.getTotalDedication(
-      input.teamMemberId,
-      input.startDate,
-    );
-    if (currentDedication + dedicationPercentage > 100) {
-      throw new Error(
-        `Dedicação total excede 100%. Dedicação atual: ${currentDedication}%, disponível: ${100 - currentDedication}%`,
-      );
-    }
 
     const entity = await this.repository.save({
       teamMemberId: input.teamMemberId,
       teamId: input.teamId,
       startDate: input.startDate,
       endDate: input.endDate,
-      dedicationPercentage,
       notes: input.notes,
       isActive: true,
     });
-
-    // Also add to the ManyToMany relationship for backward compatibility
-    await this.teamRepository.addMember(input.teamId, input.teamMemberId);
 
     return this.mapToDto(entity, teamMember.name, team.name);
   }
@@ -161,14 +148,10 @@ export class TeamMemberAllocationService {
       entity.endDate = input.endDate;
     }
 
-    if (input.dedicationPercentage !== undefined) {
-      if (input.dedicationPercentage < 1 || input.dedicationPercentage > 100) {
-        throw new Error('Percentual de dedicação deve estar entre 1 e 100');
-      }
-      entity.dedicationPercentage = input.dedicationPercentage;
-    }
-
     if (input.notes !== undefined) {
+      if (input.notes.trim() === '') {
+        throw new Error('O campo Motivo é obrigatório para a alocação.');
+      }
       entity.notes = input.notes;
     }
 
@@ -179,19 +162,13 @@ export class TeamMemberAllocationService {
     // Validate dates
     this.validateDates(entity.startDate, entity.endDate);
 
-    // Check for overlapping allocations (excluding current)
-    const overlapping = await this.repository.findOverlapping(
+    // Check for overlapping allocations across all teams (excluding current)
+    await this.validateCrossTeamUniqueness(
       entity.teamMemberId,
-      entity.teamId,
       entity.startDate,
       entity.endDate,
       id,
     );
-    if (overlapping.length > 0) {
-      throw new Error(
-        'Já existe uma alocação ativa para este membro nesta equipe no período informado',
-      );
-    }
 
     const updated = await this.repository.save(entity);
     return this.mapToDto(updated, entity.teamMember?.name, entity.team?.name);
@@ -211,6 +188,70 @@ export class TeamMemberAllocationService {
   async deactivate(id: number): Promise<TeamMemberAllocation> {
     logger.info('Deactivating team member allocation', { id });
     return this.update(id, { isActive: false, endDate: new Date() });
+  }
+
+  async detectAllocationConflicts(
+    teamMemberId?: number,
+  ): Promise<AllocationConflict[]> {
+    logger.info('Detecting allocation conflicts', { teamMemberId });
+
+    // Get active allocations, optionally filtered by teamMemberId
+    let activeAllocations: TeamMemberAllocationEntity[];
+    if (teamMemberId !== undefined) {
+      activeAllocations =
+        await this.repository.findActiveByTeamMember(teamMemberId);
+    } else {
+      activeAllocations = await this.repository.findWithFilters({
+        isActive: true,
+      });
+    }
+
+    const conflicts: AllocationConflict[] = [];
+
+    for (const allocation of activeAllocations) {
+      const member =
+        allocation.teamMember ??
+        (await this.teamMemberRepository.findOneBy({
+          id: allocation.teamMemberId,
+        }));
+
+      if (!member?.email) {
+        continue;
+      }
+
+      const allocatedTeam =
+        allocation.team ??
+        (await this.teamRepository.findById(allocation.teamId));
+
+      if (!allocatedTeam) {
+        continue;
+      }
+
+      // Find tasks assigned to this member's email
+      const tasks = await this.taskRepository.findByAssignedToEmail(
+        member.email,
+      );
+
+      for (const task of tasks) {
+        // Only consider tasks that have a team assigned and it differs from the allocation team
+        if (task.teamId && task.teamId !== allocation.teamId) {
+          const taskTeam =
+            task.team ?? (await this.teamRepository.findById(task.teamId));
+
+          conflicts.push({
+            memberId: member.id,
+            memberName: member.name,
+            allocatedTeamId: allocation.teamId,
+            allocatedTeamName: allocatedTeam.name,
+            taskTeamId: task.teamId,
+            taskTeamName: taskTeam?.name ?? '',
+            taskTitle: task.title,
+          });
+        }
+      }
+    }
+
+    return conflicts;
   }
 
   async findById(id: number): Promise<TeamMemberAllocation | null> {
@@ -305,21 +346,14 @@ export class TeamMemberAllocationService {
       id: a.teamMemberId,
       name: a.teamMember?.name ?? '',
       role: a.teamMember?.role ?? '',
-      dedicationPercentage: a.dedicationPercentage,
       startDate: a.startDate,
       endDate: a.endDate,
     }));
-
-    const totalDedication = members.reduce(
-      (sum, m) => sum + m.dedicationPercentage,
-      0,
-    );
 
     return {
       teamId,
       teamName: team.name,
       totalMembers: members.length,
-      totalDedication,
       members,
     };
   }
@@ -328,11 +362,33 @@ export class TeamMemberAllocationService {
     teamMemberId: number,
     referenceDate?: Date,
   ): Promise<number> {
-    const totalDedication = await this.repository.getTotalDedication(
+    const activeAllocations = await this.repository.findActiveByTeamMember(
       teamMemberId,
       referenceDate,
     );
-    return Math.max(0, 100 - totalDedication);
+    // With dynamic allocation (no dedication percentage), member is either available (100) or not (0)
+    return activeAllocations.length > 0 ? 0 : 100;
+  }
+
+  private async validateCrossTeamUniqueness(
+    teamMemberId: number,
+    startDate: Date,
+    endDate?: Date,
+    excludeAllocationId?: number,
+  ): Promise<void> {
+    const overlapping = await this.repository.findOverlappingCrossTeam(
+      teamMemberId,
+      startDate,
+      endDate,
+      excludeAllocationId,
+    );
+
+    if (overlapping.length > 0) {
+      const teamName = overlapping[0].team?.name ?? 'desconhecida';
+      throw new Error(
+        `Membro já está alocado na equipe ${teamName}. Finalize a alocação atual antes de criar uma nova.`,
+      );
+    }
   }
 
   private validateDates(startDate: Date, endDate?: Date): void {
@@ -362,7 +418,6 @@ export class TeamMemberAllocationService {
       teamName,
       startDate: entity.startDate,
       endDate: entity.endDate,
-      dedicationPercentage: entity.dedicationPercentage,
       notes: entity.notes,
       isActive: entity.isActive,
       createdAt: entity.createdAt,

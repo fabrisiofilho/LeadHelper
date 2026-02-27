@@ -47,8 +47,6 @@ interface TaskImportProps {
 interface ColumnMapping {
   title: string;
   description: string;
-  estimationPoints: string;
-  estimationHours: string;
 }
 
 interface ParsedRow {
@@ -68,8 +66,6 @@ export function TaskImport({ onImportSuccess, onClose }: TaskImportProps) {
   const [mapping, setMapping] = useState<ColumnMapping>({
     title: '',
     description: '',
-    estimationPoints: '',
-    estimationHours: '',
   });
   const [selectedSprintId, setSelectedSprintId] = useState<number | ''>('');
   const [selectedTeamId, setSelectedTeamId] = useState<number | ''>('');
@@ -128,8 +124,6 @@ export function TaskImport({ onImportSuccess, onClose }: TaskImportProps) {
         const autoMapping: ColumnMapping = {
           title: '',
           description: '',
-          estimationPoints: '',
-          estimationHours: '',
         };
 
         headerRow.forEach((header) => {
@@ -147,18 +141,6 @@ export function TaskImport({ onImportSuccess, onClose }: TaskImportProps) {
             lowerHeader.includes('description')
           ) {
             autoMapping.description = header;
-          } else if (
-            lowerHeader.includes('ponto') ||
-            lowerHeader.includes('point') ||
-            lowerHeader.includes('story')
-          ) {
-            autoMapping.estimationPoints = header;
-          } else if (
-            lowerHeader.includes('hora') ||
-            lowerHeader.includes('hour') ||
-            lowerHeader.includes('time')
-          ) {
-            autoMapping.estimationHours = header;
           }
         });
 
@@ -218,8 +200,6 @@ export function TaskImport({ onImportSuccess, onClose }: TaskImportProps) {
     setMapping({
       title: '',
       description: '',
-      estimationPoints: '',
-      estimationHours: '',
     });
     setImportResult(null);
     setError(null);
@@ -251,20 +231,6 @@ export function TaskImport({ onImportSuccess, onClose }: TaskImportProps) {
         description: mapping.description
           ? String(row[mapping.description] || '')
           : undefined,
-        estimationPoints:
-          mapping.estimationPoints && row[mapping.estimationPoints]
-            ? Number(row[mapping.estimationPoints])
-            : undefined,
-        estimationHours:
-          mapping.estimationHours && row[mapping.estimationHours]
-            ? Number(row[mapping.estimationHours])
-            : undefined,
-        estimationType:
-          mapping.estimationPoints && row[mapping.estimationPoints]
-            ? 'points'
-            : mapping.estimationHours && row[mapping.estimationHours]
-              ? 'hours'
-              : undefined,
         sprintId: selectedSprintId || undefined,
         teamId: selectedTeamId || undefined,
       };
@@ -412,52 +378,6 @@ export function TaskImport({ onImportSuccess, onClose }: TaskImportProps) {
                 value={mapping.description}
                 onChange={(e) =>
                   setMapping({ ...mapping, description: e.target.value })
-                }
-                sx={{ minWidth: 200 }}
-              >
-                <MenuItem value="">Nenhum</MenuItem>
-                {headers.map((header) => (
-                  <MenuItem key={header} value={header}>
-                    {header}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </MappingRow>
-
-            <MappingRow>
-              <Typography variant="body2" sx={{ minWidth: 120 }}>
-                Pontos
-              </Typography>
-              <ArrowIcon color="action" />
-              <TextField
-                select
-                size="small"
-                value={mapping.estimationPoints}
-                onChange={(e) =>
-                  setMapping({ ...mapping, estimationPoints: e.target.value })
-                }
-                sx={{ minWidth: 200 }}
-              >
-                <MenuItem value="">Nenhum</MenuItem>
-                {headers.map((header) => (
-                  <MenuItem key={header} value={header}>
-                    {header}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </MappingRow>
-
-            <MappingRow>
-              <Typography variant="body2" sx={{ minWidth: 120 }}>
-                Horas
-              </Typography>
-              <ArrowIcon color="action" />
-              <TextField
-                select
-                size="small"
-                value={mapping.estimationHours}
-                onChange={(e) =>
-                  setMapping({ ...mapping, estimationHours: e.target.value })
                 }
                 sx={{ minWidth: 200 }}
               >

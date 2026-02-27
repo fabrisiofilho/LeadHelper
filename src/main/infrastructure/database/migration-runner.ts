@@ -296,6 +296,67 @@ export class MigrationRunner {
     return existingTables.length > 0;
   }
 
+  /**
+   * Detects databases that have old individual migrations (002-008) applied.
+   * These have been consolidated into 001_leadhelper_schema.
+   * Returns the list of legacy migration names found.
+   */
+  private getObsoleteMigrations(): string[] {
+    const obsoleteNames = [
+      '002_task_status_config',
+      '003_default_kanban_statuses',
+      '004_task_comments',
+      '005_task_assignee',
+      '006_task_type',
+      '007_azure_devops_enrichment',
+      '008_team_azure_area_path',
+    ];
+
+    try {
+      const migrationsTableExists = this.db
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='migrations'",
+        )
+        .get();
+
+      if (!migrationsTableExists) {
+        return [];
+      }
+
+      const applied = this.db.prepare('SELECT name FROM migrations').all() as {
+        name: string;
+      }[];
+
+      const appliedNames = new Set(applied.map((r) => r.name));
+      return obsoleteNames.filter((name) => appliedNames.has(name));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Handles transition from old individual migrations (002-008) to the
+   * consolidated 001_leadhelper_schema. Removes obsolete migration records
+   * so the runner only tracks the consolidated schema migration.
+   */
+  private cleanupObsoleteMigrationRecords(): void {
+    const obsolete = this.getObsoleteMigrations();
+    if (obsolete.length === 0) {
+      return;
+    }
+
+    logger.info(
+      `Found ${obsolete.length} obsolete migration records to clean up: ${obsolete.join(', ')}`,
+    );
+
+    for (const name of obsolete) {
+      this.db.prepare('DELETE FROM migrations WHERE name = ?').run(name);
+      logger.info(`Removed obsolete migration record: ${name}`);
+    }
+
+    logger.success('Obsolete migration records cleaned up');
+  }
+
   private checkForUserData(): boolean {
     try {
       // Check if users table exists and has data
@@ -591,6 +652,10 @@ export class MigrationRunner {
       }
 
       this.createMigrationsTable();
+
+      // Remove records of old individual migrations (002-008) that have been
+      // consolidated into 001_leadhelper_schema
+      this.cleanupObsoleteMigrationRecords();
 
       const appliedMigrations = this.getAppliedMigrations();
       logger.info(`Found ${appliedMigrations.size} applied migrations`);

@@ -6,14 +6,15 @@ import {
   Tooltip,
   CircularProgress,
   Stack,
+  Alert,
 } from '@mui/material';
-import { Refresh as RefreshIcon } from '@mui/icons-material';
+import { Refresh as RefreshIcon, Lock as LockIcon } from '@mui/icons-material';
+import { enqueueSnackbar } from 'notistack';
 import { useTasks } from '@renderer/hooks/useTasks';
 import { useTeams } from '@renderer/hooks/useTeams';
 import { useSprints } from '@renderer/hooks/useSprints';
 import { useTeamMembers } from '@renderer/hooks/useTeamMembers';
-import { useAllocations } from '@renderer/hooks/useAllocations';
-import { useTaskStatusConfig } from '@renderer/hooks/useTaskStatusConfig';
+import { TaskViewModal } from '@renderer/components/TaskViewModal';
 import { PageContainer, ContentArea } from './styles';
 import { TeamOverview } from './components/TeamOverview';
 import {
@@ -24,48 +25,25 @@ import {
 } from './components/TaskBoardFilters';
 import { TaskListView } from './components/TaskListView';
 import { TaskKanbanView } from './components/TaskKanbanView';
-import { TaskModal } from '@renderer/components/TaskModal';
-import { Modal } from '@renderer/components/Modal';
-import type {
-  Team,
-  Task,
-  TeamMember,
-  CreateTaskInput,
-  UpdateTaskInput,
-} from '@shared/interfaces/config/index.types';
+import type { Team, Task } from '@shared/interfaces/config/index.types';
+
+const READ_ONLY_MESSAGE = 'Este dado é gerenciado no Azure DevOps';
 
 export function TaskBoardPage() {
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [filters, setFilters] = useState<TaskBoardFiltersState>(EMPTY_FILTERS);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
-  const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [taskModalLoading, setTaskModalLoading] = useState(false);
-  const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
-  const [taskToRemove, setTaskToRemove] = useState<Task | null>(null);
-  const [removeLoading, setRemoveLoading] = useState(false);
 
-  const {
-    tasks,
-    loading: tasksLoading,
-    error: tasksError,
-    findAll: findAllTasks,
-    create: createTask,
-    update: updateTask,
-    delete: deleteTask,
-    clearError: clearTasksError,
-  } = useTasks();
+  const { tasks, loading: tasksLoading, findAll: findAllTasks } = useTasks();
 
   const { teams, findAll: findAllTeams } = useTeams();
-  const { sprints, findAll: findAllSprints } = useSprints();
-  const { teamMembers, findAll: findAllTeamMembers } = useTeamMembers();
-  const {
-    create: createAllocation,
-    delete: deleteAllocation,
-    findByTask: findAllocationsByTask,
-  } = useAllocations();
-  const { statuses: allStatuses, findAll: fetchAllStatuses } =
-    useTaskStatusConfig();
+  const { findAll: findAllSprints } = useSprints();
+  const { findAll: findAllTeamMembers } = useTeamMembers();
+  const allStatuses = useMemo<
+    import('@shared/interfaces/config/index.types').TaskStatusConfig[]
+  >(() => [], []);
 
   const loadData = useCallback(async () => {
     await Promise.all([
@@ -73,15 +51,8 @@ export function TaskBoardPage() {
       findAllTeams({ isActive: true }),
       findAllSprints(),
       findAllTeamMembers({ isActive: true }),
-      fetchAllStatuses(),
     ]);
-  }, [
-    findAllTasks,
-    findAllTeams,
-    findAllSprints,
-    findAllTeamMembers,
-    fetchAllStatuses,
-  ]);
+  }, [findAllTasks, findAllTeams, findAllSprints, findAllTeamMembers]);
 
   useEffect(() => {
     loadData();
@@ -103,7 +74,7 @@ export function TaskBoardPage() {
         (t) =>
           t.title.toLowerCase().includes(term) ||
           t.description?.toLowerCase().includes(term) ||
-          t.assignee?.name.toLowerCase().includes(term),
+          t.assignedToName?.toLowerCase().includes(term),
       );
     }
 
@@ -137,88 +108,24 @@ export function TaskBoardPage() {
     return allStatuses.map((s) => ({ value: s.name, label: s.label }));
   }, [allStatuses]);
 
-  // Task handlers
-  const handleNewTask = () => {
-    setEditingTask(null);
-    setIsTaskModalOpen(true);
-  };
-
-  const handleEditTask = (task: Task) => {
-    setEditingTask(task);
-    setIsTaskModalOpen(true);
-  };
-
-  const handleCloseTaskModal = () => {
-    setIsTaskModalOpen(false);
-    setEditingTask(null);
-    clearTasksError();
-  };
-
-  const handleSaveTask = async (data: CreateTaskInput | UpdateTaskInput) => {
-    setTaskModalLoading(true);
-    try {
-      if (editingTask) {
-        const result = await updateTask(
-          editingTask.id,
-          data as UpdateTaskInput,
-        );
-        if (result) handleCloseTaskModal();
-      } else {
-        const result = await createTask(data as CreateTaskInput);
-        if (result) handleCloseTaskModal();
-      }
-    } finally {
-      setTaskModalLoading(false);
-    }
-  };
-
-  const handleRemoveTask = (task: Task) => {
-    setTaskToRemove(task);
-    setIsRemoveModalOpen(true);
-  };
-
-  const handleConfirmRemove = async () => {
-    if (!taskToRemove) return;
-    setRemoveLoading(true);
-    try {
-      const success = await deleteTask(taskToRemove.id);
-      if (success) {
-        setIsRemoveModalOpen(false);
-        setTaskToRemove(null);
-      }
-    } finally {
-      setRemoveLoading(false);
-    }
-  };
-
-  // Assign task to a team member via allocations
-  const handleAssignTask = async (taskId: number, memberId: number | null) => {
-    // Remove existing allocations for this task
-    const existingAllocations = await findAllocationsByTask(taskId);
-    for (const alloc of existingAllocations) {
-      await deleteAllocation(alloc.id);
-    }
-
-    // Create new allocation if assigning
-    if (memberId !== null) {
-      const now = new Date();
-      const endDate = new Date();
-      endDate.setMonth(endDate.getMonth() + 3);
-      await createAllocation({
-        teamMemberId: memberId,
-        taskId,
-        startDate: now,
-        endDate,
-      });
-    }
-
-    // Reload tasks to reflect the updated assignee
-    await findAllTasks();
-  };
+  // Read-only: show snackbar when user tries to edit
+  const handleReadOnlyAction = useCallback(() => {
+    enqueueSnackbar(READ_ONLY_MESSAGE, { variant: 'info' });
+  }, []);
 
   const handleRefresh = async () => {
     await loadData();
   };
+
+  const handleTaskClick = useCallback((task: Task) => {
+    setSelectedTask(task);
+    setIsTaskModalOpen(true);
+  }, []);
+
+  const handleCloseTaskModal = useCallback(() => {
+    setIsTaskModalOpen(false);
+    setSelectedTask(null);
+  }, []);
 
   const isLoading = tasksLoading && tasks.length === 0;
 
@@ -260,6 +167,14 @@ export function TaskBoardPage() {
         </Tooltip>
       </Stack>
 
+      <Alert
+        severity="info"
+        icon={<LockIcon fontSize="small" />}
+        sx={{ mb: 2, flexShrink: 0 }}
+      >
+        Dados gerenciados no Azure DevOps. Visualização somente leitura.
+      </Alert>
+
       <TeamOverview
         teams={teams}
         tasks={tasks}
@@ -280,59 +195,25 @@ export function TaskBoardPage() {
           <TaskListView
             tasks={filteredTasks}
             statuses={allStatuses}
-            teamMembers={teamMembers}
             loading={tasksLoading}
-            onNewTask={handleNewTask}
-            onEditTask={handleEditTask}
-            onRemoveTask={handleRemoveTask}
-            onAssignTask={handleAssignTask}
+            onReadOnlyAction={handleReadOnlyAction}
+            onTaskClick={handleTaskClick}
           />
         ) : (
           <TaskKanbanView
             tasks={filteredTasks}
             statuses={allStatuses}
-            teamMembers={teamMembers}
             loading={tasksLoading}
-            onNewTask={handleNewTask}
-            onEditTask={handleEditTask}
-            onAssignTask={handleAssignTask}
+            onReadOnlyAction={handleReadOnlyAction}
           />
         )}
       </ContentArea>
 
-      <TaskModal
+      <TaskViewModal
         open={isTaskModalOpen}
-        task={editingTask}
-        sprints={sprints}
-        teams={teams}
-        statusOptions={allStatuses}
-        loading={taskModalLoading}
-        error={tasksError}
+        task={selectedTask}
         onClose={handleCloseTaskModal}
-        onSave={handleSaveTask}
       />
-
-      <Modal
-        variant="danger"
-        open={isRemoveModalOpen}
-        title="Excluir Tarefa"
-        handleClose={() => {
-          setIsRemoveModalOpen(false);
-          setTaskToRemove(null);
-        }}
-        handleConfirm={handleConfirmRemove}
-        confirmLabel="Excluir"
-        cancelLabel="Cancelar"
-        loading={removeLoading}
-      >
-        <Typography>
-          Tem certeza que deseja excluir a tarefa{' '}
-          <strong>{taskToRemove?.title}</strong>?
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-          Esta ação não pode ser desfeita.
-        </Typography>
-      </Modal>
     </PageContainer>
   );
 }

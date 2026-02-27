@@ -5,13 +5,7 @@ import type {
   AzureDevOpsConfigInput,
   WorkItem,
   WorkItemFilters,
-  SyncResult,
-  Task,
   IterationNode,
-  ReportData,
-  ReportPeriod,
-  DashboardMetrics,
-  ExportResult,
 } from '@shared/interfaces/config/index.types';
 
 interface UseAzureDevOpsState {
@@ -20,8 +14,6 @@ interface UseAzureDevOpsState {
   config: AzureDevOpsConfig | null;
   isConnected: boolean;
   workItems: WorkItem[];
-  importedTasks: Task[];
-  syncResult: SyncResult | null;
 }
 
 export function useAzureDevOps() {
@@ -31,8 +23,6 @@ export function useAzureDevOps() {
     config: null,
     isConnected: false,
     workItems: [],
-    importedTasks: [],
-    syncResult: null,
   });
 
   const setLoading = useCallback((loading: boolean) => {
@@ -141,62 +131,6 @@ export function useAzureDevOps() {
     [],
   );
 
-  const importWorkItems = useCallback(
-    async (workItemIds: number[]): Promise<Task[]> => {
-      setLoading(true);
-      try {
-        const response =
-          await window.electronAPI.azureDevOps.importWorkItems(workItemIds);
-        if (!response.success) {
-          setError(response.error || 'Erro ao importar work items');
-          return [];
-        }
-        const data = cloneIpcData(response.data) || [];
-        setState((prev) => ({ ...prev, loading: false, importedTasks: data }));
-        return data;
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Erro de comunicação');
-        return [];
-      }
-    },
-    [],
-  );
-
-  const syncTask = useCallback(async (taskId: number): Promise<Task | null> => {
-    setLoading(true);
-    try {
-      const response = await window.electronAPI.azureDevOps.syncTask(taskId);
-      if (!response.success) {
-        setError(response.error || 'Erro ao sincronizar tarefa');
-        return null;
-      }
-      setState((prev) => ({ ...prev, loading: false }));
-      return cloneIpcData(response.data) || null;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro de comunicação');
-      return null;
-    }
-  }, []);
-
-  const syncAllImportedTasks =
-    useCallback(async (): Promise<SyncResult | null> => {
-      setLoading(true);
-      try {
-        const response =
-          await window.electronAPI.azureDevOps.syncAllImportedTasks();
-        if (!response.success) {
-          setError(response.error || 'Erro ao sincronizar tarefas');
-          return null;
-        }
-        const data = cloneIpcData(response.data) || null;
-        setState((prev) => ({ ...prev, loading: false, syncResult: data }));
-        return data;
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Erro de comunicação');
-        return null;
-      }
-    }, []);
-
   const fetchIterations = useCallback(async (): Promise<IterationNode[]> => {
     setLoading(true);
     try {
@@ -213,63 +147,6 @@ export function useAzureDevOps() {
     }
   }, []);
 
-  const getReportData = useCallback(
-    async (period: ReportPeriod): Promise<ReportData | null> => {
-      setLoading(true);
-      try {
-        const response =
-          await window.electronAPI.azureDevOps.getReportData(period);
-        if (!response.success) {
-          setError(response.error || 'Erro ao buscar dados do relatório');
-          return null;
-        }
-        setState((prev) => ({ ...prev, loading: false }));
-        return cloneIpcData(response.data) || null;
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Erro de comunicação');
-        return null;
-      }
-    },
-    [],
-  );
-
-  const getDashboardMetrics =
-    useCallback(async (): Promise<DashboardMetrics | null> => {
-      setLoading(true);
-      try {
-        const response =
-          await window.electronAPI.azureDevOps.getDashboardMetrics();
-        if (!response.success) {
-          setError(response.error || 'Erro ao buscar métricas do dashboard');
-          return null;
-        }
-        setState((prev) => ({ ...prev, loading: false }));
-        return cloneIpcData(response.data) || null;
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Erro de comunicação');
-        return null;
-      }
-    }, []);
-
-  const exportPdf = useCallback(
-    async (period: ReportPeriod): Promise<ExportResult | null> => {
-      setLoading(true);
-      try {
-        const response = await window.electronAPI.azureDevOps.exportPdf(period);
-        if (!response.success) {
-          setError(response.error || 'Erro ao exportar PDF');
-          return null;
-        }
-        setState((prev) => ({ ...prev, loading: false }));
-        return cloneIpcData(response.data) || null;
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Erro de comunicação');
-        return null;
-      }
-    },
-    [],
-  );
-
   const clearError = useCallback(() => {
     setState((prev) => ({ ...prev, error: null }));
   }, []);
@@ -278,25 +155,14 @@ export function useAzureDevOps() {
     setState((prev) => ({ ...prev, workItems: [] }));
   }, []);
 
-  const clearSyncResult = useCallback(() => {
-    setState((prev) => ({ ...prev, syncResult: null }));
-  }, []);
-
   return {
     ...state,
     saveConfig,
     getConfig,
     testConnection,
     fetchWorkItems,
-    importWorkItems,
-    syncTask,
-    syncAllImportedTasks,
     fetchIterations,
-    getReportData,
-    getDashboardMetrics,
-    exportPdf,
     clearError,
     clearWorkItems,
-    clearSyncResult,
   };
 }

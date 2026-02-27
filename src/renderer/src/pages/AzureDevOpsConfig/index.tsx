@@ -5,43 +5,34 @@ import {
   IconButton,
   Tooltip,
   Stack,
-  Tab,
-  Tabs,
-  Button,
   Skeleton,
+  Alert,
+  Button,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
-  Settings as ConfigIcon,
-  Explore as ExploreIcon,
-  CloudSync as ImportedIcon,
-  CloudOff as CloudOffIcon,
+  CloudSync as SyncIcon,
 } from '@mui/icons-material';
 import { useAzureDevOps } from '@renderer/hooks/useAzureDevOps';
-import { PageContainer, PlaceholderContent } from './styles';
+import { SyncProgressModal } from '@renderer/components/SyncProgressModal';
+import { PageContainer } from './styles';
 import { ConfigTab } from './components/ConfigTab';
-import { ExploreTab } from './components/ExploreTab';
-import { ImportedTasksTab } from './components/ImportedTasksTab';
-import { DashboardSection } from '@renderer/components/DashboardSection';
 
 export function AzureDevOpsConfigPage() {
-  const [activeTab, setActiveTab] = useState(0);
-
   const {
     config,
     loading,
     error,
     isConnected,
-    workItems,
     saveConfig,
     getConfig,
     testConnection,
-    fetchWorkItems,
-    importWorkItems,
-    syncTask,
-    syncAllImportedTasks,
     clearError,
   } = useAzureDevOps();
+
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [syncResult, setSyncResult] = useState<string | null>(null);
+  const [showSyncModal, setShowSyncModal] = useState(false);
 
   const loadConfig = useCallback(async () => {
     await getConfig();
@@ -50,6 +41,32 @@ export function AzureDevOpsConfigPage() {
   useEffect(() => {
     loadConfig();
   }, [loadConfig]);
+
+  const handleFullSync = useCallback(async () => {
+    setSyncLoading(true);
+    setSyncResult(null);
+    setShowSyncModal(true);
+
+    try {
+      const response = await window.electronAPI.azureDevOps.fullSync();
+      if (response.success && response.data) {
+        const d = response.data;
+        setSyncResult(
+          `Sincronização concluída: ${d.sprints.total} sprints, ${d.teams.total} equipes, ${d.members.total} membros, ${d.tasks.total} tarefas.`,
+        );
+      } else {
+        setSyncResult(response.error || 'Erro ao sincronizar.');
+      }
+    } catch {
+      setSyncResult('Erro de comunicação ao sincronizar.');
+    } finally {
+      setSyncLoading(false);
+    }
+  }, []);
+
+  const handleCloseSyncModal = useCallback(() => {
+    setShowSyncModal(false);
+  }, []);
 
   if (loading && !config) {
     return (
@@ -66,11 +83,6 @@ export function AzureDevOpsConfigPage() {
           />
           <Skeleton
             variant="rounded"
-            height={48}
-            sx={{ borderRadius: '0.5rem' }}
-          />
-          <Skeleton
-            variant="rounded"
             height={300}
             sx={{ borderRadius: '1rem' }}
           />
@@ -78,8 +90,6 @@ export function AzureDevOpsConfigPage() {
       </PageContainer>
     );
   }
-
-  const isConfigDefined = config?.isConfigured;
 
   return (
     <PageContainer>
@@ -94,117 +104,51 @@ export function AzureDevOpsConfigPage() {
             Integração Azure DevOps
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Configure credenciais, explore work items e gerencie tarefas
-            importadas
+            Configure credenciais e sincronize dados do Azure DevOps
           </Typography>
         </Box>
-        <Tooltip title="Recarregar configuração">
-          <IconButton onClick={loadConfig} size="small" disabled={loading}>
-            <RefreshIcon />
-          </IconButton>
-        </Tooltip>
+        <Stack direction="row" spacing={1}>
+          {isConnected && (
+            <Button
+              variant="outlined"
+              startIcon={<SyncIcon />}
+              onClick={handleFullSync}
+              disabled={syncLoading}
+              size="small"
+            >
+              {syncLoading ? 'Sincronizando...' : 'Sincronizar Tudo'}
+            </Button>
+          )}
+          <Tooltip title="Recarregar configuração">
+            <IconButton onClick={loadConfig} size="small" disabled={loading}>
+              <RefreshIcon />
+            </IconButton>
+          </Tooltip>
+        </Stack>
       </Stack>
 
-      {config && <DashboardSection />}
-
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs
-          value={activeTab}
-          onChange={(_, v) => setActiveTab(v)}
-          variant="standard"
+      {syncResult && (
+        <Alert
+          severity={syncResult.startsWith('Erro') ? 'error' : 'success'}
+          onClose={() => setSyncResult(null)}
+          sx={{ mb: 2 }}
         >
-          <Tab
-            icon={<ConfigIcon />}
-            iconPosition="start"
-            label="Configuração"
-          />
-          <Tab
-            icon={<ExploreIcon />}
-            iconPosition="start"
-            label="Explorar Work Items"
-            disabled={!isConnected}
-          />
-          <Tab
-            icon={<ImportedIcon />}
-            iconPosition="start"
-            label="Tarefas Importadas"
-            disabled={!isConnected}
-          />
-        </Tabs>
-      </Box>
-
-      {activeTab === 0 && (
-        <ConfigTab
-          config={config}
-          loading={loading}
-          error={error}
-          isConnected={isConnected}
-          onSaveConfig={saveConfig}
-          onTestConnection={testConnection}
-          onLoadConfig={loadConfig}
-          onClearError={clearError}
-        />
+          {syncResult}
+        </Alert>
       )}
 
-      {activeTab === 1 && !isConfigDefined && (
-        <PlaceholderContent>
-          <CloudOffIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-          <Typography variant="h6" color="text.secondary" gutterBottom>
-            Configuração do Azure DevOps não encontrada
-          </Typography>
-          <Typography variant="body2" color="text.secondary" mb={3}>
-            Configure suas credenciais de acesso para explorar work items do
-            Azure DevOps.
-          </Typography>
-          <Button
-            variant="contained"
-            startIcon={<ConfigIcon />}
-            onClick={() => setActiveTab(0)}
-          >
-            Ir para Configuração
-          </Button>
-        </PlaceholderContent>
-      )}
+      <ConfigTab
+        config={config}
+        loading={loading}
+        error={error}
+        isConnected={isConnected}
+        onSaveConfig={saveConfig}
+        onTestConnection={testConnection}
+        onLoadConfig={loadConfig}
+        onClearError={clearError}
+      />
 
-      {activeTab === 1 && isConfigDefined && (
-        <ExploreTab
-          isConnected={isConnected}
-          workItems={workItems}
-          loading={loading}
-          error={error}
-          onFetchWorkItems={fetchWorkItems}
-          onImportWorkItems={importWorkItems}
-          onClearError={clearError}
-        />
-      )}
-
-      {activeTab === 2 && !isConfigDefined && (
-        <PlaceholderContent>
-          <CloudOffIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-          <Typography variant="h6" color="text.secondary" gutterBottom>
-            Configuração do Azure DevOps não encontrada
-          </Typography>
-          <Typography variant="body2" color="text.secondary" mb={3}>
-            Configure suas credenciais de acesso para gerenciar tarefas
-            importadas.
-          </Typography>
-          <Button
-            variant="contained"
-            startIcon={<ConfigIcon />}
-            onClick={() => setActiveTab(0)}
-          >
-            Ir para Configuração
-          </Button>
-        </PlaceholderContent>
-      )}
-
-      {activeTab === 2 && isConfigDefined && (
-        <ImportedTasksTab
-          isConnected={isConnected}
-          onSyncTask={syncTask}
-          onSyncAll={syncAllImportedTasks}
-        />
-      )}
+      <SyncProgressModal open={showSyncModal} onClose={handleCloseSyncModal} />
     </PageContainer>
   );
 }

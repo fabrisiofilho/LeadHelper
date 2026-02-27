@@ -5,11 +5,13 @@ import {
   UpdateTeamMemberAllocationInput,
 } from '../services/team-member-allocation-service';
 import { TeamMemberAllocationFilters } from '../repositories/team-member-allocation-repository';
+import { GanttService, GanttFilters } from '../services/gantt-service';
 import { ApiResponse } from '@shared/interfaces/types/common.types';
 import { logger } from '@main/infrastructure/log/logger';
 import { tryCatch } from '@main/infrastructure/utils/try-catch';
 
 const service = new TeamMemberAllocationService();
+const ganttService = new GanttService();
 
 export function registerTeamMemberAllocationController(): void {
   ipcMain.handle(
@@ -172,6 +174,26 @@ export function registerTeamMemberAllocationController(): void {
         );
         return availability;
       }, 'Erro ao obter disponibilidade do membro');
+    },
+  );
+
+  ipcMain.handle(
+    'allocation:getGanttData',
+    async (_event, filters: GanttFilters): Promise<ApiResponse<unknown>> => {
+      return tryCatch(async () => {
+        const data = await ganttService.getGanttData(filters);
+        return data;
+      }, 'Erro ao buscar dados do Gantt');
+    },
+  );
+
+  ipcMain.handle(
+    'allocation:detectConflicts',
+    async (_event, teamMemberId?: number): Promise<ApiResponse<unknown>> => {
+      return tryCatch(async () => {
+        const conflicts = await service.detectAllocationConflicts(teamMemberId);
+        return conflicts;
+      }, 'Erro ao detectar conflitos de alocação');
     },
   );
 

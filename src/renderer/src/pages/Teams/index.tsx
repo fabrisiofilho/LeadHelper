@@ -114,7 +114,10 @@ export function TeamsPage() {
 
   const parseAreaPaths = (value?: string): string[] => {
     if (!value) return [];
-    return value.split(';').map((p) => p.trim()).filter(Boolean);
+    return value
+      .split(';')
+      .map((p) => p.trim())
+      .filter(Boolean);
   };
 
   const handleAddPath = () => {
@@ -166,7 +169,8 @@ export function TeamsPage() {
 
   const handleSaveTeam = async (data: TeamFormData) => {
     setFormLoading(true);
-    const azureAreaPath = areaPaths.length > 0 ? areaPaths.join(';') : undefined;
+    const azureAreaPath =
+      areaPaths.length > 0 ? areaPaths.join(';') : undefined;
     try {
       if (selectedTeam) {
         const updateData: UpdateTeamInput = {
@@ -331,13 +335,6 @@ export function TeamsPage() {
                     onSort={handleSort}
                   />
                   <SortableTableCell
-                    id="members"
-                    label="Membros"
-                    sortConfig={sortConfig}
-                    onSort={handleSort}
-                    noSort
-                  />
-                  <SortableTableCell
                     id="isActive"
                     label="Status"
                     sortConfig={sortConfig}
@@ -366,41 +363,27 @@ export function TeamsPage() {
                     </TableCell>
                     <TableCell>
                       {team.azureAreaPath ? (
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                          {team.azureAreaPath.split(';').map((p) => p.trim()).filter(Boolean).map((path) => (
-                            <Chip key={path} label={path} size="small" variant="outlined" />
-                          ))}
-                        </Box>
-                      ) : (
-                        <Typography variant="body2" color="text.secondary">-</Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <MembersChipContainer>
-                        {team.members && team.members.length > 0 ? (
-                          <>
-                            {team.members.slice(0, 3).map((member) => (
+                        <Box
+                          sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}
+                        >
+                          {team.azureAreaPath
+                            .split(';')
+                            .map((p) => p.trim())
+                            .filter(Boolean)
+                            .map((path) => (
                               <Chip
-                                key={member.id}
-                                label={member.name}
+                                key={path}
+                                label={path}
                                 size="small"
                                 variant="outlined"
                               />
                             ))}
-                            {team.members.length > 3 && (
-                              <Chip
-                                label={`+${team.members.length - 3}`}
-                                size="small"
-                                color="primary"
-                              />
-                            )}
-                          </>
-                        ) : (
-                          <Typography variant="body2" color="text.secondary">
-                            Sem membros
-                          </Typography>
-                        )}
-                      </MembersChipContainer>
+                        </Box>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          -
+                        </Typography>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Chip

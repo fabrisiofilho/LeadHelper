@@ -4,10 +4,6 @@ import {
   Work as WorkIcon,
   Groups as GroupsIcon,
   People as PeopleIcon,
-  PersonAdd as PersonAddIcon,
-  Speed as SpeedIcon,
-  Assignment as AssignmentIcon,
-  EventNote as EventNoteIcon,
   Cloud as CloudIcon,
 } from '@mui/icons-material';
 import { styled, alpha } from '@mui/material/styles';
@@ -48,34 +44,6 @@ const SYSTEM_CARDS: SystemCard[] = [
     icon: <PeopleIcon sx={{ fontSize: 32 }} />,
     path: '/panel/team-members',
     color: '#4caf50',
-  },
-  {
-    label: 'Alocação em Equipes',
-    description: 'Vincule membros às equipes com dedicação e período.',
-    icon: <PersonAddIcon sx={{ fontSize: 32 }} />,
-    path: '/panel/team-member-allocations',
-    color: '#ff9800',
-  },
-  {
-    label: 'Sprints',
-    description: 'Cadastre e gerencie as sprints do projeto.',
-    icon: <SpeedIcon sx={{ fontSize: 32 }} />,
-    path: '/panel/sprints',
-    color: '#2196f3',
-  },
-  {
-    label: 'Tarefas',
-    description: 'Visualize e gerencie todas as tarefas cadastradas.',
-    icon: <AssignmentIcon sx={{ fontSize: 32 }} />,
-    path: '/panel/tasks',
-    color: '#f44336',
-  },
-  {
-    label: 'Alocações',
-    description: 'Consulte todas as alocações de membros em tarefas.',
-    icon: <EventNoteIcon sx={{ fontSize: 32 }} />,
-    path: '/panel/allocations',
-    color: '#e91e63',
   },
   {
     label: 'Azure DevOps',

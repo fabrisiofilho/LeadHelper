@@ -3,7 +3,6 @@ import {
   TextField,
   Typography,
   Stack,
-  Slider,
   Box,
   Autocomplete,
   Avatar,
@@ -28,7 +27,6 @@ interface AllocationFormData {
   teamMemberId: number | null;
   startDate: Date | null;
   endDate: Date | null;
-  dedicationPercentage: number;
   notes: string;
 }
 
@@ -77,7 +75,6 @@ export function AllocationModal({
       teamMemberId: null,
       startDate: new Date(),
       endDate: null,
-      dedicationPercentage: 100,
       notes: '',
     },
   });
@@ -94,7 +91,6 @@ export function AllocationModal({
             ? new Date(allocation.startDate)
             : new Date(),
           endDate: allocation.endDate ? new Date(allocation.endDate) : null,
-          dedicationPercentage: allocation.dedicationPercentage ?? 100,
           notes: allocation.notes ?? '',
         });
       } else {
@@ -102,7 +98,6 @@ export function AllocationModal({
           teamMemberId: null,
           startDate: new Date(),
           endDate: null,
-          dedicationPercentage: 100,
           notes: '',
         });
       }
@@ -114,8 +109,7 @@ export function AllocationModal({
       const updateData: UpdateTeamMemberAllocationInput = {
         startDate: data.startDate ?? undefined,
         endDate: data.endDate ?? undefined,
-        dedicationPercentage: data.dedicationPercentage,
-        notes: data.notes || undefined,
+        notes: data.notes,
       };
       await onSave(updateData);
     } else {
@@ -127,8 +121,7 @@ export function AllocationModal({
         teamId: team.id,
         startDate: data.startDate,
         endDate: data.endDate ?? undefined,
-        dedicationPercentage: data.dedicationPercentage,
-        notes: data.notes || undefined,
+        notes: data.notes,
       };
       await onSave(createData);
     }
@@ -271,55 +264,23 @@ export function AllocationModal({
             />
           </Stack>
 
-          {/* Dedication percentage slider */}
-          <Controller
-            name="dedicationPercentage"
-            control={control}
-            rules={{
-              required: 'Dedicação é obrigatória',
-              min: { value: 1, message: 'Mínimo 1%' },
-              max: { value: 100, message: 'Máximo 100%' },
-            }}
-            render={({ field }) => (
-              <Box>
-                <Typography variant="body2" gutterBottom>
-                  Percentual de Dedicação: {field.value}%
-                </Typography>
-                <Slider
-                  {...field}
-                  min={1}
-                  max={100}
-                  valueLabelDisplay="auto"
-                  disabled={loading}
-                  marks={[
-                    { value: 25, label: '25%' },
-                    { value: 50, label: '50%' },
-                    { value: 75, label: '75%' },
-                    { value: 100, label: '100%' },
-                  ]}
-                />
-                {errors.dedicationPercentage && (
-                  <Typography color="error" variant="caption">
-                    {errors.dedicationPercentage.message}
-                  </Typography>
-                )}
-              </Box>
-            )}
-          />
-
-          {/* Notes field */}
+          {/* Notes field - Motivo */}
           <Controller
             name="notes"
             control={control}
+            rules={{ required: 'Motivo é obrigatório' }}
             render={({ field }) => (
               <TextField
                 {...field}
-                label="Observações"
-                placeholder="Observações sobre a alocação..."
+                label="Motivo"
+                placeholder="Motivo da alocação..."
                 fullWidth
                 multiline
                 rows={2}
+                required
                 disabled={loading}
+                error={!!errors.notes}
+                helperText={errors.notes?.message}
               />
             )}
           />

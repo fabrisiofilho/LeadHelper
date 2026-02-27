@@ -295,25 +295,6 @@ export const IPC_TOAST_MESSAGES: IpcToastMessages = {
   'task:findByPeriod': { silent: true },
   'task:findBySprint': { silent: true },
 
-  // ==================== ALLOCATION ====================
-  'allocation:create': {
-    success: 'Alocação criada com sucesso!',
-    error: 'Erro ao criar alocação',
-  },
-  'allocation:update': {
-    success: 'Alocação atualizada com sucesso!',
-    error: 'Erro ao atualizar alocação',
-  },
-  'allocation:delete': {
-    success: 'Alocação excluída com sucesso!',
-    error: 'Erro ao excluir alocação',
-  },
-  'allocation:findById': { silent: true },
-  'allocation:findByTeamMember': { silent: true },
-  'allocation:findByTask': { silent: true },
-  'allocation:findByPeriod': { silent: true },
-  'allocation:getGanttData': { silent: true },
-
   // ==================== TEAM MEMBER ALLOCATION ====================
   'team-member-allocation:create': {
     success: 'Alocação de membro criada com sucesso!',
@@ -355,34 +336,6 @@ export const IPC_TOAST_MESSAGES: IpcToastMessages = {
   'azure-devops:getConfig': { silent: true },
   'azure-devops:testConnection': { silent: true },
   'azure-devops:fetchWorkItems': { silent: true },
-  'azure-devops:importWorkItems': {
-    success: 'Work items importados com sucesso!',
-    error: 'Erro ao importar work items',
-  },
-  'azure-devops:syncTask': {
-    success: 'Tarefa sincronizada com sucesso!',
-    error: 'Erro ao sincronizar tarefa',
-  },
-  'azure-devops:syncAllImportedTasks': {
-    success: 'Tarefas sincronizadas com sucesso!',
-    error: 'Erro ao sincronizar tarefas',
-  },
-
-  // ==================== TASK STATUS CONFIG ====================
-  'task-status-config:findAll': { silent: true },
-  'task-status-config:findKanban': { silent: true },
-  'task-status-config:create': {
-    success: 'Status criado com sucesso!',
-    error: 'Erro ao criar status',
-  },
-  'task-status-config:update': {
-    success: 'Status atualizado com sucesso!',
-    error: 'Erro ao atualizar status',
-  },
-  'task-status-config:delete': {
-    success: 'Status excluído com sucesso!',
-    error: 'Erro ao excluir status',
-  },
 
   // ==================== TASK COMMENT ====================
   'task-comment:findByTask': { silent: true },

@@ -1,13 +1,8 @@
 import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
 import PeopleOutlinedIcon from '@mui/icons-material/PeopleOutlined';
-import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
-import EventNoteOutlinedIcon from '@mui/icons-material/EventNoteOutlined';
-import TimelineOutlinedIcon from '@mui/icons-material/TimelineOutlined';
 import CloudOutlinedIcon from '@mui/icons-material/CloudOutlined';
 import WorkOutlinedIcon from '@mui/icons-material/WorkOutlined';
 import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
-import SpeedOutlinedIcon from '@mui/icons-material/SpeedOutlined';
-import PersonAddOutlinedIcon from '@mui/icons-material/PersonAddOutlined';
 import GroupWorkOutlinedIcon from '@mui/icons-material/GroupWorkOutlined';
 import ViewKanbanOutlinedIcon from '@mui/icons-material/ViewKanbanOutlined';
 import TaskAltOutlinedIcon from '@mui/icons-material/TaskAltOutlined';
@@ -20,21 +15,14 @@ import { JSX } from 'react';
 
 import { TeamDashboardPage } from '@renderer/pages/Dashboard/TeamDashboard';
 import { TeamMembersPage } from '@renderer/pages/TeamMembers';
-import { TasksPage } from '@renderer/pages/Tasks';
-import { AllocationsPage } from '@renderer/pages/Allocations';
-import { TeamMemberAllocationsPage } from '@renderer/pages/TeamMemberAllocations';
-import { GanttPage } from '@renderer/pages/Gantt';
 import { AzureDevOpsConfigPage } from '@renderer/pages/AzureDevOpsConfig';
 import { PositionsPage } from '@renderer/pages/Positions';
 import { TeamsPage } from '@renderer/pages/Teams';
-import { SprintsPage } from '@renderer/pages/Sprints';
 import { TeamAllocationPage } from '@renderer/pages/TeamAllocation';
 import { SprintsTasksPage } from '@renderer/pages/SprintsTasks';
 import { TaskBoardPage } from '@renderer/pages/TaskBoard';
 import { SystemSettingsPage } from '@renderer/pages/SystemSettings';
-import { AzureDevOpsReportsPage } from '@renderer/pages/AzureDevOpsReports';
 
-import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
 type WithRouteProps<T> = T & {
   routePath: string;
   routeElement: JSX.Element;
@@ -67,18 +55,6 @@ const GENERAL_SECTION: IDrawerSection = {
       label: 'Sprints e Tarefas',
       path: '/panel/sprints-tasks',
       icon: <ViewKanbanOutlinedIcon />,
-      canAccess: true,
-    },
-    {
-      label: 'Gantt',
-      path: '/panel/gantt',
-      icon: <TimelineOutlinedIcon />,
-      canAccess: true,
-    },
-    {
-      label: 'Relatórios Azure DevOps',
-      path: '/panel/azure-devops-reports',
-      icon: <AssessmentOutlinedIcon />,
       canAccess: true,
     },
     {
@@ -159,60 +135,12 @@ const ROUTES_ITEMS: WithRouteProps<IDrawerItem>[] = [
     routePath: '/team-members',
   },
   {
-    label: 'Alocação em Equipes',
-    path: '/panel/team-member-allocations',
-    icon: <PersonAddOutlinedIcon />,
-    canAccess: true,
-    routeElement: <TeamMemberAllocationsPage />,
-    routePath: '/team-member-allocations',
-  },
-  {
-    label: 'Sprints',
-    path: '/panel/sprints',
-    icon: <SpeedOutlinedIcon />,
-    canAccess: true,
-    routeElement: <SprintsPage />,
-    routePath: '/sprints',
-  },
-  {
-    label: 'Tarefas',
-    path: '/panel/tasks',
-    icon: <AssignmentOutlinedIcon />,
-    canAccess: true,
-    routeElement: <TasksPage />,
-    routePath: '/tasks',
-  },
-  {
-    label: 'Alocações',
-    path: '/panel/allocations',
-    icon: <EventNoteOutlinedIcon />,
-    canAccess: true,
-    routeElement: <AllocationsPage />,
-    routePath: '/allocations',
-  },
-  {
-    label: 'Gantt',
-    path: '/panel/gantt',
-    icon: <TimelineOutlinedIcon />,
-    canAccess: true,
-    routeElement: <GanttPage />,
-    routePath: '/gantt',
-  },
-  {
     label: 'Azure DevOps',
     path: '/panel/azure-devops',
     icon: <CloudOutlinedIcon />,
     canAccess: true,
     routeElement: <AzureDevOpsConfigPage />,
     routePath: '/azure-devops',
-  },
-  {
-    label: 'Relatórios Azure DevOps',
-    path: '/panel/azure-devops-reports',
-    icon: <AssessmentOutlinedIcon />,
-    canAccess: true,
-    routeElement: <AzureDevOpsReportsPage />,
-    routePath: '/azure-devops-reports',
   },
 ];
 

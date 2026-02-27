@@ -2,13 +2,11 @@
 // New repositories will be added in task 4:
 // - TeamMemberRepository
 // - TaskRepository
-// - AllocationRepository
 
 class RepositoryCache {
   // TODO: Add team management repositories here (Task 4)
   // private _teamMemberRepository: TeamMemberRepository | null = null;
   // private _taskRepository: TaskRepository | null = null;
-  // private _allocationRepository: AllocationRepository | null = null;
 
   clear(): void {
     // Reset all repository instances

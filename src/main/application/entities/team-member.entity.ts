@@ -4,14 +4,10 @@ import {
   Column,
   OneToMany,
   ManyToOne,
-  ManyToMany,
   JoinColumn,
-  JoinTable,
 } from 'typeorm';
 import { AuditableEntity } from './config/auditable-entity';
-import type { AllocationEntity } from './allocation.entity';
 import type { PositionEntity } from './position.entity';
-import type { TeamEntity } from './team.entity';
 import type { TeamMemberAllocationEntity } from './team-member-allocation.entity';
 
 export type TeamMemberRole =
@@ -47,19 +43,11 @@ export class TeamMemberEntity extends AuditableEntity {
   @JoinColumn({ name: 'position_id' })
   position?: PositionEntity;
 
+  @Column({ name: 'azure_unique_id', nullable: true })
+  azureUniqueId?: string;
+
   @Column({ name: 'position_id', nullable: true })
   positionId?: number;
-
-  @ManyToMany('TeamEntity', 'members')
-  @JoinTable({
-    name: 'team_member_teams',
-    joinColumn: { name: 'team_member_id', referencedColumnName: 'id' },
-    inverseJoinColumn: { name: 'team_id', referencedColumnName: 'id' },
-  })
-  teams?: TeamEntity[];
-
-  @OneToMany('AllocationEntity', 'teamMember')
-  allocations?: AllocationEntity[];
 
   @OneToMany('TeamMemberAllocationEntity', 'teamMember')
   teamAllocations?: TeamMemberAllocationEntity[];

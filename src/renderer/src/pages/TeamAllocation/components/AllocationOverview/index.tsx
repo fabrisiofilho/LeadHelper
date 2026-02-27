@@ -6,7 +6,6 @@ import {
   Chip,
   Avatar,
   Tooltip,
-  LinearProgress,
   Paper,
   Button,
   Collapse,
@@ -224,15 +223,10 @@ export function AllocationOverview({
         const teamAllocs = activeAllocations.filter(
           (a) => a.teamId === team.id,
         );
-        const totalDedication = teamAllocs.reduce(
-          (sum, a) => sum + a.dedicationPercentage,
-          0,
-        );
         return {
           team,
           allocations: teamAllocs,
           memberCount: teamAllocs.length,
-          totalDedication,
         };
       })
       .sort((a, b) => b.memberCount - a.memberCount);
@@ -263,170 +257,137 @@ export function AllocationOverview({
           },
         }}
       >
-        {teamSummaries.map(
-          ({ team, allocations: teamAllocs, memberCount, totalDedication }) => {
-            const isSelected = selectedTeam?.id === team.id;
-            const avgDedication =
-              memberCount > 0 ? Math.round(totalDedication / memberCount) : 0;
+        {teamSummaries.map(({ team, allocations: teamAllocs, memberCount }) => {
+          const isSelected = selectedTeam?.id === team.id;
 
-            return (
-              <Paper
-                key={team.id}
-                elevation={isSelected ? 3 : 0}
-                onClick={() => onSelectTeam(team)}
-                sx={{
-                  p: 1.5,
-                  minWidth: 200,
-                  maxWidth: 240,
-                  cursor: 'pointer',
-                  border: '1px solid',
-                  borderColor: isSelected ? 'primary.main' : 'divider',
-                  bgcolor: isSelected ? 'primary.main' : 'background.paper',
-                  color: isSelected ? 'primary.contrastText' : 'text.primary',
-                  borderRadius: 2,
-                  transition: 'all 0.2s',
-                  flexShrink: 0,
-                  '&:hover': {
-                    borderColor: isSelected ? 'primary.main' : 'primary.light',
-                    bgcolor: isSelected ? 'primary.main' : 'action.hover',
-                  },
-                }}
-              >
-                <Stack direction="row" alignItems="center" spacing={1} mb={1}>
-                  <GroupsIcon
-                    fontSize="small"
-                    sx={{
-                      color: isSelected ? '#fff' : 'text.secondary',
-                    }}
-                  />
-                  <Typography
-                    variant="subtitle2"
-                    fontWeight={600}
-                    noWrap
-                    sx={{
-                      flex: 1,
-                      color: isSelected ? '#fff' : 'text.primary',
-                    }}
-                  >
-                    {team.name}
-                  </Typography>
-                  <Chip
-                    label={memberCount}
-                    size="small"
-                    sx={{
-                      height: 20,
-                      fontSize: '0.7rem',
-                      fontWeight: 600,
-                      bgcolor: isSelected
-                        ? 'rgba(255,255,255,0.25)'
-                        : 'action.hover',
-                      color: isSelected ? '#fff' : 'text.secondary',
-                    }}
-                  />
-                </Stack>
+          return (
+            <Paper
+              key={team.id}
+              elevation={isSelected ? 3 : 0}
+              onClick={() => onSelectTeam(team)}
+              sx={{
+                p: 1.5,
+                minWidth: 200,
+                maxWidth: 240,
+                cursor: 'pointer',
+                border: '1px solid',
+                borderColor: isSelected ? 'primary.main' : 'divider',
+                bgcolor: isSelected ? 'primary.main' : 'background.paper',
+                color: isSelected ? 'primary.contrastText' : 'text.primary',
+                borderRadius: 2,
+                transition: 'all 0.2s',
+                flexShrink: 0,
+                '&:hover': {
+                  borderColor: isSelected ? 'primary.main' : 'primary.light',
+                  bgcolor: isSelected ? 'primary.main' : 'action.hover',
+                },
+              }}
+            >
+              <Stack direction="row" alignItems="center" spacing={1} mb={1}>
+                <GroupsIcon
+                  fontSize="small"
+                  sx={{
+                    color: isSelected ? '#fff' : 'text.secondary',
+                  }}
+                />
+                <Typography
+                  variant="subtitle2"
+                  fontWeight={600}
+                  noWrap
+                  sx={{
+                    flex: 1,
+                    color: isSelected ? '#fff' : 'text.primary',
+                  }}
+                >
+                  {team.name}
+                </Typography>
+                <Chip
+                  label={memberCount}
+                  size="small"
+                  sx={{
+                    height: 20,
+                    fontSize: '0.7rem',
+                    fontWeight: 600,
+                    bgcolor: isSelected
+                      ? 'rgba(255,255,255,0.25)'
+                      : 'action.hover',
+                    color: isSelected ? '#fff' : 'text.secondary',
+                  }}
+                />
+              </Stack>
 
-                {/* Member avatars */}
-                <Stack direction="row" spacing={-0.5} mb={1}>
-                  {teamAllocs.slice(0, 5).map((alloc) => (
-                    <Tooltip
-                      key={alloc.id}
-                      title={`${alloc.teamMemberName} - ${alloc.dedicationPercentage}%`}
-                    >
-                      <Avatar
-                        sx={{
-                          width: 24,
-                          height: 24,
-                          fontSize: '0.6rem',
-                          border: '2px solid',
-                          borderColor: isSelected
-                            ? 'primary.main'
-                            : 'background.paper',
-                          bgcolor: isSelected
-                            ? 'rgba(255,255,255,0.3)'
-                            : 'grey.500',
-                          color: '#fff',
-                        }}
-                      >
-                        {alloc.teamMemberName
-                          ? getInitials(alloc.teamMemberName)
-                          : '?'}
-                      </Avatar>
-                    </Tooltip>
-                  ))}
-                  {teamAllocs.length > 5 && (
+              {/* Member avatars */}
+              <Stack direction="row" spacing={-0.5} mb={1}>
+                {teamAllocs.slice(0, 5).map((alloc) => (
+                  <Tooltip key={alloc.id} title={`${alloc.teamMemberName}`}>
                     <Avatar
                       sx={{
                         width: 24,
                         height: 24,
-                        fontSize: '0.55rem',
+                        fontSize: '0.6rem',
                         border: '2px solid',
                         borderColor: isSelected
                           ? 'primary.main'
                           : 'background.paper',
-                        bgcolor: 'grey.500',
+                        bgcolor: isSelected
+                          ? 'rgba(255,255,255,0.3)'
+                          : 'grey.500',
                         color: '#fff',
                       }}
                     >
-                      +{teamAllocs.length - 5}
+                      {alloc.teamMemberName
+                        ? getInitials(alloc.teamMemberName)
+                        : '?'}
                     </Avatar>
-                  )}
-                  {teamAllocs.length === 0 && (
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        color: isSelected
-                          ? 'rgba(255,255,255,0.8)'
-                          : 'text.disabled',
-                      }}
-                    >
-                      Sem membros
-                    </Typography>
-                  )}
-                </Stack>
-
-                {/* Avg dedication bar */}
-                {memberCount > 0 && (
-                  <Stack direction="row" alignItems="center" spacing={0.5}>
-                    <LinearProgress
-                      variant="determinate"
-                      value={Math.min(avgDedication, 100)}
-                      sx={{
-                        flex: 1,
-                        height: 4,
-                        borderRadius: 2,
-                        bgcolor: isSelected
-                          ? 'rgba(255,255,255,0.2)'
-                          : 'grey.200',
-                        '& .MuiLinearProgress-bar': {
-                          borderRadius: 2,
-                          bgcolor: isSelected ? '#fff' : undefined,
-                        },
-                      }}
-                      color={
-                        avgDedication > 80
-                          ? 'error'
-                          : avgDedication > 50
-                            ? 'warning'
-                            : 'primary'
-                      }
-                    />
-                    <Typography
-                      variant="caption"
-                      fontWeight={600}
-                      sx={{
-                        color: isSelected ? '#fff' : 'text.secondary',
-                        minWidth: 30,
-                        textAlign: 'right',
-                      }}
-                    >
-                      {avgDedication}%
-                    </Typography>
-                  </Stack>
+                  </Tooltip>
+                ))}
+                {teamAllocs.length > 5 && (
+                  <Avatar
+                    sx={{
+                      width: 24,
+                      height: 24,
+                      fontSize: '0.55rem',
+                      border: '2px solid',
+                      borderColor: isSelected
+                        ? 'primary.main'
+                        : 'background.paper',
+                      bgcolor: 'grey.500',
+                      color: '#fff',
+                    }}
+                  >
+                    +{teamAllocs.length - 5}
+                  </Avatar>
                 )}
-              </Paper>
-            );
-          },
-        )}
+                {teamAllocs.length === 0 && (
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: isSelected
+                        ? 'rgba(255,255,255,0.8)'
+                        : 'text.disabled',
+                    }}
+                  >
+                    Sem membros
+                  </Typography>
+                )}
+              </Stack>
+
+              {/* Member count */}
+              {memberCount > 0 && (
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: isSelected
+                      ? 'rgba(255,255,255,0.8)'
+                      : 'text.secondary',
+                  }}
+                >
+                  {memberCount} {memberCount === 1 ? 'membro' : 'membros'}
+                </Typography>
+              )}
+            </Paper>
+          );
+        })}
 
         {/* Add new team card — sticky on the right */}
         <Box

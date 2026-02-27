@@ -255,7 +255,7 @@ export function ConfigTab({
                   label="Personal Access Token (PAT)"
                   placeholder={
                     config?.isConfigured
-                      ? 'Deixe em branco para manter o atual'
+                      ? 'Digite um novo token para atualizar'
                       : 'Cole seu PAT aqui'
                   }
                   fullWidth
@@ -265,8 +265,8 @@ export function ConfigTab({
                   helperText={
                     formErrors.pat?.message ||
                     (config?.isConfigured
-                      ? 'Deixe em branco para manter o token atual'
-                      : 'Token com permissão de leitura de Work Items')
+                      ? 'Token atual está salvo de forma segura. Digite um novo token apenas se desejar atualizar.'
+                      : 'Token com permissão de leitura de Work Items. Clique no ícone do olho para visualizar.')
                   }
                   slotProps={{
                     input: {
@@ -276,6 +276,7 @@ export function ConfigTab({
                             onClick={() => setShowPat(!showPat)}
                             edge="end"
                             size="small"
+                            title={showPat ? 'Ocultar token' : 'Mostrar token'}
                           >
                             {showPat ? (
                               <VisibilityOffIcon />

@@ -7,6 +7,7 @@ import GroupWorkOutlinedIcon from '@mui/icons-material/GroupWorkOutlined';
 import ViewKanbanOutlinedIcon from '@mui/icons-material/ViewKanbanOutlined';
 import TaskAltOutlinedIcon from '@mui/icons-material/TaskAltOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
+import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { DrawerNavigator } from './components/DrawerNavigator';
 import { IDrawerItem } from '@renderer/types/drawer/drawerItem';
@@ -20,8 +21,9 @@ import { PositionsPage } from '@renderer/pages/Positions';
 import { TeamsPage } from '@renderer/pages/Teams';
 import { TeamAllocationPage } from '@renderer/pages/TeamAllocation';
 import { SprintsTasksPage } from '@renderer/pages/SprintsTasks';
-import { TaskBoardPage } from '@renderer/pages/TaskBoard';
+import { TaskManagementPage } from '@renderer/pages/TaskManagement';
 import { SystemSettingsPage } from '@renderer/pages/SystemSettings';
+import { ReportsPage } from '@renderer/pages/Reports';
 
 type WithRouteProps<T> = T & {
   routePath: string;
@@ -47,14 +49,20 @@ const GENERAL_SECTION: IDrawerSection = {
     },
     {
       label: 'Gestão de Tarefas',
-      path: '/panel/task-board',
+      path: '/panel/task-management',
       icon: <TaskAltOutlinedIcon />,
       canAccess: true,
     },
     {
-      label: 'Sprints e Tarefas',
+      label: 'Sprints',
       path: '/panel/sprints-tasks',
       icon: <ViewKanbanOutlinedIcon />,
+      canAccess: true,
+    },
+    {
+      label: 'Relatórios',
+      path: '/panel/reports',
+      icon: <AssessmentOutlinedIcon />,
       canAccess: true,
     },
     {
@@ -96,19 +104,27 @@ const ROUTES_ITEMS: WithRouteProps<IDrawerItem>[] = [
   },
   {
     label: 'Gestão de Tarefas',
-    path: '/panel/task-board',
+    path: '/panel/task-management',
     icon: <TaskAltOutlinedIcon />,
     canAccess: true,
-    routeElement: <TaskBoardPage />,
-    routePath: '/task-board',
+    routeElement: <TaskManagementPage />,
+    routePath: '/task-management',
   },
   {
-    label: 'Sprints e Tarefas',
+    label: 'Sprints',
     path: '/panel/sprints-tasks',
     icon: <ViewKanbanOutlinedIcon />,
     canAccess: true,
     routeElement: <SprintsTasksPage />,
     routePath: '/sprints-tasks',
+  },
+  {
+    label: 'Relatórios',
+    path: '/panel/reports',
+    icon: <AssessmentOutlinedIcon />,
+    canAccess: true,
+    routeElement: <ReportsPage />,
+    routePath: '/reports',
   },
   {
     label: 'Cargos',

@@ -11,6 +11,9 @@ import { registerSprintController } from '../sprint-controller';
 import { registerTeamMemberAllocationController } from '../team-member-allocation-controller';
 import { TaskCommentController } from '../task-comment-controller';
 import { SyncController } from '../sync-controller';
+import { TaskLocalPriorityController } from '../task-local-priority-controller';
+import { TaskLocalKanbanController } from '../task-local-kanban-controller';
+import { HierarchyController } from '../hierarchy-controller';
 
 // Controllers:
 // - TeamMemberController ✓
@@ -24,6 +27,9 @@ import { SyncController } from '../sync-controller';
 // - SprintController ✓
 // - TeamMemberAllocationController ✓
 // - SyncController ✓
+// - TaskLocalPriorityController ✓
+// - TaskLocalKanbanController ✓
+// - HierarchyController ✓
 
 export function loadIpcControllers() {
   logger.info('Loading IPC controllers...');
@@ -42,6 +48,9 @@ export function loadIpcControllers() {
   registerTeamMemberAllocationController();
   new TaskCommentController();
   SyncController.getInstance(); // Use singleton instance
+  new TaskLocalPriorityController();
+  new TaskLocalKanbanController();
+  new HierarchyController();
 
   logger.info('All IPC controllers loaded successfully');
 }

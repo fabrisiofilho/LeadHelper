@@ -14,6 +14,8 @@ import {
   Button,
   Tabs,
   Tab,
+  Breadcrumbs,
+  Link,
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -35,10 +37,12 @@ import {
   Support as SupportIcon,
   OpenInNew as OpenInNewIcon,
   AccountTree as HierarchyIcon,
+  NavigateNext as NavigateNextIcon,
+  Home as HomeIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import type { Task } from '@shared/interfaces/config/index.types';
+import type { Task, BreadcrumbItem } from '@shared/interfaces/config/index.types';
 import { useAzureDevOps } from '@renderer/hooks/useAzureDevOps';
 import { TaskHierarchy } from '@renderer/components/TaskHierarchy';
 import { useTasks } from '@renderer/hooks/useTasks';
@@ -76,6 +80,7 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
   const { findById } = useTasks();
   const [activeTab, setActiveTab] = useState(0);
   const [taskWithHierarchy, setTaskWithHierarchy] = useState<Task | null>(null);
+  const [breadcrumbItems, setBreadcrumbItems] = useState<BreadcrumbItem[]>([]);
 
   // Load Azure DevOps config when modal opens
   useEffect(() => {
@@ -84,7 +89,7 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
     }
   }, [open, task, config, getConfig]);
 
-  // Load task with full hierarchy when modal opens
+  // Load task with full hierarchy and breadcrumb when modal opens
   useEffect(() => {
     const loadTaskWithHierarchy = async () => {
       if (open && task) {
@@ -97,13 +102,22 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
               id: response.data.id,
               title: response.data.title,
               hasParent: !!response.data.parent,
-              hasChildren: !!response.data.children && response.data.children.length > 0,
+              hasChildren:
+                !!response.data.children && response.data.children.length > 0,
               parentId: response.data.parentId,
               childrenCount: response.data.children?.length || 0,
             });
             setTaskWithHierarchy(response.data);
+            
+            // Load breadcrumb for navigation
+            const breadcrumbResponse = await window.electronAPI.hierarchy.buildBreadcrumb(task.id);
+            if (breadcrumbResponse.success && breadcrumbResponse.data) {
+              setBreadcrumbItems(breadcrumbResponse.data);
+            }
           } else {
-            console.log('[TaskViewModal] Using original task (no data in response)');
+            console.log(
+              '[TaskViewModal] Using original task (no data in response)',
+            );
             setTaskWithHierarchy(task);
           }
         } catch (error) {
@@ -121,6 +135,7 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
     if (!open) {
       setActiveTab(0);
       setTaskWithHierarchy(null);
+      setBreadcrumbItems([]);
     }
   }, [open]);
 
@@ -142,13 +157,39 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
           id: response.data.id,
           title: response.data.title,
           hasParent: !!response.data.parent,
-          hasChildren: !!response.data.children && response.data.children.length > 0,
+          hasChildren:
+            !!response.data.children && response.data.children.length > 0,
         });
         setTaskWithHierarchy(response.data);
         setActiveTab(0); // Switch back to details tab
+        
+        // Update breadcrumb for the new task
+        const breadcrumbResponse = await window.electronAPI.hierarchy.buildBreadcrumb(clickedTask.id);
+        if (breadcrumbResponse.success && breadcrumbResponse.data) {
+          setBreadcrumbItems(breadcrumbResponse.data);
+        }
       }
     } catch (error) {
       console.error('[TaskViewModal] Error loading clicked task:', error);
+    }
+  }, []);
+
+  const handleBreadcrumbClick = useCallback(async (taskId: number) => {
+    // Navigate to a task from breadcrumb
+    try {
+      console.log('[TaskViewModal] Breadcrumb navigation to task:', taskId);
+      const response = await window.electronAPI.task.findById(taskId);
+      if (response.success && response.data) {
+        setTaskWithHierarchy(response.data);
+        
+        // Update breadcrumb for the new task
+        const breadcrumbResponse = await window.electronAPI.hierarchy.buildBreadcrumb(taskId);
+        if (breadcrumbResponse.success && breadcrumbResponse.data) {
+          setBreadcrumbItems(breadcrumbResponse.data);
+        }
+      }
+    } catch (error) {
+      console.error('[TaskViewModal] Error navigating via breadcrumb:', error);
     }
   }, []);
 
@@ -344,6 +385,37 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
           </IconButton>
         </Stack>
       </Box>
+
+      {/* Breadcrumb Navigation */}
+      {breadcrumbItems.length > 1 && (
+        <Box sx={{ px: 2, py: 1, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.default' }}>
+          <Breadcrumbs 
+            separator={<NavigateNextIcon fontSize="small" />} 
+            aria-label="navegação hierárquica"
+            sx={{ '& .MuiBreadcrumbs-separator': { mx: 0.5 } }}
+          >
+            {breadcrumbItems.slice(0, -1).map((item) => (
+              <Link
+                key={item.id}
+                component="button"
+                variant="body2"
+                onClick={() => handleBreadcrumbClick(item.id)}
+                sx={{ 
+                  cursor: 'pointer',
+                  textDecoration: 'none',
+                  '&:hover': { textDecoration: 'underline' }
+                }}
+                title={item.title}
+              >
+                {item.truncatedTitle}
+              </Link>
+            ))}
+            <Typography variant="body2" color="text.primary">
+              {breadcrumbItems[breadcrumbItems.length - 1]?.truncatedTitle}
+            </Typography>
+          </Breadcrumbs>
+        </Box>
+      )}
 
       <DialogContent
         sx={{
@@ -630,27 +702,6 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
                                 }}
                               >
                                 {displayTask.iterationPath}
-                              </Typography>
-                            </Paper>
-                          )}
-                          {displayTask.originalWorkItemType && (
-                            <Paper
-                              variant="outlined"
-                              sx={{ p: 2, bgcolor: 'background.default' }}
-                            >
-                              <Typography
-                                variant="caption"
-                                color="text.secondary"
-                                display="block"
-                              >
-                                Tipo Original do Work Item
-                              </Typography>
-                              <Typography
-                                variant="body2"
-                                fontWeight={500}
-                                sx={{ mt: 0.5 }}
-                              >
-                                {displayTask.originalWorkItemType}
                               </Typography>
                             </Paper>
                           )}

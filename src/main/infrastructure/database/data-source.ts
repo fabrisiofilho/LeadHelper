@@ -14,6 +14,8 @@ import { PositionEntity } from '@main/application/entities/position.entity';
 import { TeamEntity } from '@main/application/entities/team.entity';
 import { SprintEntity } from '@main/application/entities/sprint.entity';
 import { TaskCommentEntity } from '@main/application/entities/task-comment.entity';
+import { TaskLocalPriorityEntity } from '@main/application/entities/task-local-priority.entity';
+import { TaskLocalKanbanEntity } from '@main/application/entities/task-local-kanban.entity';
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -62,6 +64,8 @@ function createDataSource(): DataSource {
       TeamEntity,
       SprintEntity,
       TaskCommentEntity,
+      TaskLocalPriorityEntity,
+      TaskLocalKanbanEntity,
     ],
     migrations: [],
     subscribers: [],

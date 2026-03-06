@@ -73,13 +73,16 @@ function TaskHierarchyItem({
     setExpanded((prev) => !prev);
   }, []);
 
-  const handleClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (onTaskClick) {
-      console.log('[TaskHierarchyItem] Clicked task:', task.id, task.title);
-      onTaskClick(task);
-    }
-  }, [task, onTaskClick]);
+  const handleClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (onTaskClick) {
+        console.log('[TaskHierarchyItem] Clicked task:', task.id, task.title);
+        onTaskClick(task);
+      }
+    },
+    [task, onTaskClick],
+  );
 
   const indentSize = level * 24;
 

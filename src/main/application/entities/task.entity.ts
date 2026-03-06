@@ -20,13 +20,8 @@ export type TaskStatus =
   | (string & {});
 export type TaskOrigin = 'manual' | 'azure_devops';
 export type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
-export type TaskType =
-  | 'task'
-  | 'bug'
-  | 'feature'
-  | 'improvement'
-  | 'support'
-  | (string & {});
+// TaskType uses Azure DevOps work item types directly (Epic, Feature, User Story, Task, Bug, etc.)
+export type TaskType = string;
 
 @Entity('tasks')
 export class TaskEntity extends AuditableEntity {
@@ -61,7 +56,7 @@ export class TaskEntity extends AuditableEntity {
   @Column({ type: 'text', default: 'medium' })
   priority!: TaskPriority;
 
-  @Column({ type: 'text', default: 'task' })
+  @Column({ type: 'text', default: 'Task' })
   type!: TaskType;
 
   @Column({ type: 'text', default: 'manual' })
@@ -95,9 +90,6 @@ export class TaskEntity extends AuditableEntity {
 
   @Column({ name: 'story_points', type: 'real', nullable: true })
   storyPoints?: number;
-
-  @Column({ name: 'original_work_item_type', type: 'text', nullable: true })
-  originalWorkItemType?: string;
 
   @Column({ name: 'assigned_to_name', nullable: true })
   assignedToName?: string;

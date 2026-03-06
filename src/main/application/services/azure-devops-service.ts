@@ -6,10 +6,7 @@ import { TaskRepository } from '../repositories/task-repository';
 import { TaskEntity } from '../entities/task.entity';
 import { TeamRepository } from '../repositories/team-repository';
 import { logger } from '@main/infrastructure/log/logger';
-import {
-  mapWorkItemType,
-  mapWorkItemStateToTaskStatus,
-} from './work-item-type-mapper';
+import { mapWorkItemStateToTaskStatus } from './work-item-type-mapper';
 import { AzureAreaNode } from '../parsers/team-parser';
 import { AzureWorkItem } from '../parsers/task-parser';
 import { AzureIterationNode } from '../parsers/sprint-parser';
@@ -21,17 +18,25 @@ import {
   ReportPeriod,
 } from '@shared/interfaces/config/index.types';
 
+// Default Area Paths for Sustentação and Projetos (Property 25)
+export const DEFAULT_SUSTENTACAO_AREA_PATH = 'Tribo SEIF\\Sustentação';
+export const DEFAULT_PROJETOS_AREA_PATH = 'Tribo SEIF\\Projetos';
+
 export interface AzureDevOpsConfig {
   organizationUrl: string;
   projectName: string;
   isConfigured: boolean;
   pat?: string; // Optional decrypted PAT for display purposes
+  sustentacaoAreaPath?: string;
+  projetosAreaPath?: string;
 }
 
 export interface AzureDevOpsConfigInput {
   organizationUrl: string;
   projectName: string;
   pat: string;
+  sustentacaoAreaPath?: string;
+  projetosAreaPath?: string;
 }
 
 export interface WorkItem {
@@ -50,7 +55,6 @@ export interface WorkItem {
   tags?: string;
   storyPoints?: number;
   priority?: number;
-  originalWorkItemType?: string;
   relations?: Array<{
     rel: string;
     url: string;
@@ -129,6 +133,8 @@ export class AzureDevOpsService {
     const trimmedOrgUrl = input.organizationUrl?.trim();
     const trimmedProjectName = input.projectName?.trim();
     const trimmedPat = input.pat?.trim();
+    const trimmedSustentacaoAreaPath = input.sustentacaoAreaPath?.trim() || undefined;
+    const trimmedProjetosAreaPath = input.projetosAreaPath?.trim() || undefined;
 
     if (!trimmedOrgUrl) {
       throw new Error('Organization URL é obrigatória');
@@ -158,6 +164,9 @@ export class AzureDevOpsService {
       if (trimmedPat) {
         existingConfig.patEncrypted = encryptPat(trimmedPat);
       }
+      // Update Area Paths
+      existingConfig.sustentacaoAreaPath = trimmedSustentacaoAreaPath;
+      existingConfig.projetosAreaPath = trimmedProjetosAreaPath;
       await repository.save(existingConfig);
     } else {
       // New config requires PAT
@@ -169,6 +178,8 @@ export class AzureDevOpsService {
         organizationUrl: trimmedOrgUrl,
         projectName: trimmedProjectName,
         patEncrypted: encryptedPat,
+        sustentacaoAreaPath: trimmedSustentacaoAreaPath,
+        projetosAreaPath: trimmedProjetosAreaPath,
       });
       await repository.save(newConfig);
     }
@@ -186,6 +197,9 @@ export class AzureDevOpsService {
       organizationUrl: config.organizationUrl,
       projectName: config.projectName,
       isConfigured: true,
+      // Return configured Area Paths or default values (Property 25)
+      sustentacaoAreaPath: config.sustentacaoAreaPath || DEFAULT_SUSTENTACAO_AREA_PATH,
+      projetosAreaPath: config.projetosAreaPath || DEFAULT_PROJETOS_AREA_PATH,
     };
 
     // Optionally include decrypted PAT for display purposes
@@ -474,8 +488,6 @@ export class AzureDevOpsService {
           null,
         priority:
           (wi.fields['Microsoft.VSTS.Common.Priority'] as number) ?? null,
-        originalWorkItemType:
-          (wi.fields['System.WorkItemType'] as string) ?? null,
         relations: wi.relations,
       }));
 
@@ -580,14 +592,13 @@ export class AzureDevOpsService {
         startDate: startDate,
         endDate: endDate >= startDate ? endDate : startDate,
         status: mapWorkItemStateToTaskStatus(workItem.state),
-        type: mapWorkItemType(workItem.type),
+        type: workItem.type, // Use Azure DevOps type directly
         origin: 'azure_devops',
         externalId: String(workItem.id),
         areaPath: workItem.areaPath ?? undefined,
         iterationPath: workItem.iterationPath ?? undefined,
         tags: workItem.tags ?? undefined,
         storyPoints: workItem.storyPoints ?? undefined,
-        originalWorkItemType: workItem.originalWorkItemType ?? undefined,
         teamId: resolvedTeamId ?? undefined,
         workItemRelations: workItemRelations,
       });
@@ -734,14 +745,13 @@ export class AzureDevOpsService {
     task.title = workItem.title;
     task.description = workItem.description || undefined;
     task.status = mapWorkItemStateToTaskStatus(workItem.state);
-    task.type = mapWorkItemType(workItem.type);
+    task.type = workItem.type; // Use Azure DevOps type directly
 
     // Update enriched fields with current values from Azure DevOps API
     task.areaPath = workItem.areaPath ?? undefined;
     task.iterationPath = workItem.iterationPath ?? undefined;
     task.tags = workItem.tags ?? undefined;
     task.storyPoints = workItem.storyPoints ?? undefined;
-    task.originalWorkItemType = workItem.originalWorkItemType ?? undefined;
 
     // Resolve team by Area Path if not already assigned
     if (!task.teamId && workItem.areaPath) {
@@ -1256,7 +1266,6 @@ export class AzureDevOpsService {
         id: wi.id,
         title: wi.title,
         type: wi.type,
-        originalType: wi.originalWorkItemType,
         status: wi.state,
         assignee,
         project,

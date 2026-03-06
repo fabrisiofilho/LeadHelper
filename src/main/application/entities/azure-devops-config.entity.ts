@@ -14,4 +14,10 @@ export class AzureDevOpsConfigEntity extends AuditableEntity {
 
   @Column({ name: 'pat_encrypted', type: 'text' })
   patEncrypted!: string;
+
+  @Column({ name: 'sustentacao_area_path', type: 'text', nullable: true })
+  sustentacaoAreaPath?: string;
+
+  @Column({ name: 'projetos_area_path', type: 'text', nullable: true })
+  projetosAreaPath?: string;
 }

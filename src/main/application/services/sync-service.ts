@@ -594,9 +594,8 @@ export class SyncService {
       assignedToEmail: parsed.assignedToEmail,
       startDate: parsed.startDate,
       endDate: parsed.endDate,
-      originalWorkItemType: parsed.originalWorkItemType,
-      sprintId: sprintId ?? undefined,
-      teamId: teamId ?? undefined,
+      sprintId: sprintId, // Pass null explicitly to clear the field
+      teamId: teamId, // Pass null explicitly to clear the field
     };
 
     if (existingTasks.length > 0) {
@@ -610,14 +609,34 @@ export class SyncService {
         ...taskData,
         externalId: parsed.externalId,
         origin: parsed.origin,
+        sprintId: sprintId ?? undefined, // For create, undefined is fine
+        teamId: teamId ?? undefined,
       });
       result.created++;
     }
   }
 
   /**
+   * Normalizes an iteration path for comparison:
+   * - Removes leading backslashes
+   * - Trims whitespace
+   * - Converts to lowercase
+   */
+  private normalizeIterationPath(path: string): string {
+    return path.replace(/^\\+/, '').trim().toLowerCase();
+  }
+
+  /**
    * Resolve Task → Sprint: match task's iterationPath with sprint's iterationPath.
-   * Supports exact match and flexible matching (ignoring intermediate segments).
+   * 
+   * Rules:
+   * 1. Exact match: task.iterationPath === sprint.iterationPath
+   * 2. Hierarchical match: task.iterationPath starts with sprint.iterationPath
+   *    (task is inside the sprint's iteration)
+   * 
+   * A task with iterationPath "Tribo SEIF" should NOT match a sprint with
+   * iterationPath "Tribo SEIF\Sprints\Sprint 18" because the task is at a
+   * higher level (not inside the sprint).
    */
   private resolveSprintByIterationPath(
     iterationPath: string | undefined,
@@ -628,99 +647,70 @@ export class SyncService {
       return null;
     }
 
-    const normalizedTaskPath = iterationPath
-      .replace(/^\\+/, '')
-      .trim()
-      .toLowerCase();
+    const normalizedTaskPath = this.normalizeIterationPath(iterationPath);
+
+    // Log available sprints for debugging (only first time)
+    if (sprints.length > 0) {
+      logger.info('[resolveSprintByIterationPath] Available sprints:', {
+        count: sprints.length,
+        sprints: sprints.slice(0, 5).map((s) => ({
+          id: s.id,
+          name: s.name,
+          iterationPath: s.iterationPath,
+          normalized: s.iterationPath ? this.normalizeIterationPath(s.iterationPath) : null,
+        })),
+      });
+    }
 
     logger.debug('[resolveSprintByIterationPath] Looking for sprint:', {
       taskIterationPath: iterationPath,
       normalizedTaskPath,
-      availableSprints: sprints.map((s) => ({
-        id: s.id,
-        name: s.name,
-        iterationPath: s.iterationPath,
-      })),
     });
 
     // 1. Exact match first
     const exactMatch = sprints.find(
       (s) =>
         s.iterationPath &&
-        s.iterationPath.replace(/^\\+/, '').trim().toLowerCase() ===
-          normalizedTaskPath,
+        this.normalizeIterationPath(s.iterationPath) === normalizedTaskPath,
     );
     if (exactMatch) {
-      logger.debug('[resolveSprintByIterationPath] Exact match found:', {
+      logger.info('[resolveSprintByIterationPath] Exact match found:', {
         sprintId: exactMatch.id,
         sprintName: exactMatch.name,
+        sprintIterationPath: exactMatch.iterationPath,
       });
       return exactMatch.id;
     }
 
-    // 2. Check if task path ends with sprint name (common pattern)
-    const taskSegments = normalizedTaskPath.split('\\').filter(Boolean);
-    const lastTaskSegment = taskSegments[taskSegments.length - 1];
+    // 2. Hierarchical match: task path starts with sprint path
+    // This means the task is inside the sprint's iteration
+    // Sort by path length descending to match the most specific sprint first
+    const sortedSprints = [...sprints]
+      .filter((s) => s.iterationPath)
+      .sort((a, b) => (b.iterationPath?.length ?? 0) - (a.iterationPath?.length ?? 0));
 
-    for (const sprint of sprints) {
-      if (!sprint.iterationPath) continue;
+    for (const sprint of sortedSprints) {
+      const sprintPath = this.normalizeIterationPath(sprint.iterationPath!);
 
-      const sprintPath = sprint.iterationPath
-        .replace(/^\\+/, '')
-        .trim()
-        .toLowerCase();
-      const sprintSegments = sprintPath.split('\\').filter(Boolean);
-      const lastSprintSegment = sprintSegments[sprintSegments.length - 1];
-
-      // If last segments match (e.g., both end with "sprint-07")
-      if (lastTaskSegment === lastSprintSegment) {
-        logger.debug(
-          '[resolveSprintByIterationPath] Last segment match found:',
-          {
-            sprintId: sprint.id,
-            sprintName: sprint.name,
-            lastSegment: lastTaskSegment,
-          },
-        );
-        return sprint.id;
-      }
-    }
-
-    // 3. Flexible match: check if sprint path is contained in task path
-    for (const sprint of sprints) {
-      if (!sprint.iterationPath) continue;
-
-      const sprintPath = sprint.iterationPath
-        .replace(/^\\+/, '')
-        .trim()
-        .toLowerCase();
-
-      // Check if task path contains sprint path
-      if (normalizedTaskPath.includes(sprintPath)) {
-        logger.debug('[resolveSprintByIterationPath] Contains match found:', {
+      // Task path must START with sprint path (task is inside sprint)
+      // Add backslash to ensure we match complete segments
+      const sprintPathWithSeparator = sprintPath + '\\';
+      if (normalizedTaskPath.startsWith(sprintPathWithSeparator) || normalizedTaskPath === sprintPath) {
+        logger.info('[resolveSprintByIterationPath] Hierarchical match found:', {
           sprintId: sprint.id,
           sprintName: sprint.name,
           sprintPath,
+          taskPath: normalizedTaskPath,
         });
-        return sprint.id;
-      }
-
-      // Check if sprint path contains task path
-      if (sprintPath.includes(normalizedTaskPath)) {
-        logger.debug(
-          '[resolveSprintByIterationPath] Reverse contains match found:',
-          {
-            sprintId: sprint.id,
-            sprintName: sprint.name,
-            sprintPath,
-          },
-        );
         return sprint.id;
       }
     }
 
-    logger.error('[resolveSprintByIterationPath] No match found for:', {
+    // No match found - task is not inside any sprint
+    logger.info('[resolveSprintByIterationPath] No match found for:', {
       taskIterationPath: iterationPath,
+      normalizedTaskPath,
+      availableSprintPaths: sortedSprints.slice(0, 5).map((s) => this.normalizeIterationPath(s.iterationPath!)),
     });
     return null;
   }

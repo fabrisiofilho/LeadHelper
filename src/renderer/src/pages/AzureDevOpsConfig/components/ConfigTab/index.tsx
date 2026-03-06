@@ -20,6 +20,7 @@ import {
   CheckCircle as CheckCircleIcon,
   Error as ErrorIcon,
   Link as LinkIcon,
+  FolderOpen as FolderIcon,
 } from '@mui/icons-material';
 import { useForm, Controller } from 'react-hook-form';
 import { ConfigCard, FormContainer, ConnectionStatus } from '../../styles';
@@ -29,6 +30,8 @@ interface ConfigFormData {
   organizationUrl: string;
   projectName: string;
   pat: string;
+  sustentacaoAreaPath: string;
+  projetosAreaPath: string;
 }
 
 interface ConfigTabProps {
@@ -37,6 +40,8 @@ interface ConfigTabProps {
     projectName: string;
     isConfigured: boolean;
     pat?: string;
+    sustentacaoAreaPath?: string;
+    projetosAreaPath?: string;
   } | null;
   loading?: boolean;
   error: string | null;
@@ -73,7 +78,13 @@ export function ConfigTab({
     setValue,
     formState: { errors: formErrors, isDirty },
   } = useForm<ConfigFormData>({
-    defaultValues: { organizationUrl: '', projectName: '', pat: '' },
+    defaultValues: { 
+      organizationUrl: '', 
+      projectName: '', 
+      pat: '',
+      sustentacaoAreaPath: '',
+      projetosAreaPath: '',
+    },
   });
 
   useEffect(() => {
@@ -82,6 +93,8 @@ export function ConfigTab({
         organizationUrl: config.organizationUrl || '',
         projectName: config.projectName || '',
         pat: config.pat || '',
+        sustentacaoAreaPath: config.sustentacaoAreaPath || '',
+        projetosAreaPath: config.projetosAreaPath || '',
       });
     }
   }, [config, reset]);
@@ -96,6 +109,8 @@ export function ConfigTab({
         organizationUrl: data.organizationUrl.trim(),
         projectName: data.projectName.trim(),
         pat: data.pat,
+        sustentacaoAreaPath: data.sustentacaoAreaPath.trim() || undefined,
+        projetosAreaPath: data.projetosAreaPath.trim() || undefined,
       });
       if (success) {
         setSaveSuccess(true);
@@ -103,6 +118,8 @@ export function ConfigTab({
           organizationUrl: data.organizationUrl.trim(),
           projectName: data.projectName.trim(),
           pat: '',
+          sustentacaoAreaPath: data.sustentacaoAreaPath.trim(),
+          projetosAreaPath: data.projetosAreaPath.trim(),
         });
         await handleTest();
       }
@@ -311,6 +328,65 @@ export function ConfigTab({
                 />
               )}
             />
+
+            {/* Configuração de Áreas */}
+            <Divider sx={{ my: 3 }} />
+            <Stack direction="row" alignItems="center" spacing={1} mb={1}>
+              <FolderIcon color="primary" />
+              <Typography variant="h6" fontWeight={600}>
+                Configuração de Áreas
+              </Typography>
+            </Stack>
+            <Typography variant="body2" color="text.secondary" mb={2}>
+              Configure os Area Paths usados para filtrar work items por equipe. 
+              Se não configurados, serão usados os valores padrão.
+            </Typography>
+
+            <Controller
+              name="sustentacaoAreaPath"
+              control={control}
+              render={({ field }) => (
+                <TextField
+                  {...field}
+                  label="Area Path Sustentação"
+                  placeholder="Ex: Tribo SEIF\Sustentação"
+                  fullWidth
+                  helperText="Caminho da área para filtrar itens da equipe de Sustentação (Tickets e Improvements)"
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <FolderIcon fontSize="small" color="action" />
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
+                />
+              )}
+            />
+            <Controller
+              name="projetosAreaPath"
+              control={control}
+              render={({ field }) => (
+                <TextField
+                  {...field}
+                  label="Area Path Projetos"
+                  placeholder="Ex: Tribo SEIF\Projetos"
+                  fullWidth
+                  helperText="Caminho da área para filtrar itens da equipe de Projetos (User Stories, Features, Epics)"
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <FolderIcon fontSize="small" color="action" />
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
+                />
+              )}
+            />
+
             <Box
               sx={{
                 display: 'flex',

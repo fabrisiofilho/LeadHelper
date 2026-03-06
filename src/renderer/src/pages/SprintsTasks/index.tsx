@@ -54,17 +54,17 @@ export function SprintsTasksPage() {
   const loadSprints = useCallback(async () => {
     // Load only active sprints (not finished)
     const allSprints = await findAllSprints({ isActive: true });
-    
+
     // Filter to show only current and future sprints
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     const activeOrFutureSprints = allSprints.filter((sprint) => {
       const endDate = new Date(sprint.endDate);
       endDate.setHours(0, 0, 0, 0);
       return endDate >= today;
     });
-    
+
     // If no active/future sprints, load the most recent finished sprint
     if (activeOrFutureSprints.length === 0) {
       const allSprintsIncludingFinished = await findAllSprints();
@@ -74,14 +74,17 @@ export function SprintsTasksPage() {
           endDate.setHours(0, 0, 0, 0);
           return endDate < today;
         })
-        .sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime());
-      
+        .sort(
+          (a, b) =>
+            new Date(b.endDate).getTime() - new Date(a.endDate).getTime(),
+        );
+
       // Keep only the most recent finished sprint
       if (finishedSprints.length > 0) {
         return [finishedSprints[0]];
       }
     }
-    
+
     return activeOrFutureSprints;
   }, [findAllSprints]);
 

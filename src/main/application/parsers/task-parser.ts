@@ -2,9 +2,12 @@
  * Task Parser — maps Azure DevOps Work Items to ParsedTask.
  *
  * Pure functions — no I/O, just data transformation.
- * Uses mapWorkItemType() and mapWorkItemStateToTaskStatus() from work-item-type-mapper.
+ * Uses mapWorkItemStateToTaskStatus() from work-item-type-mapper.
  * Extracts assignedToName and assignedToEmail from System.AssignedTo.
  * Sets origin: 'azure_devops' and externalId as string of the work item ID.
+ * 
+ * NOTE: The 'type' field now stores the Azure DevOps work item type directly
+ * (Epic, Feature, User Story, Task, Bug, etc.) without any mapping.
  */
 
 import type {
@@ -12,10 +15,7 @@ import type {
   TaskStatus,
   TaskType,
 } from '../entities/task.entity';
-import {
-  mapWorkItemType,
-  mapWorkItemStateToTaskStatus,
-} from '../services/work-item-type-mapper';
+import { mapWorkItemStateToTaskStatus } from '../services/work-item-type-mapper';
 import type { AzureAssignedTo } from './member-parser';
 
 export interface AzureWorkItem {
@@ -45,7 +45,7 @@ export interface AzureWorkItem {
 export interface ParsedTask {
   title: string;
   description?: string;
-  type: TaskType;
+  type: TaskType; // Azure DevOps work item type (Epic, Feature, User Story, Task, Bug, etc.)
   status: TaskStatus;
   priority: TaskPriority;
   areaPath?: string;
@@ -56,7 +56,6 @@ export interface ParsedTask {
   assignedToEmail?: string;
   startDate?: Date;
   endDate?: Date;
-  originalWorkItemType?: string;
   externalId: string;
   origin: 'azure_devops';
 }
@@ -104,7 +103,7 @@ export function parseTask(workItem: AzureWorkItem): ParsedTask {
   return {
     title: fields['System.Title'],
     description: fields['System.Description'] || undefined,
-    type: mapWorkItemType(fields['System.WorkItemType']),
+    type: fields['System.WorkItemType'], // Use Azure DevOps type directly
     status: mapWorkItemStateToTaskStatus(fields['System.State']),
     priority: mapPriority(fields['Microsoft.VSTS.Common.Priority']),
     areaPath: fields['System.AreaPath'] || undefined,
@@ -115,7 +114,6 @@ export function parseTask(workItem: AzureWorkItem): ParsedTask {
     assignedToEmail: assignedTo?.uniqueName || undefined,
     startDate,
     endDate,
-    originalWorkItemType: fields['System.WorkItemType'],
     externalId: String(workItem.id),
     origin: 'azure_devops',
   };

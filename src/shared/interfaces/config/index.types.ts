@@ -178,13 +178,8 @@ export type TaskStatus =
   | (string & {});
 export type TaskOrigin = 'manual' | 'azure_devops';
 export type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
-export type TaskType =
-  | 'task'
-  | 'bug'
-  | 'feature'
-  | 'improvement'
-  | 'support'
-  | (string & {});
+// TaskType uses Azure DevOps work item types directly (Epic, Feature, User Story, Task, Bug, etc.)
+export type TaskType = string;
 
 export interface Task {
   id: number;
@@ -194,7 +189,7 @@ export interface Task {
   endDate?: Date;
   status: TaskStatus;
   priority: TaskPriority;
-  type: TaskType;
+  type: TaskType; // Azure DevOps work item type (Epic, Feature, User Story, Task, Bug, etc.)
   origin: TaskOrigin;
   externalId?: string;
   sprintId?: number;
@@ -208,7 +203,6 @@ export interface Task {
   iterationPath?: string;
   tags?: string;
   storyPoints?: number;
-  originalWorkItemType?: string;
   parentId?: number;
   parent?: Task;
   children?: Task[];
@@ -419,17 +413,25 @@ export interface SprintDashboard {
 // Azure DevOps Types
 // ============================================================================
 
+// Default Area Paths for Sustentação and Projetos (Property 25)
+export const DEFAULT_SUSTENTACAO_AREA_PATH = 'Tribo SEIF\\Sustentação';
+export const DEFAULT_PROJETOS_AREA_PATH = 'Tribo SEIF\\Projetos';
+
 export interface AzureDevOpsConfig {
   organizationUrl: string;
   projectName: string;
   isConfigured: boolean;
   pat?: string; // Optional decrypted PAT for display purposes
+  sustentacaoAreaPath?: string;
+  projetosAreaPath?: string;
 }
 
 export interface AzureDevOpsConfigInput {
   organizationUrl: string;
   projectName: string;
   pat: string;
+  sustentacaoAreaPath?: string;
+  projetosAreaPath?: string;
 }
 
 export interface WorkItem {
@@ -448,7 +450,6 @@ export interface WorkItem {
   tags?: string;
   storyPoints?: number;
   priority?: number;
-  originalWorkItemType?: string;
   relations?: Array<{
     rel: string;
     url: string;
@@ -489,7 +490,6 @@ export interface ReportItem {
   id: number;
   title: string;
   type: string;
-  originalType?: string;
   status: string;
   assignee?: string;
   project?: string;
@@ -595,6 +595,21 @@ export interface IDashboardController {
   getAllocationDashboard(): Promise<ApiResponse<AllocationDashboard>>;
   getTaskManagementDashboard(): Promise<ApiResponse<TaskManagementDashboard>>;
   getSprintDashboard(): Promise<ApiResponse<SprintDashboard>>;
+  // Extended dashboard methods
+  getSustentacaoItems(
+    options?: SustentacaoOptions,
+  ): Promise<ApiResponse<SustentacaoItem[]>>;
+  getProjetosItems(sprintId: number): Promise<ApiResponse<ProjetosItem[]>>;
+  getBurndownData(sprintId: number): Promise<ApiResponse<BurndownPoint[]>>;
+  getStatusDistribution(
+    parentId?: number,
+  ): Promise<ApiResponse<StatusDistribution[]>>;
+  getAssigneeDistribution(
+    parentId?: number,
+  ): Promise<ApiResponse<AssigneeDistribution[]>>;
+  getHierarchyProgress(
+    parentId: number,
+  ): Promise<ApiResponse<HierarchyProgress>>;
 }
 
 export interface FullSyncResult {
@@ -723,6 +738,152 @@ export interface ITaskCommentController {
 }
 
 // ============================================================================
+// Task Local Priority Types
+// ============================================================================
+
+export interface TaskLocalPriority {
+  id: number;
+  externalId: string;
+  localPriority: number;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface ITaskLocalPriorityController {
+  get(externalId: string): Promise<ApiResponse<TaskLocalPriority | null>>;
+  set(
+    externalId: string,
+    priority: number,
+  ): Promise<ApiResponse<TaskLocalPriority>>;
+  remove(externalId: string): Promise<ApiResponse<void>>;
+  getBatch(externalIds: string[]): Promise<ApiResponse<Record<string, number>>>;
+}
+
+// ============================================================================
+// Hierarchy Types
+// ============================================================================
+
+/**
+ * Represents a single item in a breadcrumb trail.
+ * Contains both the full title and a truncated version for display.
+ */
+export interface BreadcrumbItem {
+  id: number;
+  externalId?: string;
+  title: string;
+  type: string;
+  truncatedTitle: string; // Max 30 characters
+}
+
+export interface IHierarchyController {
+  getChildren(parentId: number): Promise<ApiResponse<Task[]>>;
+  countChildren(parentId: number): Promise<ApiResponse<number>>;
+  buildBreadcrumb(taskId: number): Promise<ApiResponse<BreadcrumbItem[]>>;
+  getRootItems(areaPathPattern: string): Promise<ApiResponse<Task[]>>;
+}
+
+// ============================================================================
+// Task Local Kanban Types
+// ============================================================================
+
+/**
+ * Represents a local Kanban position for a work item.
+ * Used for simulating card movements without syncing to Azure DevOps.
+ */
+export interface TaskLocalKanban {
+  id: number;
+  externalId: string;
+  localColumn: string;
+  localOrder: number;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface ITaskLocalKanbanController {
+  getPosition(externalId: string): Promise<ApiResponse<TaskLocalKanban | null>>;
+  setPosition(
+    externalId: string,
+    column: string,
+    order: number,
+  ): Promise<ApiResponse<TaskLocalKanban>>;
+  resetPosition(externalId: string): Promise<ApiResponse<void>>;
+  getByContext(parentId?: number): Promise<ApiResponse<TaskLocalKanban[]>>;
+}
+
+// ============================================================================
+// Dashboard Extended Types
+// ============================================================================
+
+/**
+ * Options for filtering Sustentação dashboard items.
+ */
+export interface SustentacaoOptions {
+  staleDays?: number;
+  sortBy?: 'priority' | 'updatedAt';
+}
+
+/**
+ * Represents a work item in the Sustentação dashboard.
+ * Includes local priority, stale status, and children count.
+ */
+export interface SustentacaoItem {
+  task: Task;
+  localPriority: number;
+  isStale: boolean;
+  daysSinceUpdate: number;
+  childrenCount: number;
+}
+
+/**
+ * Represents a work item in the Projetos dashboard.
+ * Includes progress calculation based on completed children.
+ */
+export interface ProjetosItem {
+  task: Task;
+  localPriority: number;
+  childrenCount: number;
+  completedChildrenCount: number;
+  progressPercent: number;
+}
+
+/**
+ * Represents a point in the Burndown chart.
+ */
+export interface BurndownPoint {
+  date: Date;
+  planned: number;
+  completed: number;
+}
+
+/**
+ * Represents status distribution for charts.
+ */
+export interface StatusDistribution {
+  status: string;
+  count: number;
+  color: string;
+}
+
+/**
+ * Represents assignee distribution for charts.
+ */
+export interface AssigneeDistribution {
+  assignee: string;
+  count: number;
+}
+
+/**
+ * Represents hierarchy progress data.
+ */
+export interface HierarchyProgress {
+  parentId: number;
+  parentTitle: string;
+  totalChildren: number;
+  completedChildren: number;
+  progressPercent: number;
+}
+
+// ============================================================================
 // Custom Electron API
 // ============================================================================
 
@@ -740,6 +901,9 @@ export interface CustomElectronAPI {
   autoUpdater: IAutoUpdaterController;
   auth: IAuthController;
   taskComment: ITaskCommentController;
+  taskLocalPriority: ITaskLocalPriorityController;
+  hierarchy: IHierarchyController;
+  taskLocalKanban: ITaskLocalKanbanController;
 
   // Utility methods
   openExternalUrl: (url: string) => void;

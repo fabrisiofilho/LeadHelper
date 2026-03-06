@@ -102,6 +102,12 @@ export const CONTROLLER_CONFIG = {
       'getAllocationDashboard',
       'getTaskManagementDashboard',
       'getSprintDashboard',
+      'getSustentacaoItems',
+      'getProjetosItems',
+      'getBurndownData',
+      'getStatusDistribution',
+      'getAssigneeDistribution',
+      'getHierarchyProgress',
     ] as const,
   },
   azureDevOps: {
@@ -140,6 +146,28 @@ export const CONTROLLER_CONFIG = {
   taskComment: {
     prefix: 'task-comment',
     methods: ['findByTask', 'create', 'update', 'delete'] as const,
+  },
+  taskLocalPriority: {
+    prefix: 'task-local-priority',
+    methods: ['get', 'set', 'remove', 'getBatch'] as const,
+  },
+  hierarchy: {
+    prefix: 'hierarchy',
+    methods: [
+      'getChildren',
+      'countChildren',
+      'buildBreadcrumb',
+      'getRootItems',
+    ] as const,
+  },
+  taskLocalKanban: {
+    prefix: 'task-local-kanban',
+    methods: [
+      'getPosition',
+      'setPosition',
+      'resetPosition',
+      'getByContext',
+    ] as const,
   },
 } as const;
 

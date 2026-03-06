@@ -13,6 +13,9 @@ import {
   IDashboardController,
   IAzureDevOpsController,
   ITaskCommentController,
+  ITaskLocalPriorityController,
+  IHierarchyController,
+  ITaskLocalKanbanController,
 } from '@shared/interfaces/config/index.types';
 import {
   IAutoUpdaterController,
@@ -117,6 +120,15 @@ const authController = createControllerFromConfig(
 const taskCommentController = createControllerFromConfig(
   'taskComment',
 ) as unknown as ITaskCommentController;
+const taskLocalPriorityController = createControllerFromConfig(
+  'taskLocalPriority',
+) as unknown as ITaskLocalPriorityController;
+const hierarchyController = createControllerFromConfig(
+  'hierarchy',
+) as unknown as IHierarchyController;
+const taskLocalKanbanController = createControllerFromConfig(
+  'taskLocalKanban',
+) as unknown as ITaskLocalKanbanController;
 
 const api: CustomElectronAPI = {
   // Team Management Controllers
@@ -132,6 +144,9 @@ const api: CustomElectronAPI = {
   autoUpdater: autoUpdaterController,
   auth: authController,
   taskComment: taskCommentController,
+  taskLocalPriority: taskLocalPriorityController,
+  hierarchy: hierarchyController,
+  taskLocalKanban: taskLocalKanbanController,
 
   // Utility methods
   openExternalUrl: (url: string) => {

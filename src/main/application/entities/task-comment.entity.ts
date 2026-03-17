@@ -23,6 +23,6 @@ export class TaskCommentEntity extends AuditableEntity {
   @JoinColumn({ name: 'task_id' })
   task?: TaskEntity;
 
-  @Column({ name: 'task_id' })
+  @Column({ name: 'task_id', type: 'integer' })
   taskId!: number;
 }

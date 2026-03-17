@@ -178,6 +178,18 @@ export type TaskStatus =
   | (string & {});
 export type TaskOrigin = 'manual' | 'azure_devops';
 export type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
+
+/**
+ * SLA limits per priority in business hours.
+ * Business hours: 08:00–12:00 and 13:30–17:30 (8h/day).
+ */
+export const SLA_LIMITS: Record<TaskPriority, number> = {
+  critical: 40,  // Prioridade 1: 40 horas úteis (5 dias úteis)
+  high: 24,      // Prioridade 2: 24 horas úteis (3 dias úteis)
+  medium: 8,     // Prioridade 3: 8 horas úteis (1 dia útil)
+  low: 4,        // Prioridade 4: 4 horas úteis (meio dia útil)
+};
+
 // TaskType uses Azure DevOps work item types directly (Epic, Feature, User Story, Task, Bug, etc.)
 export type TaskType = string;
 
@@ -203,6 +215,9 @@ export interface Task {
   iterationPath?: string;
   tags?: string;
   storyPoints?: number;
+  azureCreatedDate?: Date;
+  azureChangedDate?: Date;
+  azurePriority?: number;
   parentId?: number;
   parent?: Task;
   children?: Task[];
@@ -477,6 +492,27 @@ export interface IterationNode {
   children: IterationNode[];
 }
 
+export interface WorkItemUpdate {
+  revision: number;
+  changedDate: Date;
+  changedBy?: string;
+  fields: {
+    fieldName: string;
+    oldValue?: string;
+    newValue?: string;
+  }[];
+}
+
+/** Record returned by getTaskUpdateHistory for display in CardHistoryDialog */
+export interface TaskUpdateRecord {
+  id: number;
+  changedDate: Date;
+  changedBy?: string;
+  fieldName: string;
+  oldValue?: string;
+  newValue?: string;
+}
+
 export interface ReportData {
   totalItems: number;
   byType: Array<{ type: string; count: number }>;
@@ -598,8 +634,10 @@ export interface IDashboardController {
   // Extended dashboard methods
   getSustentacaoItems(
     options?: SustentacaoOptions,
-  ): Promise<ApiResponse<SustentacaoItem[]>>;
-  getProjetosItems(sprintId: number): Promise<ApiResponse<ProjetosItem[]>>;
+  ): Promise<ApiResponse<SustentacaoItemWithSLA[]>>;
+  getSustentacaoMembersWithCards(): Promise<ApiResponse<SustentacaoMemberWithCards[]>>;
+  getProjetosItems(sprintId: number): Promise<ApiResponse<ProjetosResult>>;
+  getTaskUpdateHistory(taskId: number): Promise<ApiResponse<TaskUpdateRecord[]>>;
   getBurndownData(sprintId: number): Promise<ApiResponse<BurndownPoint[]>>;
   getStatusDistribution(
     parentId?: number,
@@ -610,6 +648,11 @@ export interface IDashboardController {
   getHierarchyProgress(
     parentId: number,
   ): Promise<ApiResponse<HierarchyProgress>>;
+  excludeSla(externalId: string, reason?: string): Promise<ApiResponse<void>>;
+  restoreSla(externalId: string): Promise<ApiResponse<void>>;
+  getSlaExclusions(): Promise<ApiResponse<string[]>>;
+  hideItem(externalId: string, reason?: string): Promise<ApiResponse<void>>;
+  unhideItem(externalId: string): Promise<ApiResponse<void>>;
 }
 
 export interface FullSyncResult {
@@ -618,6 +661,7 @@ export interface FullSyncResult {
   members: { created: number; updated: number; total: number };
   tasks: { created: number; updated: number; total: number };
   errors: string[];
+  failureCount: number;
   syncedAt: Date;
 }
 
@@ -835,6 +879,37 @@ export interface SustentacaoItem {
 }
 
 /**
+ * Extends SustentacaoItem with SLA calculation fields.
+ * Used by the Sustentação dashboard to display SLA status indicators.
+ */
+export interface SustentacaoItemWithSLA extends SustentacaoItem {
+  businessHoursElapsed: number;  // horas úteis decorridas
+  slaLimit: number;              // limite SLA em horas úteis
+  slaPercentage: number;         // % do SLA consumido
+  slaViolated: boolean;          // SLA ultrapassado
+  slaWarning: boolean;           // ≥80% do SLA
+  expirationDate: string | null; // data/hora prevista de expiração do SLA
+  businessHoursRemaining: number; // horas úteis restantes (negativo se estourado)
+  daysUntilExpiration: number;   // dias úteis até expirar (negativo se estourado)
+  expirationAlert: 'expired' | 'critical' | 'warning' | 'attention' | null;
+  // expired = já estourou, critical = 1 dia, warning = 2 dias, attention = 3 dias
+  slaExcluded?: boolean;         // SLA removido manualmente pelo usuário
+  isHidden?: boolean;            // Item oculto/desativado pelo usuário
+}
+
+/**
+ * Represents a Sustentação team member with their in-progress cards.
+ * Used by the Sustentação dashboard to display members and their workload.
+ *
+ * Validates: Requirements 2.2, 2.3, 2.4
+ */
+export interface SustentacaoMemberWithCards {
+  member: TeamMember;
+  inProgressCards: SustentacaoItemWithSLA[];
+  hasNoCards: boolean;
+}
+
+/**
  * Represents a work item in the Projetos dashboard.
  * Includes progress calculation based on completed children.
  */
@@ -844,6 +919,48 @@ export interface ProjetosItem {
   childrenCount: number;
   completedChildrenCount: number;
   progressPercent: number;
+}
+
+/**
+ * Quantitative summary of a sprint's cards grouped by status.
+ * Property 8: total = pending + inProgress + completed + cancelled
+ * and completionPercentage = (completed / total) * 100 (or 0 if total = 0).
+ */
+export interface SprintQuantitativeSummary {
+  total: number;
+  completed: number;
+  inProgress: number;
+  pending: number;
+  cancelled: number;
+  completionPercentage: number;
+}
+
+/**
+ * Alert for sprint items that are pending (no progress) or stagnant (no update in 2+ business days)
+ * when there are ≤5 business days remaining until sprint end.
+ *
+ * Validates: Requirements 3.4, 3.5
+ */
+export interface SprintAlert {
+  type: 'pending_no_progress' | 'stagnant';
+  taskId: number;
+  taskTitle: string;
+  message: string;
+}
+
+/**
+ * Result of getProjetosItems: items grouped by status + quantitative summary + alerts.
+ */
+export interface ProjetosResult {
+  items: ProjetosItem[];
+  groupedByStatus: {
+    pending: ProjetosItem[];
+    inProgress: ProjetosItem[];
+    completed: ProjetosItem[];
+    cancelled: ProjetosItem[];
+  };
+  summary: SprintQuantitativeSummary;
+  alerts: SprintAlert[];
 }
 
 /**

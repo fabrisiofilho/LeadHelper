@@ -6,7 +6,6 @@ import { TaskRepository } from '../repositories/task-repository';
 import { TaskEntity } from '../entities/task.entity';
 import { TeamRepository } from '../repositories/team-repository';
 import { logger } from '@main/infrastructure/log/logger';
-import { mapWorkItemStateToTaskStatus } from './work-item-type-mapper';
 import { AzureAreaNode } from '../parsers/team-parser';
 import { AzureWorkItem } from '../parsers/task-parser';
 import { AzureIterationNode } from '../parsers/sprint-parser';
@@ -16,6 +15,7 @@ import {
   ReportData,
   ReportItem,
   ReportPeriod,
+  WorkItemUpdate,
 } from '@shared/interfaces/config/index.types';
 
 // Default Area Paths for Sustentação and Projetos (Property 25)
@@ -591,7 +591,7 @@ export class AzureDevOpsService {
         description: workItem.description || undefined,
         startDate: startDate,
         endDate: endDate >= startDate ? endDate : startDate,
-        status: mapWorkItemStateToTaskStatus(workItem.state),
+        status: workItem.state, // Preserve original Azure DevOps state
         type: workItem.type, // Use Azure DevOps type directly
         origin: 'azure_devops',
         externalId: String(workItem.id),
@@ -744,7 +744,7 @@ export class AzureDevOpsService {
     // Update the task with new data from Azure DevOps
     task.title = workItem.title;
     task.description = workItem.description || undefined;
-    task.status = mapWorkItemStateToTaskStatus(workItem.state);
+    task.status = workItem.state; // Preserve original Azure DevOps state
     task.type = workItem.type; // Use Azure DevOps type directly
 
     // Update enriched fields with current values from Azure DevOps API
@@ -938,10 +938,20 @@ export class AzureDevOpsService {
   ): AzureIterationNode[] {
     return nodes.map((node) => {
       const attributes = node.attributes as Record<string, unknown> | undefined;
+
+      // The classification nodes API returns path as "\Project\Iteration\..."
+      // but work items use "Project\..." (without the "Iteration" segment).
+      // Strip the leading backslash and the "Iteration\" segment so the
+      // stored iterationPath matches System.IterationPath on work items.
+      let rawPath = node.path as string;
+      rawPath = rawPath.replace(/^\\/, '');
+      rawPath = rawPath.replace(/\\Iteration\\/i, '\\');
+      rawPath = rawPath.replace(/\\Iteration$/i, '');
+
       const result: AzureIterationNode = {
         id: node.id as number,
         name: node.name as string,
-        path: node.path as string,
+        path: rawPath,
       };
 
       if (attributes) {
@@ -1123,39 +1133,79 @@ export class AzureDevOpsService {
           }>;
         };
 
-        const mapped: AzureWorkItem[] = result.value.map((wi) => ({
-          id: wi.id,
-          fields: {
-            'System.Title': (wi.fields['System.Title'] as string) || '',
-            'System.Description': wi.fields['System.Description'] as
-              | string
-              | undefined,
-            'System.WorkItemType':
-              (wi.fields['System.WorkItemType'] as string) || '',
-            'System.State': (wi.fields['System.State'] as string) || '',
-            'System.AreaPath': wi.fields['System.AreaPath'] as
-              | string
-              | undefined,
-            'System.IterationPath': wi.fields['System.IterationPath'] as
-              | string
-              | undefined,
-            'System.Tags': wi.fields['System.Tags'] as string | undefined,
-            'Microsoft.VSTS.Scheduling.StoryPoints': wi.fields[
-              'Microsoft.VSTS.Scheduling.StoryPoints'
-            ] as number | undefined,
-            'Microsoft.VSTS.Common.Priority': wi.fields[
-              'Microsoft.VSTS.Common.Priority'
-            ] as number | undefined,
-            'System.AssignedTo': wi.fields['System.AssignedTo'] as
-              | {
-                  displayName: string;
-                  uniqueName: string;
-                  id?: string;
-                }
-              | undefined,
-          },
-          relations: wi.relations,
-        }));
+        const mapped: AzureWorkItem[] = [];
+        for (const wi of result.value) {
+          // Log priority-related fields for the first work item of the first batch
+          if (i === 0 && mapped.length === 0) {
+            const prioFields = Object.entries(wi.fields)
+              .filter(([key]) => key.toLowerCase().includes('prio') || key.toLowerCase().includes('sever'))
+              .map(([key, val]) => `${key}=${val}`);
+            logger.info(`[fetchAllWorkItems] Priority/Severity fields for WI#${wi.id}: ${prioFields.join(', ') || 'none'}`);
+            // Also log all custom fields (non-System, non-Microsoft)
+            const customFields = Object.entries(wi.fields)
+              .filter(([key]) => !key.startsWith('System.') && !key.startsWith('Microsoft.'))
+              .map(([key, val]) => `${key}=${typeof val === 'object' ? JSON.stringify(val) : val}`);
+            if (customFields.length > 0) {
+              logger.info(`[fetchAllWorkItems] Custom fields for WI#${wi.id}: ${customFields.join(', ')}`);
+            }
+          }
+
+          // Dynamically find the priority field — could be Microsoft.VSTS.Common.Priority
+          // or a custom field like Custom.Prioridade
+          let priorityValue: number | undefined = wi.fields[
+            'Microsoft.VSTS.Common.Priority'
+          ] as number | undefined;
+          if (priorityValue == null) {
+            // Search for any field containing 'prio' in the key name
+            for (const [key, val] of Object.entries(wi.fields)) {
+              if (key.toLowerCase().includes('prio') && typeof val === 'number') {
+                priorityValue = val;
+                break;
+              }
+            }
+          }
+
+          const customPrioridade = wi.fields['Custom.Prioridade'] as string | undefined;
+
+          mapped.push({
+            id: wi.id,
+            fields: {
+              'System.Title': (wi.fields['System.Title'] as string) || '',
+              'System.Description': wi.fields['System.Description'] as
+                | string
+                | undefined,
+              'System.WorkItemType':
+                (wi.fields['System.WorkItemType'] as string) || '',
+              'System.State': (wi.fields['System.State'] as string) || '',
+              'System.AreaPath': wi.fields['System.AreaPath'] as
+                | string
+                | undefined,
+              'System.IterationPath': wi.fields['System.IterationPath'] as
+                | string
+                | undefined,
+              'System.Tags': wi.fields['System.Tags'] as string | undefined,
+              'Microsoft.VSTS.Scheduling.StoryPoints': wi.fields[
+                'Microsoft.VSTS.Scheduling.StoryPoints'
+              ] as number | undefined,
+              'Microsoft.VSTS.Common.Priority': priorityValue,
+              'Custom.Prioridade': customPrioridade,
+              'System.AssignedTo': wi.fields['System.AssignedTo'] as
+                | {
+                    displayName: string;
+                    uniqueName: string;
+                    id?: string;
+                  }
+                | undefined,
+              'System.CreatedDate': wi.fields['System.CreatedDate'] as
+                | string
+                | undefined,
+              'System.ChangedDate': wi.fields['System.ChangedDate'] as
+                | string
+                | undefined,
+            },
+            relations: wi.relations,
+          });
+        }
 
         allResults.push(...mapped);
       }
@@ -1346,4 +1396,178 @@ export class AzureDevOpsService {
       byStatus,
     };
   }
+  /**
+   * Fetches the update history for a specific work item from the Azure DevOps Updates API.
+   * Returns an array of WorkItemUpdate objects with field changes per revision.
+   * On failure, logs the error and returns an empty array.
+   */
+  async fetchWorkItemUpdates(workItemId: number): Promise<WorkItemUpdate[]> {
+    try {
+      const fullConfig = await this.getFullConfig();
+
+      if (!fullConfig) {
+        logger.info(
+          'Configuração do Azure DevOps não encontrada ao buscar updates do work item',
+        );
+        return [];
+      }
+
+      const { organizationUrl, projectName, pat } = fullConfig;
+      const baseUrl = organizationUrl.replace(/\/$/, '');
+      const authHeader = `Basic ${Buffer.from(`:${pat}`).toString('base64')}`;
+
+      const url = `${baseUrl}/${encodeURIComponent(projectName)}/_apis/wit/workitems/${workItemId}/updates?api-version=7.0`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Authorization: authHeader,
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error(
+          `Erro ao buscar updates do work item ${workItemId}: ${response.status} - ${errorText}`,
+        );
+        return [];
+      }
+
+      const data = (await response.json()) as {
+        value: Array<{
+          rev: number;
+          revisedBy?: { displayName?: string };
+          revisedDate?: string;
+          fields?: Record<
+            string,
+            { oldValue?: unknown; newValue?: unknown }
+          >;
+        }>;
+      };
+
+      const updates: WorkItemUpdate[] = (data.value ?? [])
+        .filter((update) => update.fields && Object.keys(update.fields).length > 0)
+        .map((update) => {
+          const fields = Object.entries(update.fields!).map(
+            ([fieldName, change]) => ({
+              fieldName,
+              oldValue: change.oldValue != null ? String(change.oldValue) : undefined,
+              newValue: change.newValue != null ? String(change.newValue) : undefined,
+            }),
+          );
+
+          return {
+            revision: update.rev,
+            changedDate: new Date(update.revisedDate ?? new Date().toISOString()),
+            changedBy: update.revisedBy?.displayName,
+            fields,
+          };
+        });
+
+      return updates;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Erro desconhecido';
+      logger.error(
+        `Erro ao buscar updates do work item ${workItemId}: ${errorMessage}`,
+      );
+      return [];
+    }
+  }
+  /**
+   * Fetches revision history for ALL work items in the project using the
+   * Reporting Work Item Revisions endpoint.  This is a single paginated
+   * stream — no per-item requests needed.
+   *
+   * Returns a Map<workItemId, WorkItemUpdate[]> so callers can look up
+   * updates by work item ID without any extra HTTP calls.
+   *
+   * READ-ONLY — never sends data back to Azure DevOps.
+   */
+  async fetchAllWorkItemUpdates(): Promise<Map<number, WorkItemUpdate[]>> {
+    const result = new Map<number, WorkItemUpdate[]>();
+
+    const fullConfig = await this.getFullConfig();
+    if (!fullConfig) {
+      logger.info('Configuração do Azure DevOps não encontrada ao buscar bulk updates');
+      return result;
+    }
+
+    const { organizationUrl, projectName, pat } = fullConfig;
+    const baseUrl = organizationUrl.replace(/\/$/, '');
+    const authHeader = `Basic ${Buffer.from(`:${pat}`).toString('base64')}`;
+
+    let continuationToken: string | undefined;
+
+    try {
+      do {
+        const url = `${baseUrl}/${encodeURIComponent(projectName)}/_apis/wit/reporting/workitemrevisions?api-version=7.0${
+          continuationToken ? `&continuationToken=${continuationToken}` : ''
+        }`;
+
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: { Authorization: authHeader },
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          logger.error(`Erro ao buscar bulk revisions: ${response.status} - ${errorText}`);
+          break;
+        }
+
+        const data = (await response.json()) as {
+          values: Array<{
+            id: number;
+            rev: number;
+            fields: Record<string, unknown>;
+          }>;
+          continuationToken?: string;
+          isLastBatch?: boolean;
+        };
+
+        for (const revision of data.values ?? []) {
+          const workItemId = revision.id;
+          const changedBy =
+            (revision.fields?.['System.ChangedBy'] as string) ??
+            (revision.fields?.['System.AuthorizedAs'] as string);
+          const changedDate = revision.fields?.['System.ChangedDate']
+            ? new Date(revision.fields['System.ChangedDate'] as string)
+            : new Date();
+
+          const fields: { fieldName: string; oldValue?: string; newValue?: string }[] = [];
+          for (const [fieldName, value] of Object.entries(revision.fields ?? {})) {
+            if (fieldName === 'System.ChangedBy' || fieldName === 'System.ChangedDate' || fieldName === 'System.AuthorizedAs') continue;
+            fields.push({
+              fieldName,
+              newValue: value != null ? String(value) : undefined,
+            });
+          }
+
+          if (fields.length > 0) {
+            const updates = result.get(workItemId) ?? [];
+            updates.push({
+              revision: revision.rev,
+              changedDate,
+              changedBy,
+              fields,
+            });
+            result.set(workItemId, updates);
+          }
+        }
+
+        continuationToken = data.isLastBatch ? undefined : data.continuationToken;
+      } while (continuationToken);
+
+      logger.info(`[fetchAllWorkItemUpdates] Fetched revisions for ${result.size} work items`);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Erro desconhecido';
+      logger.error(`[fetchAllWorkItemUpdates] Erro: ${msg}`);
+    }
+
+    return result;
+  }
+
+
+
 }

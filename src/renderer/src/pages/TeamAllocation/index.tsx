@@ -8,11 +8,15 @@ import {
   Stack,
   Alert,
   AlertTitle,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import {
   GroupWork as GroupWorkIcon,
   Refresh as RefreshIcon,
   Warning as WarningIcon,
+  BarChart as GanttIcon,
+  People as PeopleIcon,
 } from '@mui/icons-material';
 import { useTeams } from '@renderer/hooks/useTeams';
 import { useTeamMembers } from '@renderer/hooks/useTeamMembers';
@@ -34,8 +38,10 @@ import type {
   CreateTeamMemberAllocationInput,
   UpdateTeamMemberAllocationInput,
 } from '@shared/interfaces/config/index.types';
+import { GanttTab } from './components/GanttTab';
 
 export function TeamAllocationPage() {
+  const [activeTab, setActiveTab] = useState(0);
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
@@ -333,7 +339,7 @@ export function TeamAllocationPage() {
               <RefreshIcon />
             </IconButton>
           </Tooltip>
-          {selectedTeam && (
+          {selectedTeam && activeTab === 0 && (
             <Tooltip title="Editar equipe">
               <IconButton
                 size="small"
@@ -346,56 +352,71 @@ export function TeamAllocationPage() {
         </Stack>
       </Stack>
 
-      {/* Conflict alerts */}
-      {conflicts.length > 0 && (
-        <Stack spacing={1} sx={{ mb: 2 }}>
-          {conflicts.map((conflict, index) => (
-            <Alert key={index} severity="warning" variant="outlined">
-              <AlertTitle>Conflito de Alocação</AlertTitle>
-              <strong>{conflict.memberName}</strong> está alocado na equipe{' '}
-              <strong>{conflict.allocatedTeamName}</strong>, mas possui a tarefa{' '}
-              <strong>&quot;{conflict.taskTitle}&quot;</strong> na equipe{' '}
-              <strong>{conflict.taskTeamName}</strong>.
-            </Alert>
-          ))}
-        </Stack>
+      <Tabs
+        value={activeTab}
+        onChange={(_e, newValue) => setActiveTab(newValue)}
+        sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}
+      >
+        <Tab icon={<PeopleIcon />} iconPosition="start" label="Gestão de Alocações" />
+        <Tab icon={<GanttIcon />} iconPosition="start" label="Gráfico Gantt" />
+      </Tabs>
+
+      {activeTab === 0 && (
+        <>
+          {/* Conflict alerts */}
+          {conflicts.length > 0 && (
+            <Stack spacing={1} sx={{ mb: 2 }}>
+              {conflicts.map((conflict, index) => (
+                <Alert key={index} severity="warning" variant="outlined">
+                  <AlertTitle>Conflito de Alocação</AlertTitle>
+                  <strong>{conflict.memberName}</strong> está alocado na equipe{' '}
+                  <strong>{conflict.allocatedTeamName}</strong>, mas possui a tarefa{' '}
+                  <strong>&quot;{conflict.taskTitle}&quot;</strong> na equipe{' '}
+                  <strong>{conflict.taskTeamName}</strong>.
+                </Alert>
+              ))}
+            </Stack>
+          )}
+
+          <AllocationOverview
+            teams={teams}
+            teamMembers={teamMembers}
+            allAllocations={allAllocations}
+            selectedTeam={selectedTeam}
+            onSelectTeam={(team) => handleSelectTeam(team)}
+            onNewTeam={handleNewTeam}
+          />
+
+          <ContentArea sx={{ mt: 2 }}>
+            {selectedTeam ? (
+              <MemberDetails
+                team={selectedTeam}
+                allocations={allocations}
+                loading={allocationsLoading}
+                onNewMember={handleNewMember}
+                onNewAllocation={handleNewAllocation}
+                onEditAllocation={handleEditAllocation}
+                onRemoveAllocation={handleRemoveAllocation}
+              />
+            ) : (
+              <PlaceholderContent>
+                <GroupWorkIcon
+                  sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }}
+                />
+                <Typography variant="h6" color="text.secondary" gutterBottom>
+                  Selecione uma equipe
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Clique em uma equipe acima para visualizar e gerenciar seus
+                  membros
+                </Typography>
+              </PlaceholderContent>
+            )}
+          </ContentArea>
+        </>
       )}
 
-      <AllocationOverview
-        teams={teams}
-        teamMembers={teamMembers}
-        allAllocations={allAllocations}
-        selectedTeam={selectedTeam}
-        onSelectTeam={(team) => handleSelectTeam(team)}
-        onNewTeam={handleNewTeam}
-      />
-
-      <ContentArea sx={{ mt: 2 }}>
-        {selectedTeam ? (
-          <MemberDetails
-            team={selectedTeam}
-            allocations={allocations}
-            loading={allocationsLoading}
-            onNewMember={handleNewMember}
-            onNewAllocation={handleNewAllocation}
-            onEditAllocation={handleEditAllocation}
-            onRemoveAllocation={handleRemoveAllocation}
-          />
-        ) : (
-          <PlaceholderContent>
-            <GroupWorkIcon
-              sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }}
-            />
-            <Typography variant="h6" color="text.secondary" gutterBottom>
-              Selecione uma equipe
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Clique em uma equipe acima para visualizar e gerenciar seus
-              membros
-            </Typography>
-          </PlaceholderContent>
-        )}
-      </ContentArea>
+      {activeTab === 1 && <GanttTab />}
 
       <TeamModal
         open={isTeamModalOpen}

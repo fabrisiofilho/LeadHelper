@@ -29,6 +29,12 @@ vi.mock('../../repositories/team-member-allocation-repository', () => ({
 vi.mock('../../repositories/task-local-priority-repository', () => ({
   TaskLocalPriorityRepository: vi.fn(),
 }));
+vi.mock('../../repositories/task-sla-exclusion-repository', () => ({
+  TaskSlaExclusionRepository: vi.fn(),
+}));
+vi.mock('../../repositories/task-hidden-repository', () => ({
+  TaskHiddenRepository: vi.fn(),
+}));
 vi.mock('../team-member-allocation-service', () => ({
   TeamMemberAllocationService: vi.fn(),
 }));

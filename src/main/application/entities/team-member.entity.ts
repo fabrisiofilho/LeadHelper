@@ -43,10 +43,10 @@ export class TeamMemberEntity extends AuditableEntity {
   @JoinColumn({ name: 'position_id' })
   position?: PositionEntity;
 
-  @Column({ name: 'azure_unique_id', nullable: true })
+  @Column({ name: 'azure_unique_id', type: 'text', nullable: true })
   azureUniqueId?: string;
 
-  @Column({ name: 'position_id', nullable: true })
+  @Column({ name: 'position_id', type: 'integer', nullable: true })
   positionId?: number;
 
   @OneToMany('TeamMemberAllocationEntity', 'teamMember')

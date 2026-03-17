@@ -69,14 +69,14 @@ export class TaskEntity extends AuditableEntity {
   @JoinColumn({ name: 'sprint_id' })
   sprint?: SprintEntity;
 
-  @Column({ name: 'sprint_id', nullable: true })
+  @Column({ name: 'sprint_id', type: 'integer', nullable: true })
   sprintId?: number;
 
   @ManyToOne('TeamEntity', 'tasks')
   @JoinColumn({ name: 'team_id' })
   team?: TeamEntity;
 
-  @Column({ name: 'team_id', nullable: true })
+  @Column({ name: 'team_id', type: 'integer', nullable: true })
   teamId?: number;
 
   @Column({ name: 'area_path', type: 'text', nullable: true })
@@ -91,13 +91,32 @@ export class TaskEntity extends AuditableEntity {
   @Column({ name: 'story_points', type: 'real', nullable: true })
   storyPoints?: number;
 
-  @Column({ name: 'assigned_to_name', nullable: true })
+  @Column({ name: 'assigned_to_name', type: 'text', nullable: true })
   assignedToName?: string;
 
-  @Column({ name: 'assigned_to_email', nullable: true })
+  @Column({ name: 'assigned_to_email', type: 'text', nullable: true })
   assignedToEmail?: string;
 
-  @Column({ name: 'parent_id', nullable: true })
+  @Column({
+    name: 'azure_created_date',
+    type: 'datetime',
+    nullable: true,
+    transformer: DateTransformer,
+  })
+  azureCreatedDate?: Date;
+
+  @Column({
+    name: 'azure_changed_date',
+    type: 'datetime',
+    nullable: true,
+    transformer: DateTransformer,
+  })
+  azureChangedDate?: Date;
+
+  @Column({ name: 'azure_priority', type: 'integer', nullable: true })
+  azurePriority?: number;
+
+  @Column({ name: 'parent_id', type: 'integer', nullable: true })
   parentId?: number;
 
   @ManyToOne('TaskEntity', 'children')

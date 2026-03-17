@@ -54,8 +54,12 @@ export function AzureDevOpsConfigPage() {
       const response = await window.electronAPI.azureDevOps.fullSync();
       if (response.success && response.data) {
         const d = response.data;
+        const failureInfo =
+          d.failureCount > 0
+            ? ` (${d.failureCount} falha(s))`
+            : '';
         setSyncResult(
-          `Sincronização concluída: ${d.sprints.total} sprints, ${d.teams.total} equipes, ${d.members.total} membros, ${d.tasks.total} tarefas.`,
+          `Sincronização concluída: ${d.sprints.total} sprints, ${d.teams.total} equipes, ${d.members.total} membros, ${d.tasks.total} tarefas.${failureInfo}`,
         );
       } else {
         setSyncResult(response.error || 'Erro ao sincronizar.');
@@ -132,7 +136,13 @@ export function AzureDevOpsConfigPage() {
 
       {syncResult && (
         <Alert
-          severity={syncResult.startsWith('Erro') ? 'error' : 'success'}
+          severity={
+            syncResult.startsWith('Erro')
+              ? 'error'
+              : syncResult.includes('falha')
+                ? 'warning'
+                : 'success'
+          }
           onClose={() => setSyncResult(null)}
           sx={{ mb: 2 }}
         >

@@ -122,15 +122,20 @@ export abstract class BaseRepository<T extends ObjectLiteral> {
       id: (saved as any).id,
     });
 
-    // Force sync to disk for SQLite WAL mode
+    return saved;
+  }
+
+  /**
+   * Force WAL checkpoint to sync data to disk.
+   * Call this after bulk operations, not after every single save.
+   */
+  async walCheckpoint(): Promise<void> {
     try {
       await this.repository.query('PRAGMA wal_checkpoint(PASSIVE)');
-      logger.info('WAL checkpoint completed after save');
+      logger.info('WAL checkpoint completed');
     } catch (error) {
       logger.warning('WAL checkpoint failed (data still in WAL):', error);
     }
-
-    return saved;
   }
 
   async update(

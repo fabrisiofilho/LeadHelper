@@ -8,13 +8,19 @@ import type {
   SprintDashboard,
 } from '../services/dashboard-service';
 import { logger } from '@main/infrastructure/log/logger';
+import { TaskSlaExclusionRepository } from '../repositories/task-sla-exclusion-repository';
+import { TaskHiddenRepository } from '../repositories/task-hidden-repository';
 
 export class DashboardController extends BaseHandler {
   private service: dashboardService.DashboardService;
+  private slaExclusionRepo: TaskSlaExclusionRepository;
+  private hiddenRepo: TaskHiddenRepository;
 
   constructor() {
     super();
     this.service = new dashboardService.DashboardService();
+    this.slaExclusionRepo = new TaskSlaExclusionRepository();
+    this.hiddenRepo = new TaskHiddenRepository();
   }
 
   @IpcMethod('dashboard:getSummary')
@@ -169,10 +175,10 @@ export class DashboardController extends BaseHandler {
    * @param options - Optional filtering options (staleDays, sortBy)
    * @returns Array of SustentacaoItem with enriched data
    */
-  @IpcMethod('dashboard:get-sustentacao-items')
+  @IpcMethod('dashboard:getSustentacaoItems')
   async getSustentacaoItems(
     options?: dashboardService.SustentacaoOptions,
-  ): Promise<ApiResponse<dashboardService.SustentacaoItem[]>> {
+  ): Promise<ApiResponse<dashboardService.SustentacaoItemWithSLA[]>> {
     try {
       const result = await this.service.getSustentacaoItems(options);
       return { success: true, data: result };
@@ -182,6 +188,52 @@ export class DashboardController extends BaseHandler {
           ? error.message
           : 'Erro ao obter itens de Sustentação';
       logger.error('DashboardController.getSustentacaoItems error:', error);
+      return { success: false, error: message };
+    }
+  }
+
+  /**
+   * Get Sustentação team members with their in-progress cards.
+   *
+   * Validates: Requirements 2.2, 2.3, 2.4
+   */
+  @IpcMethod('dashboard:getSustentacaoMembersWithCards')
+  async getSustentacaoMembersWithCards(): Promise<ApiResponse<dashboardService.SustentacaoMemberWithCards[]>> {
+    try {
+      const result = await this.service.getSustentacaoMembersWithCards();
+      return { success: true, data: result };
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Erro ao obter membros de Sustentação';
+      logger.error('DashboardController.getSustentacaoMembersWithCards error:', error);
+      return { success: false, error: message };
+    }
+  }
+
+  // ============================================================================
+  // Task Update History Handlers
+  // ============================================================================
+
+  /**
+   * Get update history for a specific task.
+   *
+   * Validates: Requirement 4.1
+   */
+  @IpcMethod('dashboard:getTaskUpdateHistory')
+  async getTaskUpdateHistory(
+    taskId: number,
+  ): Promise<ApiResponse<unknown[]>> {
+    try {
+      const result = await this.service.getTaskUpdateHistory(taskId);
+      return { success: true, data: result };
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Erro ao obter histórico de atualizações';
+      logger.error('DashboardController.getTaskUpdateHistory error:', error);
       return { success: false, error: message };
     }
   }
@@ -202,22 +254,22 @@ export class DashboardController extends BaseHandler {
    * @param sprintId - The Sprint ID to filter by
    * @returns Array of ProjetosItem with enriched data
    */
-  @IpcMethod('dashboard:get-projetos-items')
-  async getProjetosItems(
-    sprintId: number,
-  ): Promise<ApiResponse<dashboardService.ProjetosItem[]>> {
-    try {
-      const result = await this.service.getProjetosItems(sprintId);
-      return { success: true, data: result };
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Erro ao obter itens de Projetos';
-      logger.error('DashboardController.getProjetosItems error:', error);
-      return { success: false, error: message };
+  @IpcMethod('dashboard:getProjetosItems')
+    async getProjetosItems(
+      sprintId: number,
+    ): Promise<ApiResponse<dashboardService.ProjetosResult>> {
+      try {
+        const result = await this.service.getProjetosItems(sprintId);
+        return { success: true, data: result };
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'Erro ao obter itens de Projetos';
+        logger.error('DashboardController.getProjetosItems error:', error);
+        return { success: false, error: message };
+      }
     }
-  }
 
   // ============================================================================
   // Chart Handlers
@@ -235,7 +287,7 @@ export class DashboardController extends BaseHandler {
    * @param sprintId - The Sprint ID to get burndown data for
    * @returns Array of BurndownPoint for each day in the Sprint
    */
-  @IpcMethod('dashboard:get-burndown')
+  @IpcMethod('dashboard:getBurndownData')
   async getBurndownData(
     sprintId: number,
   ): Promise<ApiResponse<dashboardService.BurndownPoint[]>> {
@@ -262,7 +314,7 @@ export class DashboardController extends BaseHandler {
    * @param parentId - Optional parent ID to filter children only
    * @returns Array of StatusCount with status, count, and color
    */
-  @IpcMethod('dashboard:get-status-distribution')
+  @IpcMethod('dashboard:getStatusDistribution')
   async getStatusDistribution(
     parentId?: number,
   ): Promise<ApiResponse<dashboardService.StatusCount[]>> {
@@ -289,7 +341,7 @@ export class DashboardController extends BaseHandler {
    * @param parentId - Optional parent ID to filter children only
    * @returns Array of AssigneeCount with assignee name and count
    */
-  @IpcMethod('dashboard:get-assignee-distribution')
+  @IpcMethod('dashboard:getAssigneeDistribution')
   async getAssigneeDistribution(
     parentId?: number,
   ): Promise<ApiResponse<dashboardService.AssigneeCount[]>> {
@@ -316,7 +368,7 @@ export class DashboardController extends BaseHandler {
    * @param parentId - The parent item ID to get progress for
    * @returns HierarchyProgress with parent info and progress data
    */
-  @IpcMethod('dashboard:get-hierarchy-progress')
+  @IpcMethod('dashboard:getHierarchyProgress')
   async getHierarchyProgress(
     parentId: number,
   ): Promise<ApiResponse<dashboardService.HierarchyProgress>> {
@@ -329,6 +381,69 @@ export class DashboardController extends BaseHandler {
           ? error.message
           : 'Erro ao obter progresso hierárquico';
       logger.error('DashboardController.getHierarchyProgress error:', error);
+      return { success: false, error: message };
+    }
+  }
+
+  @IpcMethod('dashboard:excludeSla')
+  async excludeSla(
+    externalId: string,
+    reason?: string,
+  ): Promise<ApiResponse<void>> {
+    try {
+      await this.slaExclusionRepo.exclude(externalId, reason);
+      return { success: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro ao excluir SLA';
+      logger.error('DashboardController.excludeSla error:', error);
+      return { success: false, error: message };
+    }
+  }
+
+  @IpcMethod('dashboard:restoreSla')
+  async restoreSla(externalId: string): Promise<ApiResponse<void>> {
+    try {
+      await this.slaExclusionRepo.restore(externalId);
+      return { success: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro ao restaurar SLA';
+      logger.error('DashboardController.restoreSla error:', error);
+      return { success: false, error: message };
+    }
+  }
+
+  @IpcMethod('dashboard:getSlaExclusions')
+  async getSlaExclusions(): Promise<ApiResponse<string[]>> {
+    try {
+      const all = await this.slaExclusionRepo.find();
+      return { success: true, data: all.map((e) => e.externalId) };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro ao buscar exclusões de SLA';
+      logger.error('DashboardController.getSlaExclusions error:', error);
+      return { success: false, error: message };
+    }
+  }
+
+  @IpcMethod('dashboard:hideItem')
+  async hideItem(externalId: string, reason?: string): Promise<ApiResponse<void>> {
+    try {
+      await this.hiddenRepo.hide(externalId, reason);
+      return { success: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro ao ocultar item';
+      logger.error('DashboardController.hideItem error:', error);
+      return { success: false, error: message };
+    }
+  }
+
+  @IpcMethod('dashboard:unhideItem')
+  async unhideItem(externalId: string): Promise<ApiResponse<void>> {
+    try {
+      await this.hiddenRepo.unhide(externalId);
+      return { success: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro ao reativar item';
+      logger.error('DashboardController.unhideItem error:', error);
       return { success: false, error: message };
     }
   }

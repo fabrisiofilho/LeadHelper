@@ -308,7 +308,7 @@ export const ProjetosTab: FC = () => {
         return;
       }
 
-      const data = response.data || [];
+      const data = response.data?.items || [];
       setItems(data);
 
       // Pre-load priorities for all items

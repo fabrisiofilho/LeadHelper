@@ -5,10 +5,22 @@ import { TeamRepository } from '../repositories/team-repository';
 import { TeamMemberAllocationRepository } from '../repositories/team-member-allocation-repository';
 import { TeamMemberAllocationService } from './team-member-allocation-service';
 import { TaskLocalPriorityRepository } from '../repositories/task-local-priority-repository';
+import { TaskUpdateRepository } from '../repositories/task-update-repository';
 import { TeamMemberEntity } from '../entities/team-member.entity';
 import { TaskEntity } from '../entities/task.entity';
+import { SprintEntity } from '../entities/sprint.entity';
 import type { AllocationConflict } from './team-member-allocation-service';
 import { logger } from '@main/infrastructure/log/logger';
+import { calculateBusinessHours, addBusinessHours, isBusinessDay } from '@main/infrastructure/utils/business-hours';
+import {
+  SLA_LIMITS,
+  type TaskPriority,
+} from '@shared/interfaces/config/index.types';
+
+
+import { TaskSlaExclusionRepository } from '../repositories/task-sla-exclusion-repository';
+import { TaskHiddenRepository } from '../repositories/task-hidden-repository';
+
 
 export interface DashboardPeriod {
   startDate: Date;
@@ -92,6 +104,20 @@ export interface SustentacaoItem {
 }
 
 /**
+ * Extends SustentacaoItem with SLA calculation fields.
+ * Used by the Sustentação dashboard to display SLA status indicators.
+ */
+export interface SustentacaoItemWithSLA extends SustentacaoItem {
+  businessHoursElapsed: number;  // business hours elapsed
+  slaLimit: number;              // SLA limit in business hours
+  slaPercentage: number;         // % of SLA consumed
+  slaViolated: boolean;          // SLA exceeded
+  slaWarning: boolean;           // ≥80% of SLA
+  slaExcluded?: boolean;         // SLA manually excluded by user
+  isHidden?: boolean;            // Item hidden/deactivated by user
+}
+
+/**
  * Represents a work item in the Projetos dashboard.
  * Includes progress calculation based on completed children.
  */
@@ -101,6 +127,52 @@ export interface ProjetosItem {
   childrenCount: number;
   completedChildrenCount: number;
   progressPercent: number;
+}
+
+/**
+ * Alert for sprint items that are pending (no progress) or stagnant (no update in 2+ business days)
+ * when there are ≤5 business days remaining until sprint end.
+ *
+ * Validates: Requirements 3.4, 3.5
+ */
+export interface SprintAlert {
+  type: 'pending_no_progress' | 'stagnant';
+  taskId: number;
+  taskTitle: string;
+  message: string;
+}
+
+/**
+ * Quantitative summary of a sprint's cards grouped by status.
+ * Property 8: total = pending + inProgress + completed + cancelled
+ * and completionPercentage = (completed / total) * 100 (or 0 if total = 0).
+ *
+ * Validates: Requirements 3.3, 3.6
+ */
+export interface SprintQuantitativeSummary {
+  total: number;
+  completed: number;
+  inProgress: number;
+  pending: number;
+  cancelled: number;
+  completionPercentage: number;
+}
+
+/**
+ * Result of getProjetosItems: items grouped by status + quantitative summary + alerts.
+ *
+ * Validates: Requirements 3.3, 3.4, 3.5, 3.6
+ */
+export interface ProjetosResult {
+  items: ProjetosItem[];
+  groupedByStatus: {
+    pending: ProjetosItem[];
+    inProgress: ProjetosItem[];
+    completed: ProjetosItem[];
+    cancelled: ProjetosItem[];
+  };
+  summary: SprintQuantitativeSummary;
+  alerts: SprintAlert[];
 }
 
 /**
@@ -160,8 +232,8 @@ export interface HierarchyProgress {
  * Default Area Path patterns for filtering by team.
  * Property 25: Fallback to default values if not configured.
  */
-const SUSTENTACAO_AREA_PATH_PATTERN = 'Tribo SEIF\\Sustentação\\';
-const PROJETOS_AREA_PATH_PATTERN = 'Tribo SEIF\\Projetos\\';
+const SUSTENTACAO_AREA_PATH_PATTERN = 'Tribo SEIF\\Sustentação';
+const PROJETOS_AREA_PATH_PATTERN = 'Tribo SEIF\\Projetos';
 
 /**
  * Valid work item types for Sustentação dashboard.
@@ -171,34 +243,209 @@ const SUSTENTACAO_WORK_ITEM_TYPES = ['Ticket', 'Improvement'];
 
 /**
  * Statuses that indicate a work item is closed/completed.
- * Property 1: status NOT IN ('completed', 'cancelled')
+ * Includes both legacy mapped values and real Azure DevOps states.
+ * Property 1: status NOT IN closed/cancelled
  */
-const CLOSED_STATUSES = ['completed', 'cancelled', 'Done', 'Closed'];
+const CLOSED_STATUSES = [
+  'completed', 'cancelled',
+  'Done', 'Closed', 'Resolved', 'Finalizado',
+  'Removed', 'Cut', 'Cancelado',
+];
 
 /**
  * Statuses that indicate a task is completed for progress calculation.
  * Property 10, 11: Tasks with these statuses are considered completed.
  */
-const COMPLETED_STATUSES = ['completed', 'Done', 'Closed'];
+const COMPLETED_STATUSES = ['completed', 'Done', 'Closed', 'Resolved', 'Finalizado'];
+
+/**
+ * Statuses that indicate a task is cancelled.
+ */
+const CANCELLED_STATUSES = ['cancelled', 'Removed', 'Cut', 'Cancelado'];
+
+/**
+ * Statuses that indicate a task is in progress.
+ */
+const IN_PROGRESS_STATUSES = [
+  'in_progress', 'Active', 'In Progress', 'Committed',
+  'Em Andamento', 'Em Desenvolvimento', 'Em Auditoria',
+  'Em Homologação', 'Aguardando Auditoria', 'Aguardando Validação',
+  'Aguardando Implantação', 'Preparando para Dev',
+];
+
+/**
+ * Statuses that indicate a task is pending (not yet started).
+ */
+const PENDING_STATUSES = [
+  'pending', 'New', 'Novo', 'Em Levantamento',
+  'Backlog Comprometido',
+];
+
+/**
+ * Categorize a task status string into one of the four canonical groups.
+ * Falls back to 'pending' for unknown statuses.
+ */
+export function categorizeStatus(status: string): 'pending' | 'inProgress' | 'completed' | 'cancelled' {
+  if (COMPLETED_STATUSES.includes(status)) return 'completed';
+  if (CANCELLED_STATUSES.includes(status)) return 'cancelled';
+  if (IN_PROGRESS_STATUSES.includes(status)) return 'inProgress';
+  return 'pending';
+}
 
 /**
  * Color mapping for status badges.
  * Property 36: New=blue, Active/In Progress=yellow, Resolved/Done=green, Closed=gray
  */
 const STATUS_COLORS: Record<string, string> = {
-  New: '#2196F3', // blue
-  Active: '#FFC107', // yellow
-  'In Progress': '#FFC107', // yellow
-  Resolved: '#4CAF50', // green
-  Done: '#4CAF50', // green
-  Closed: '#9E9E9E', // gray
-  pending: '#2196F3', // blue
-  in_progress: '#FFC107', // yellow
-  completed: '#4CAF50', // green
-  cancelled: '#9E9E9E', // gray
+  // Azure DevOps real states
+  Novo: '#2196F3',
+  New: '#2196F3',
+  'Em Levantamento': '#2196F3',
+  'Backlog Comprometido': '#2196F3',
+  'Preparando para Dev': '#42A5F5',
+  Active: '#FFC107',
+  'In Progress': '#FFC107',
+  'Em Andamento': '#FFC107',
+  'Em Desenvolvimento': '#FF9800',
+  'Em Auditoria': '#AB47BC',
+  'Aguardando Auditoria': '#CE93D8',
+  'Em Homologação': '#7E57C2',
+  'Aguardando Validação': '#9575CD',
+  'Aguardando Implantação': '#26A69A',
+  Committed: '#FFC107',
+  Resolved: '#66BB6A',
+  Done: '#4CAF50',
+  Closed: '#9E9E9E',
+  Finalizado: '#4CAF50',
+  Removed: '#EF5350',
+  Cut: '#EF5350',
+  Cancelado: '#EF5350',
+  // Legacy mapped values
+  pending: '#2196F3',
+  in_progress: '#FFC107',
+  completed: '#4CAF50',
+  cancelled: '#9E9E9E',
 };
 
 const DEFAULT_STATUS_COLOR = '#757575'; // default gray
+
+/**
+ * Pure function to find the current sprint from a list of sprints for a given reference date.
+ *
+ * Property 7: For any set of sprints and any reference date, the current sprint is the one
+ * whose startDate <= referenceDate and endDate >= referenceDate. If multiple sprints satisfy
+ * the condition for the same team, the most recent (by startDate) should be selected.
+ * If none satisfies, the result should be null.
+ *
+ * Validates: Requirements 3.2
+ *
+ * @param sprints - Array of sprint-like objects with startDate, endDate, and optional teamId
+ * @param referenceDate - The date to check against
+ * @param teamId - Optional team ID to filter sprints by
+ * @returns The current sprint or null
+ */
+export function findCurrentSprint<
+  T extends { startDate: Date; endDate: Date; teamId?: number },
+>(sprints: T[], referenceDate: Date, teamId?: number): T | null {
+  const candidates = sprints.filter((s) => {
+    const matchesTeam = teamId === undefined || s.teamId === teamId;
+    const matchesDate = s.startDate <= referenceDate && s.endDate >= referenceDate;
+    return matchesTeam && matchesDate;
+  });
+
+  if (candidates.length === 0) return null;
+
+  // Select the most recent by startDate (descending)
+  candidates.sort((a, b) => b.startDate.getTime() - a.startDate.getTime());
+  return candidates[0];
+}
+
+/**
+ * Calculate the number of business days remaining from a reference date to a target date.
+ * Counts only weekdays (Mon–Fri). The reference date itself is not counted if it's already
+ * past business hours, but for simplicity we count full days from the day after referenceDate
+ * up to and including targetDate.
+ *
+ * Validates: Requirements 3.4, 3.5
+ *
+ * @param referenceDate - The starting date (typically "today")
+ * @param targetDate - The end date (typically sprint endDate)
+ * @returns Number of business days remaining (0 if targetDate <= referenceDate)
+ */
+export function calculateBusinessDaysRemaining(
+  referenceDate: Date,
+  targetDate: Date,
+): number {
+  // Normalize to start of day for comparison
+  const start = new Date(referenceDate);
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(targetDate);
+  end.setHours(0, 0, 0, 0);
+
+  if (end <= start) return 0;
+
+  let count = 0;
+  const current = new Date(start);
+  // Move to the next day and start counting
+  current.setDate(current.getDate() + 1);
+
+  while (current <= end) {
+    if (isBusinessDay(current)) {
+      count++;
+    }
+    current.setDate(current.getDate() + 1);
+  }
+
+  return count;
+}
+
+/**
+ * Calculate the number of business days since a given date.
+ *
+ * Validates: Requirements 3.5
+ *
+ * @param fromDate - The date to count from
+ * @param referenceDate - The current date (typically "today")
+ * @returns Number of business days elapsed
+ */
+export function calculateBusinessDaysSince(
+  fromDate: Date,
+  referenceDate: Date,
+): number {
+  const start = new Date(fromDate);
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(referenceDate);
+  end.setHours(0, 0, 0, 0);
+
+  if (end <= start) return 0;
+
+  let count = 0;
+  const current = new Date(start);
+  current.setDate(current.getDate() + 1);
+
+  while (current <= end) {
+    if (isBusinessDay(current)) {
+      count++;
+    }
+    current.setDate(current.getDate() + 1);
+  }
+
+  return count;
+}
+
+/**
+ * Represents a Sustentação team member with their in-progress cards.
+ * Used by the Sustentação dashboard to display members and their workload.
+ *
+ * Validates: Requirements 2.2, 2.3, 2.4
+ */
+export interface SustentacaoMemberWithCards {
+  member: TeamMemberEntity;
+  inProgressCards: SustentacaoItemWithSLA[];
+  hasNoCards: boolean;
+}
 
 export class DashboardService {
   private teamMemberRepository: TeamMemberRepository;
@@ -208,6 +455,9 @@ export class DashboardService {
   private allocationRepository: TeamMemberAllocationRepository;
   private allocationService: TeamMemberAllocationService;
   private taskLocalPriorityRepository: TaskLocalPriorityRepository;
+  private taskUpdateRepository: TaskUpdateRepository;
+  private slaExclusionRepository: TaskSlaExclusionRepository;
+  private hiddenRepository: TaskHiddenRepository;
 
   constructor(
     teamMemberRepository?: TeamMemberRepository,
@@ -217,6 +467,9 @@ export class DashboardService {
     allocationRepository?: TeamMemberAllocationRepository,
     allocationService?: TeamMemberAllocationService,
     taskLocalPriorityRepository?: TaskLocalPriorityRepository,
+    taskUpdateRepository?: TaskUpdateRepository,
+    slaExclusionRepository?: TaskSlaExclusionRepository,
+    hiddenRepository?: TaskHiddenRepository,
   ) {
     this.teamMemberRepository =
       teamMemberRepository ?? new TeamMemberRepository();
@@ -229,6 +482,12 @@ export class DashboardService {
       allocationService ?? new TeamMemberAllocationService();
     this.taskLocalPriorityRepository =
       taskLocalPriorityRepository ?? new TaskLocalPriorityRepository();
+    this.taskUpdateRepository =
+      taskUpdateRepository ?? new TaskUpdateRepository();
+    this.slaExclusionRepository =
+      slaExclusionRepository ?? new TaskSlaExclusionRepository();
+    this.hiddenRepository =
+      hiddenRepository ?? new TaskHiddenRepository();
   }
 
   // Reserved for future use - suppress unused warning
@@ -493,84 +752,219 @@ export class DashboardService {
    * @returns Array of SustentacaoItem with enriched data
    */
   async getSustentacaoItems(
-    options: SustentacaoOptions = {},
-  ): Promise<SustentacaoItem[]> {
-    const { staleDays = 7 } = options;
+        options: SustentacaoOptions = {},
+      ): Promise<SustentacaoItemWithSLA[]> {
+        const { staleDays = 7 } = options;
 
-    logger.debug('[DashboardService.getSustentacaoItems]', { options });
+        logger.debug('[DashboardService.getSustentacaoItems]', { options });
 
-    // Get all tasks with relations
-    const allTasks = await this.taskRepository.findAllWithRelations();
+        // Get all tasks with relations
+        const allTasks = await this.taskRepository.findAllWithRelations();
 
-    // Property 1: Filter by type, area_path, and status
-    const filteredTasks = allTasks.filter((task) => {
-      // Check type IN ('Ticket', 'Improvement')
-      const isValidType = SUSTENTACAO_WORK_ITEM_TYPES.includes(
-        task.type ?? '',
-      );
+        // Filter: type IN ('Ticket', 'Improvement'), area_path Sustentação, not closed
+        const filteredTasks = allTasks.filter((task) => {
+          const isValidType = SUSTENTACAO_WORK_ITEM_TYPES.includes(task.type ?? '');
+          const isValidAreaPath =
+            task.areaPath?.startsWith(SUSTENTACAO_AREA_PATH_PATTERN) ?? false;
+          const isOpen = !CLOSED_STATUSES.includes(task.status);
 
-      // Check area_path LIKE 'Tribo SEIF\Sustentação\%'
-      const isValidAreaPath =
-        task.areaPath?.startsWith(SUSTENTACAO_AREA_PATH_PATTERN) ?? false;
+          return isValidType && isValidAreaPath && isOpen;
+        });
 
-      // Check status NOT IN ('completed', 'cancelled')
-      const isOpen = !CLOSED_STATUSES.includes(task.status);
+        // Get external IDs for priority lookup
+        const externalIds = filteredTasks
+          .map((t) => t.externalId)
+          .filter((id): id is string => id !== undefined && id !== null);
 
-      return isValidType && isValidAreaPath && isOpen;
-    });
+        // Get local priorities for all filtered tasks
+        const priorityMap =
+          await this.taskLocalPriorityRepository.findByExternalIds(externalIds);
 
-    // Get external IDs for priority lookup
-    const externalIds = filteredTasks
-      .map((t) => t.externalId)
-      .filter((id): id is string => id !== undefined && id !== null);
+        // Get SLA exclusions
+        const slaExclusions =
+          await this.slaExclusionRepository.findByExternalIds(externalIds);
 
-    // Get local priorities for all filtered tasks
-    const priorityMap =
-      await this.taskLocalPriorityRepository.findByExternalIds(externalIds);
+        // Get hidden items
+        const hiddenItems =
+          await this.hiddenRepository.findByExternalIds(externalIds);
 
-    // Build SustentacaoItem array with enriched data
-    const now = new Date();
-    const items: SustentacaoItem[] = await Promise.all(
-      filteredTasks.map(async (task) => {
-        // Property 9: Default priority is 0 for items without defined priority
-        const localPriority = task.externalId
-          ? (priorityMap.get(task.externalId) ?? 0)
-          : 0;
+        const now = new Date();
+        const HOURS_PER_DAY = 8;
 
-        // Property 4: Calculate days since update and stale status
-        const daysSinceUpdate = this.calculateDaysSinceUpdate(
-          task.updatedAt,
-          now,
+        const items: SustentacaoItemWithSLA[] = await Promise.all(
+          filteredTasks.map(async (task) => {
+            const localPriority = task.externalId
+              ? (priorityMap.get(task.externalId) ?? 0)
+              : 0;
+
+            const daysSinceUpdate = this.calculateDaysSinceUpdate(
+              task.updatedAt,
+              now,
+            );
+            const isStale = daysSinceUpdate > staleDays;
+            const childrenCount = await this.countChildrenForTask(task.id);
+
+            // SLA applies only to Ticket, not Improvement, and not excluded
+            const isTicket = task.type === 'Ticket';
+            const isSlaExcluded = task.externalId ? slaExclusions.has(task.externalId) : false;
+            const isHidden = task.externalId ? hiddenItems.has(task.externalId) : false;
+            const applySla = isTicket && !isSlaExcluded;
+            const slaStartDate = task.azureCreatedDate ?? task.startDate ?? task.createdAt;
+            const taskPriority = task.priority as TaskPriority;
+            const slaLimit = applySla ? (SLA_LIMITS[taskPriority] ?? SLA_LIMITS.medium) : 0;
+
+            let businessHoursElapsed = 0;
+            if (applySla && slaStartDate) {
+              businessHoursElapsed = calculateBusinessHours(slaStartDate, now);
+            }
+
+            const slaPercentage = slaLimit > 0
+              ? (businessHoursElapsed / slaLimit) * 100
+              : 0;
+            const slaViolated = applySla && businessHoursElapsed > slaLimit;
+            const slaWarning = applySla && !slaViolated && slaPercentage >= 80;
+
+            // Expiration only for Tickets with SLA
+            const businessHoursRemaining = applySla ? slaLimit - businessHoursElapsed : 0;
+            const daysUntilExpiration = applySla ? businessHoursRemaining / HOURS_PER_DAY : 0;
+
+            let expirationDate: string | null = null;
+            if (applySla && slaStartDate) {
+              const expDate = addBusinessHours(slaStartDate, slaLimit);
+              expirationDate = expDate.toISOString();
+            }
+
+            let expirationAlert: 'expired' | 'critical' | 'warning' | 'attention' | null = null;
+            if (applySla) {
+              if (slaViolated) {
+                expirationAlert = 'expired';
+              } else if (daysUntilExpiration <= 1) {
+                expirationAlert = 'critical';
+              } else if (daysUntilExpiration <= 2) {
+                expirationAlert = 'warning';
+              } else if (daysUntilExpiration <= 3) {
+                expirationAlert = 'attention';
+              }
+            }
+
+            return {
+              task,
+              localPriority,
+              isStale,
+              daysSinceUpdate,
+              childrenCount,
+              businessHoursElapsed,
+              slaLimit,
+              slaPercentage,
+              slaViolated,
+              slaWarning,
+              expirationDate,
+              businessHoursRemaining,
+              daysUntilExpiration,
+              expirationAlert,
+              slaExcluded: isSlaExcluded,
+              isHidden,
+            };
+          }),
         );
-        const isStale = daysSinceUpdate > staleDays;
 
-        // Count children
-        const childrenCount = await this.countChildrenForTask(task.id);
+        // Sort: priority (critical first), then hours remaining ASC
+        const priorityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+        items.sort((a, b) => {
+          const aPrio = priorityOrder[a.task.priority] ?? 99;
+          const bPrio = priorityOrder[b.task.priority] ?? 99;
+          if (aPrio !== bPrio) return aPrio - bPrio;
+          return a.businessHoursRemaining - b.businessHoursRemaining;
+        });
 
-        return {
-          task,
-          localPriority,
-          isStale,
-          daysSinceUpdate,
-          childrenCount,
-        };
-      }),
-    );
-
-    // Property 5: Sort by priority DESC, then updatedAt ASC
-    items.sort((a, b) => {
-      // First: priority DESC (higher first)
-      if (a.localPriority !== b.localPriority) {
-        return b.localPriority - a.localPriority;
+        return items;
       }
-      // Second: updatedAt ASC (older first)
-      const aTime = a.task.updatedAt?.getTime() ?? 0;
-      const bTime = b.task.updatedAt?.getTime() ?? 0;
-      return aTime - bTime;
-    });
 
-    return items;
-  }
+  /**
+   * Get Sustentação team members with their in-progress cards.
+   *
+   * For each member allocated to a Sustentação team, finds their in-progress
+   * cards (status = 'in_progress') with areaPath starting with "Tribo SEIF\Sustentação".
+   * Returns a list of members with their cards and SLA information.
+   *
+   * Validates: Requirements 2.2, 2.3, 2.4
+   *
+   * @returns Array of SustentacaoMemberWithCards
+   */
+  async getSustentacaoMembersWithCards(): Promise<SustentacaoMemberWithCards[]> {
+      logger.debug('[DashboardService.getSustentacaoMembersWithCards]');
+
+      // 1. Get all open Sustentação items with SLA (not just in_progress)
+      const allSustentacaoItems = await this.getSustentacaoItems();
+
+      // 2. Group cards by assignedTo (name or email) — no allocation needed
+      const memberCardMap = new Map<string, {
+        name: string;
+        email?: string;
+        cards: SustentacaoItemWithSLA[];
+      }>();
+
+      for (const item of allSustentacaoItems) {
+        const assignedName = item.task.assignedToName;
+        const assignedEmail = item.task.assignedToEmail;
+        const key = assignedEmail || assignedName || 'Não atribuído';
+
+        if (!memberCardMap.has(key)) {
+          memberCardMap.set(key, {
+            name: assignedName || key,
+            email: assignedEmail,
+            cards: [],
+          });
+        }
+        memberCardMap.get(key)!.cards.push(item);
+      }
+
+      // 3. Build result — create a lightweight member representation from assignedTo
+      const result: SustentacaoMemberWithCards[] = [];
+      for (const [, data] of memberCardMap) {
+        // Try to find a real TeamMemberEntity by email or name
+        let memberEntity: TeamMemberEntity | null = null;
+        if (data.email) {
+          memberEntity = await this.teamMemberRepository.findByEmail(data.email);
+        }
+
+        const member: TeamMemberEntity = memberEntity ?? {
+          id: 0,
+          name: data.name,
+          email: data.email ?? '',
+          role: 'developer',
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        } as TeamMemberEntity;
+
+        // Sort cards: priority critical > high > medium > low, then by SLA remaining ASC
+        const sortedCards = [...data.cards].sort((a, b) => {
+          const priorityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+          const aPrio = priorityOrder[a.task.priority] ?? 99;
+          const bPrio = priorityOrder[b.task.priority] ?? 99;
+          if (aPrio !== bPrio) return aPrio - bPrio;
+          return a.businessHoursRemaining - b.businessHoursRemaining;
+        });
+
+        result.push({
+          member,
+          inProgressCards: sortedCards,
+          hasNoCards: sortedCards.length === 0,
+        });
+      }
+
+      // Sort members: those with expired/critical cards first, then by name
+      result.sort((a, b) => {
+        const aHasExpired = a.inProgressCards.some(c => c.expirationAlert === 'expired' || c.expirationAlert === 'critical');
+        const bHasExpired = b.inProgressCards.some(c => c.expirationAlert === 'expired' || c.expirationAlert === 'critical');
+        if (aHasExpired && !bHasExpired) return -1;
+        if (!aHasExpired && bHasExpired) return 1;
+        return a.member.name.localeCompare(b.member.name);
+      });
+
+      return result;
+    }
 
   /**
    * Get count of stale items in Sustentação dashboard.
@@ -590,6 +984,33 @@ export class DashboardService {
   }
 
   // ============================================================================
+  // Task Update History Methods
+  // ============================================================================
+
+  /**
+   * Get update history for a specific task, ordered by changedDate descending.
+   *
+   * Validates: Requirement 4.1 (chronological descending order)
+   *
+   * @param taskId - The task ID to get history for
+   * @returns Array of TaskUpdateRecord
+   */
+  async getTaskUpdateHistory(taskId: number): Promise<import('@shared/interfaces/config/index.types').TaskUpdateRecord[]> {
+    logger.debug('[DashboardService.getTaskUpdateHistory]', { taskId });
+
+    const updates = await this.taskUpdateRepository.findByTaskId(taskId);
+
+    return updates.map((u) => ({
+      id: u.id,
+      changedDate: u.changedDate,
+      changedBy: u.changedBy,
+      fieldName: u.fieldName,
+      oldValue: u.oldValue,
+      newValue: u.newValue,
+    }));
+  }
+
+  // ============================================================================
   // Dashboard Projetos Methods
   // ============================================================================
 
@@ -605,58 +1026,97 @@ export class DashboardService {
    * @param sprintId - The Sprint ID to filter by
    * @returns Array of ProjetosItem with enriched data
    */
-  async getProjetosItems(sprintId: number): Promise<ProjetosItem[]> {
-    logger.debug('[DashboardService.getProjetosItems]', { sprintId });
+  async getProjetosItems(sprintId: number, referenceDate: Date = new Date()): Promise<ProjetosResult> {
+      logger.debug('[DashboardService.getProjetosItems]', { sprintId });
 
-    // Get tasks for the specified sprint
-    const sprintTasks = await this.taskRepository.findBySprint(sprintId);
+      // Get tasks for the specified sprint
+      const sprintTasks = await this.taskRepository.findBySprint(sprintId);
 
-    // Property 2: Filter by area_path LIKE 'Tribo SEIF\Projetos\%'
-    const filteredTasks = sprintTasks.filter((task) => {
-      return task.areaPath?.startsWith(PROJETOS_AREA_PATH_PATTERN) ?? false;
-    });
+      // Property 2: Filter by area_path LIKE 'Tribo SEIF\Projetos\%'
+      const filteredTasks = sprintTasks.filter((task) => {
+        return task.areaPath?.startsWith(PROJETOS_AREA_PATH_PATTERN) ?? false;
+      });
 
-    // Get external IDs for priority lookup
-    const externalIds = filteredTasks
-      .map((t) => t.externalId)
-      .filter((id): id is string => id !== undefined && id !== null);
+      // Get external IDs for priority lookup
+      const externalIds = filteredTasks
+        .map((t) => t.externalId)
+        .filter((id): id is string => id !== undefined && id !== null);
 
-    // Get local priorities
-    const priorityMap =
-      await this.taskLocalPriorityRepository.findByExternalIds(externalIds);
+      // Get local priorities
+      const priorityMap =
+        await this.taskLocalPriorityRepository.findByExternalIds(externalIds);
 
-    // Build ProjetosItem array with enriched data
-    const items: ProjetosItem[] = await Promise.all(
-      filteredTasks.map(async (task) => {
-        const localPriority = task.externalId
-          ? (priorityMap.get(task.externalId) ?? 0)
-          : 0;
-
-        // Get children and calculate progress
-        const children = await this.taskRepository.findByParentId(task.id);
-        const childrenCount = children.length;
-        const completedChildrenCount = children.filter((child) =>
-          COMPLETED_STATUSES.includes(child.status),
-        ).length;
-
-        // Property 10: Progress = (completed / total) * 100, or 0 if no children
-        const progressPercent =
-          childrenCount > 0
-            ? Math.round((completedChildrenCount / childrenCount) * 100)
+      // Build ProjetosItem array with enriched data
+      const items: ProjetosItem[] = await Promise.all(
+        filteredTasks.map(async (task) => {
+          const localPriority = task.externalId
+            ? (priorityMap.get(task.externalId) ?? 0)
             : 0;
 
-        return {
-          task,
-          localPriority,
-          childrenCount,
-          completedChildrenCount,
-          progressPercent,
-        };
-      }),
-    );
+          // Get children and calculate progress
+          const children = await this.taskRepository.findByParentId(task.id);
+          const childrenCount = children.length;
+          const completedChildrenCount = children.filter((child) =>
+            COMPLETED_STATUSES.includes(child.status),
+          ).length;
 
-    return items;
-  }
+          // Property 10: Progress = (completed / total) * 100, or 0 if no children
+          const progressPercent =
+            childrenCount > 0
+              ? Math.round((completedChildrenCount / childrenCount) * 100)
+              : 0;
+
+          return {
+            task,
+            localPriority,
+            childrenCount,
+            completedChildrenCount,
+            progressPercent,
+          };
+        }),
+      );
+
+      // Group items by status category (Req 3.3)
+      const groupedByStatus: ProjetosResult['groupedByStatus'] = {
+        pending: [],
+        inProgress: [],
+        completed: [],
+        cancelled: [],
+      };
+
+      for (const item of items) {
+        const category = categorizeStatus(item.task.status);
+        groupedByStatus[category].push(item);
+      }
+
+      // Calculate quantitative summary (Req 3.6, Property 8)
+      const pendingCount = groupedByStatus.pending.length;
+      const inProgressCount = groupedByStatus.inProgress.length;
+      const completedCount = groupedByStatus.completed.length;
+      const cancelledCount = groupedByStatus.cancelled.length;
+      const total = pendingCount + inProgressCount + completedCount + cancelledCount;
+      const completionPercentage = total > 0
+        ? (completedCount / total) * 100
+        : 0;
+
+      const summary: SprintQuantitativeSummary = {
+        total,
+        completed: completedCount,
+        inProgress: inProgressCount,
+        pending: pendingCount,
+        cancelled: cancelledCount,
+        completionPercentage,
+      };
+
+      // Compute sprint alerts (Req 3.4, 3.5)
+      const alerts = await this.computeSprintAlerts(
+        sprintId,
+        groupedByStatus,
+        referenceDate,
+      );
+
+      return { items, groupedByStatus, summary, alerts };
+    }
 
   /**
    * Get User Stories with progress calculation for a Sprint.
@@ -928,6 +1388,104 @@ export class DashboardService {
   // ============================================================================
   // Helper Methods
   // ============================================================================
+  // Dashboard Projetos Methods — Sprint Identification
+  // ============================================================================
+
+  /**
+   * Get the current sprint for a given team by date range.
+   *
+   * Property 7: For any set of sprints and any reference date, the current sprint is the one
+   * whose startDate <= referenceDate and endDate >= referenceDate. If multiple sprints satisfy
+   * the condition for the same team, the most recent (by startDate) should be selected.
+   * If none satisfies, the result should be null.
+   *
+   * Validates: Requirements 3.2
+   *
+   * @param teamId - The team ID to find the current sprint for
+   * @param referenceDate - Optional reference date (defaults to now)
+   * @returns The current sprint entity or null
+   */
+  async getCurrentSprintForTeam(
+    teamId: number,
+    referenceDate: Date = new Date(),
+  ): Promise<SprintEntity | null> {
+    logger.debug('[DashboardService.getCurrentSprintForTeam]', {
+      teamId,
+      referenceDate,
+    });
+
+    const sprints = await this.sprintRepository.findByTeam(teamId);
+    return findCurrentSprint(sprints, referenceDate, teamId);
+  }
+
+  // ============================================================================
+  // Private Helpers
+  // ============================================================================
+
+  /**
+   * Compute sprint alerts for pending and stagnant items.
+   *
+   * When there are ≤5 business days remaining until sprint end:
+   * - Pending items (status = 'pending') generate 'pending_no_progress' alerts (Req 3.4)
+   * - In-progress items not updated in 2+ business days generate 'stagnant' alerts (Req 3.5)
+   *
+   * Validates: Requirements 3.4, 3.5
+   */
+  private async computeSprintAlerts(
+    sprintId: number,
+    groupedByStatus: ProjetosResult['groupedByStatus'],
+    referenceDate: Date,
+  ): Promise<SprintAlert[]> {
+    const alerts: SprintAlert[] = [];
+
+    // Fetch the sprint to get its endDate
+    const sprint = await this.sprintRepository.findById(sprintId);
+    if (!sprint) {
+      logger.warn('[DashboardService.computeSprintAlerts] Sprint not found', { sprintId });
+      return alerts;
+    }
+
+    const businessDaysRemaining = calculateBusinessDaysRemaining(referenceDate, sprint.endDate);
+
+    logger.debug('[DashboardService.computeSprintAlerts]', {
+      sprintId,
+      sprintEndDate: sprint.endDate,
+      businessDaysRemaining,
+    });
+
+    // Only generate alerts when ≤5 business days remain
+    if (businessDaysRemaining > 5) {
+      return alerts;
+    }
+
+    // Req 3.4: Flag pending items as "no progress" alerts
+    for (const item of groupedByStatus.pending) {
+      alerts.push({
+        type: 'pending_no_progress',
+        taskId: item.task.id,
+        taskTitle: item.task.title,
+        message: `Item "${item.task.title}" está pendente sem progresso com ${businessDaysRemaining} dia(s) útil(eis) restante(s) na sprint.`,
+      });
+    }
+
+    // Req 3.5: Flag in-progress items not updated in 2+ business days as "stagnant"
+    for (const item of groupedByStatus.inProgress) {
+      const lastUpdate = item.task.updatedAt;
+      if (lastUpdate) {
+        const businessDaysSinceUpdate = calculateBusinessDaysSince(lastUpdate, referenceDate);
+        if (businessDaysSinceUpdate >= 2) {
+          alerts.push({
+            type: 'stagnant',
+            taskId: item.task.id,
+            taskTitle: item.task.title,
+            message: `Item "${item.task.title}" está em andamento sem atualização há ${businessDaysSinceUpdate} dia(s) útil(eis) com ${businessDaysRemaining} dia(s) útil(eis) restante(s) na sprint.`,
+          });
+        }
+      }
+    }
+
+    return alerts;
+  }
 
   /**
    * Calculate the number of days since a date.

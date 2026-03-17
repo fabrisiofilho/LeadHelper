@@ -2,12 +2,14 @@
  * Task Parser — maps Azure DevOps Work Items to ParsedTask.
  *
  * Pure functions — no I/O, just data transformation.
- * Uses mapWorkItemStateToTaskStatus() from work-item-type-mapper.
+ * Preserves the original Azure DevOps state in the 'status' field.
  * Extracts assignedToName and assignedToEmail from System.AssignedTo.
  * Sets origin: 'azure_devops' and externalId as string of the work item ID.
  * 
- * NOTE: The 'type' field now stores the Azure DevOps work item type directly
+ * NOTE: The 'type' field stores the Azure DevOps work item type directly
  * (Epic, Feature, User Story, Task, Bug, etc.) without any mapping.
+ * The 'status' field stores the original Azure DevOps state directly
+ * (e.g. "Em Auditoria", "Novo", "Finalizado") without any mapping.
  */
 
 import type {
@@ -15,7 +17,6 @@ import type {
   TaskStatus,
   TaskType,
 } from '../entities/task.entity';
-import { mapWorkItemStateToTaskStatus } from '../services/work-item-type-mapper';
 import type { AzureAssignedTo } from './member-parser';
 
 export interface AzureWorkItem {
@@ -30,7 +31,10 @@ export interface AzureWorkItem {
     'System.Tags'?: string;
     'Microsoft.VSTS.Scheduling.StoryPoints'?: number;
     'Microsoft.VSTS.Common.Priority'?: number;
+    'Custom.Prioridade'?: string;
     'System.AssignedTo'?: AzureAssignedTo;
+    'System.CreatedDate'?: string;
+    'System.ChangedDate'?: string;
     'Microsoft.VSTS.Scheduling.StartDate'?: string;
     'Microsoft.VSTS.Scheduling.FinishDate'?: string;
     'Microsoft.VSTS.Scheduling.TargetDate'?: string;
@@ -45,8 +49,8 @@ export interface AzureWorkItem {
 export interface ParsedTask {
   title: string;
   description?: string;
-  type: TaskType; // Azure DevOps work item type (Epic, Feature, User Story, Task, Bug, etc.)
-  status: TaskStatus;
+  type: TaskType;
+  status: TaskStatus; // Original Azure DevOps state (e.g. "Em Auditoria", "Novo")
   priority: TaskPriority;
   areaPath?: string;
   iterationPath?: string;
@@ -56,25 +60,43 @@ export interface ParsedTask {
   assignedToEmail?: string;
   startDate?: Date;
   endDate?: Date;
+  azureCreatedDate?: Date;
+  azureChangedDate?: Date;
+  azurePriority?: number;
   externalId: string;
   origin: 'azure_devops';
 }
 
 /**
- * Maps Azure DevOps priority number to local TaskPriority.
- * 1 → critical, 2 → high, 3 → medium, 4 (or default) → low
+ * Maps Azure DevOps priority to local TaskPriority.
+ * Supports both:
+ * - Microsoft.VSTS.Common.Priority (number): 1=Baixo, 2=Médio, 3=Alto, 4=Crítica
+ * - Custom.Prioridade (string): "1 - Baixo", "2 - Médio", "3 - Alto", "4 - Crítica"
  */
-function mapPriority(priority?: number): TaskPriority {
-  switch (priority) {
-    case 1:
-      return 'critical';
-    case 2:
-      return 'high';
-    case 3:
-      return 'medium';
-    default:
-      return 'low';
+function mapPriority(numericPriority?: number, customPrioridade?: string): TaskPriority {
+  // Prefer Custom.Prioridade if available (extract leading number)
+  if (customPrioridade) {
+    const match = customPrioridade.match(/^(\d)/);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      switch (num) {
+        case 4: return 'critical';
+        case 3: return 'high';
+        case 2: return 'medium';
+        case 1: return 'low';
+      }
+    }
   }
+  // Fallback to Microsoft.VSTS.Common.Priority
+  if (numericPriority != null) {
+    switch (numericPriority) {
+      case 4: return 'critical';
+      case 3: return 'high';
+      case 2: return 'medium';
+      case 1: return 'low';
+    }
+  }
+  return 'low';
 }
 
 /**
@@ -100,12 +122,20 @@ export function parseTask(workItem: AzureWorkItem): ParsedTask {
     parseDate(fields['Microsoft.VSTS.Scheduling.FinishDate']) ||
     parseDate(fields['Microsoft.VSTS.Scheduling.TargetDate']);
 
+  const rawPriority = fields['Microsoft.VSTS.Common.Priority'];
+  const customPrioridade = fields['Custom.Prioridade'];
+
+  // Extract numeric priority from Custom.Prioridade string (e.g. "3 - Alto" → 3)
+  const azurePriorityNum = customPrioridade
+    ? parseInt(customPrioridade.match(/^(\d)/)?.[1] ?? '', 10) || rawPriority
+    : rawPriority;
+
   return {
     title: fields['System.Title'],
     description: fields['System.Description'] || undefined,
     type: fields['System.WorkItemType'], // Use Azure DevOps type directly
-    status: mapWorkItemStateToTaskStatus(fields['System.State']),
-    priority: mapPriority(fields['Microsoft.VSTS.Common.Priority']),
+    status: fields['System.State'] || 'Novo', // Preserve original Azure DevOps state
+    priority: mapPriority(rawPriority, customPrioridade),
     areaPath: fields['System.AreaPath'] || undefined,
     iterationPath: fields['System.IterationPath'] || undefined,
     tags: fields['System.Tags'] || undefined,
@@ -114,6 +144,9 @@ export function parseTask(workItem: AzureWorkItem): ParsedTask {
     assignedToEmail: assignedTo?.uniqueName || undefined,
     startDate,
     endDate,
+    azureCreatedDate: parseDate(fields['System.CreatedDate']),
+    azureChangedDate: parseDate(fields['System.ChangedDate']),
+    azurePriority: azurePriorityNum,
     externalId: String(workItem.id),
     origin: 'azure_devops',
   };

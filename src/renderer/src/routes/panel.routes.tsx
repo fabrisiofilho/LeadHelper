@@ -1,4 +1,5 @@
-import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
+import SupportAgentOutlinedIcon from '@mui/icons-material/SupportAgentOutlined';
+import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
 import PeopleOutlinedIcon from '@mui/icons-material/PeopleOutlined';
 import CloudOutlinedIcon from '@mui/icons-material/CloudOutlined';
 import WorkOutlinedIcon from '@mui/icons-material/WorkOutlined';
@@ -7,14 +8,14 @@ import GroupWorkOutlinedIcon from '@mui/icons-material/GroupWorkOutlined';
 import ViewKanbanOutlinedIcon from '@mui/icons-material/ViewKanbanOutlined';
 import TaskAltOutlinedIcon from '@mui/icons-material/TaskAltOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
-import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { DrawerNavigator } from './components/DrawerNavigator';
 import { IDrawerItem } from '@renderer/types/drawer/drawerItem';
 import { IDrawerSection } from '@renderer/types/drawer/drawerSection';
 import { JSX } from 'react';
 
-import { TeamDashboardPage } from '@renderer/pages/Dashboard/TeamDashboard';
+import { DashboardSustentacaoPage } from '@renderer/pages/DashboardSustentacao';
+import { DashboardProjetosPage } from '@renderer/pages/DashboardProjetos';
 import { TeamMembersPage } from '@renderer/pages/TeamMembers';
 import { AzureDevOpsConfigPage } from '@renderer/pages/AzureDevOpsConfig';
 import { PositionsPage } from '@renderer/pages/Positions';
@@ -23,7 +24,6 @@ import { TeamAllocationPage } from '@renderer/pages/TeamAllocation';
 import { SprintsTasksPage } from '@renderer/pages/SprintsTasks';
 import { TaskManagementPage } from '@renderer/pages/TaskManagement';
 import { SystemSettingsPage } from '@renderer/pages/SystemSettings';
-import { ReportsPage } from '@renderer/pages/Reports';
 
 type WithRouteProps<T> = T & {
   routePath: string;
@@ -36,9 +36,15 @@ const GENERAL_SECTION: IDrawerSection = {
   title: 'Geral',
   items: [
     {
-      label: 'Dashboard',
-      path: '/panel/dashboard',
-      icon: <DashboardOutlinedIcon />,
+      label: 'Dashboard Sustentação',
+      path: '/panel/dashboard-sustentacao',
+      icon: <SupportAgentOutlinedIcon />,
+      canAccess: true,
+    },
+    {
+      label: 'Dashboard Projetos',
+      path: '/panel/dashboard-projetos',
+      icon: <AccountTreeOutlinedIcon />,
       canAccess: true,
     },
     {
@@ -60,12 +66,6 @@ const GENERAL_SECTION: IDrawerSection = {
       canAccess: true,
     },
     {
-      label: 'Relatórios',
-      path: '/panel/reports',
-      icon: <AssessmentOutlinedIcon />,
-      canAccess: true,
-    },
-    {
       label: 'Sistema',
       path: '/panel/system',
       icon: <SettingsOutlinedIcon />,
@@ -79,12 +79,20 @@ export const DRAWER_SECTIONS: IDrawerSection[] = [GENERAL_SECTION];
 
 const ROUTES_ITEMS: WithRouteProps<IDrawerItem>[] = [
   {
-    label: 'Dashboard',
-    path: '/panel/dashboard',
-    icon: <DashboardOutlinedIcon />,
+    label: 'Dashboard Sustentação',
+    path: '/panel/dashboard-sustentacao',
+    icon: <SupportAgentOutlinedIcon />,
     canAccess: true,
-    routeElement: <TeamDashboardPage />,
-    routePath: '/dashboard',
+    routeElement: <DashboardSustentacaoPage />,
+    routePath: '/dashboard-sustentacao',
+  },
+  {
+    label: 'Dashboard Projetos',
+    path: '/panel/dashboard-projetos',
+    icon: <AccountTreeOutlinedIcon />,
+    canAccess: true,
+    routeElement: <DashboardProjetosPage />,
+    routePath: '/dashboard-projetos',
   },
   {
     label: 'Sistema',
@@ -117,14 +125,6 @@ const ROUTES_ITEMS: WithRouteProps<IDrawerItem>[] = [
     canAccess: true,
     routeElement: <SprintsTasksPage />,
     routePath: '/sprints-tasks',
-  },
-  {
-    label: 'Relatórios',
-    path: '/panel/reports',
-    icon: <AssessmentOutlinedIcon />,
-    canAccess: true,
-    routeElement: <ReportsPage />,
-    routePath: '/reports',
   },
   {
     label: 'Cargos',
@@ -172,8 +172,10 @@ export function PanelRoutes() {
           />
         ))}
 
-        <Route path="/" element={<Navigate to="/panel/dashboard" replace />} />
-        <Route path="*" element={<Navigate to="/panel/dashboard" replace />} />
+        <Route path="/reports" element={<Navigate to="/panel/dashboard-sustentacao" replace />} />
+        <Route path="/dashboard" element={<Navigate to="/panel/dashboard-sustentacao" replace />} />
+        <Route path="/" element={<Navigate to="/panel/dashboard-sustentacao" replace />} />
+        <Route path="*" element={<Navigate to="/panel/dashboard-sustentacao" replace />} />
       </Routes>
     </DrawerNavigator>
   );

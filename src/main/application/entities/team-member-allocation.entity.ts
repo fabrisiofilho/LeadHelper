@@ -19,14 +19,14 @@ export class TeamMemberAllocationEntity extends AuditableEntity {
   @JoinColumn({ name: 'team_member_id' })
   teamMember!: TeamMemberEntity;
 
-  @Column({ name: 'team_member_id' })
+  @Column({ name: 'team_member_id', type: 'integer' })
   teamMemberId!: number;
 
   @ManyToOne('TeamEntity', 'memberAllocations')
   @JoinColumn({ name: 'team_id' })
   team!: TeamEntity;
 
-  @Column({ name: 'team_id' })
+  @Column({ name: 'team_id', type: 'integer' })
   teamId!: number;
 
   @Column({ name: 'start_date', type: 'date', transformer: DateTransformer })

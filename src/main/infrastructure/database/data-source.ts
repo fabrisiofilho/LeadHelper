@@ -16,6 +16,9 @@ import { SprintEntity } from '@main/application/entities/sprint.entity';
 import { TaskCommentEntity } from '@main/application/entities/task-comment.entity';
 import { TaskLocalPriorityEntity } from '@main/application/entities/task-local-priority.entity';
 import { TaskLocalKanbanEntity } from '@main/application/entities/task-local-kanban.entity';
+import { TaskUpdateEntity } from '@main/application/entities/task-update.entity';
+import { TaskSlaExclusionEntity } from '@main/application/entities/task-sla-exclusion.entity';
+import { TaskHiddenEntity } from '@main/application/entities/task-hidden.entity';
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -66,6 +69,9 @@ function createDataSource(): DataSource {
       TaskCommentEntity,
       TaskLocalPriorityEntity,
       TaskLocalKanbanEntity,
+      TaskUpdateEntity,
+      TaskSlaExclusionEntity,
+      TaskHiddenEntity,
     ],
     migrations: [],
     subscribers: [],

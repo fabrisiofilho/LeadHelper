@@ -42,6 +42,11 @@ import type { TeamEntity } from '../entities/team.entity';
 
 import { logger } from '@main/infrastructure/log/logger';
 import { BrowserWindow } from 'electron';
+import {
+  normalizeIterationPath as normalizeIterationPathUtil,
+  resolveSprintByIterationPath as resolveSprintByIterationPathUtil,
+} from '@main/infrastructure/utils/iteration-path';
+import { resolveTeamByAreaPath as resolveTeamByAreaPathUtil } from '@main/infrastructure/utils/area-path';
 
 interface SyncStepResult {
   created: number;
@@ -56,6 +61,7 @@ export interface FullSyncResult {
   members: { created: number; updated: number; total: number };
   tasks: { created: number; updated: number; total: number };
   errors: string[];
+  failureCount: number;
   syncedAt: Date;
 }
 
@@ -228,9 +234,27 @@ export class SyncService {
       errors.push(msg);
     }
 
+    const failureCount = errors.length;
+
+    if (failureCount > 0) {
+      logger.warning(
+        `[fullSync] Sincronização concluída com ${failureCount} falha(s). Detalhes: ${errors.join('; ')}`,
+      );
+    }
+
+    // Single WAL checkpoint after all bulk operations are done
+    try {
+      await this.taskRepository.walCheckpoint();
+    } catch (error) {
+      logger.warning('[fullSync] WAL checkpoint failed:', error);
+    }
+
     this.emitProgress({
       step: 'complete',
-      message: 'Sincronização concluída!',
+      message:
+        failureCount > 0
+          ? `Sincronização concluída com ${failureCount} falha(s).`
+          : 'Sincronização concluída!',
       current: 100,
       total: 100,
       percentage: 100,
@@ -258,6 +282,7 @@ export class SyncService {
         total: tasksResult.total,
       },
       errors,
+      failureCount,
       syncedAt: new Date(),
     };
   }
@@ -475,7 +500,12 @@ export class SyncService {
   /**
    * Sync tasks: parse work items → resolve relationships (sprint, team) → upsert by externalId + origin.
    * Then link parent-child relationships in a second pass.
-   * Optimized with batch processing.
+   *
+   * Optimized:
+   * - Pre-loads all existing tasks into a Map (1 query instead of N)
+   * - Batches DB writes
+   * - Syncs task updates with limited concurrency (not 1-by-1)
+   * - Pre-loads all tasks for linkTaskHierarchy (1 query instead of 2N)
    */
   private async syncTasks(
     workItems: AzureWorkItem[],
@@ -492,22 +522,39 @@ export class SyncService {
     const parsedTasks = parseTaskMany(workItems);
     const totalTasks = parsedTasks.length;
 
+    // Pre-load ALL existing azure_devops tasks into a Map<externalId, TaskEntity>
+    // This replaces 1788 individual SELECT queries with 1 single query
+    const allExistingTasks = await this.taskRepository.find({
+      where: { origin: 'azure_devops' as const },
+    });
+    const existingTaskMap = new Map<string, { id: number }>();
+    for (const task of allExistingTasks) {
+      if (task.externalId) {
+        existingTaskMap.set(task.externalId, { id: task.id });
+      }
+    }
+    logger.info(
+      `[syncTasks] Pre-loaded ${existingTaskMap.size} existing tasks into map`,
+    );
+
     // FIRST PASS: Create/update all tasks without parent relationships
     for (let i = 0; i < parsedTasks.length; i += this.BATCH_SIZE) {
       const batch = parsedTasks.slice(i, i + this.BATCH_SIZE);
       const batchPromises = batch.map((parsed) =>
-        this.upsertTask(parsed, sprints, teams, result).catch((error) => {
-          const msg = `Erro ao upsert tarefa "${parsed.title}" (externalId=${parsed.externalId}): ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
-          logger.error(msg);
-          result.errors.push(msg);
-        }),
+        this.upsertTask(parsed, sprints, teams, result, existingTaskMap).catch(
+          (error) => {
+            const msg = `Erro ao upsert tarefa "${parsed.title}" (externalId=${parsed.externalId}): ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
+            logger.error(msg);
+            result.errors.push(msg);
+          },
+        ),
       );
 
       await Promise.all(batchPromises);
 
       // Emit progress for tasks
       const processed = Math.min(i + this.BATCH_SIZE, totalTasks);
-      const percentage = 80 + Math.floor((processed / totalTasks) * 15);
+      const percentage = 80 + Math.floor((processed / totalTasks) * 10);
       this.emitProgress({
         step: 'tasks',
         message: `Sincronizando tarefas: ${processed}/${totalTasks}`,
@@ -517,13 +564,13 @@ export class SyncService {
       });
     }
 
-    // SECOND PASS: Link parent-child relationships
+    // SECOND PASS: Link parent-child relationships (using pre-loaded map)
     this.emitProgress({
       step: 'tasks',
       message: 'Vinculando hierarquia de tarefas...',
       current: totalTasks,
       total: totalTasks,
-      percentage: 95,
+      percentage: 90,
     });
 
     await this.linkTaskHierarchy(workItems);
@@ -537,6 +584,7 @@ export class SyncService {
     sprints: SprintEntity[],
     teams: TeamEntity[],
     result: SyncStepResult,
+    existingTaskMap: Map<string, { id: number }>,
   ): Promise<void> {
     // Resolve Task → Sprint by iterationPath
     const sprintId = this.resolveSprintByIterationPath(
@@ -572,14 +620,6 @@ export class SyncService {
       });
     }
 
-    // Find existing task by externalId + origin='azure_devops'
-    const existingTasks = await this.taskRepository.find({
-      where: {
-        externalId: parsed.externalId,
-        origin: 'azure_devops',
-      },
-    });
-
     const taskData = {
       title: parsed.title,
       description: parsed.description,
@@ -594,13 +634,17 @@ export class SyncService {
       assignedToEmail: parsed.assignedToEmail,
       startDate: parsed.startDate,
       endDate: parsed.endDate,
-      sprintId: sprintId, // Pass null explicitly to clear the field
-      teamId: teamId, // Pass null explicitly to clear the field
+      azureCreatedDate: parsed.azureCreatedDate,
+      azureChangedDate: parsed.azureChangedDate,
+      azurePriority: parsed.azurePriority,
+      sprintId: sprintId ?? undefined,
+      teamId: teamId ?? undefined,
     };
 
-    if (existingTasks.length > 0) {
-      // Update existing task
-      const existing = existingTasks[0];
+    // Use pre-loaded map instead of individual DB query
+    const existing = existingTaskMap.get(parsed.externalId);
+
+    if (existing) {
       await this.taskRepository.update({ id: existing.id }, taskData);
       result.updated++;
     } else {
@@ -609,7 +653,7 @@ export class SyncService {
         ...taskData,
         externalId: parsed.externalId,
         origin: parsed.origin,
-        sprintId: sprintId ?? undefined, // For create, undefined is fine
+        sprintId: sprintId ?? undefined,
         teamId: teamId ?? undefined,
       });
       result.created++;
@@ -623,17 +667,17 @@ export class SyncService {
    * - Converts to lowercase
    */
   private normalizeIterationPath(path: string): string {
-    return path.replace(/^\\+/, '').trim().toLowerCase();
+    return normalizeIterationPathUtil(path);
   }
 
   /**
    * Resolve Task → Sprint: match task's iterationPath with sprint's iterationPath.
-   * 
+   *
    * Rules:
    * 1. Exact match: task.iterationPath === sprint.iterationPath
    * 2. Hierarchical match: task.iterationPath starts with sprint.iterationPath
    *    (task is inside the sprint's iteration)
-   * 
+   *
    * A task with iterationPath "Tribo SEIF" should NOT match a sprint with
    * iterationPath "Tribo SEIF\Sprints\Sprint 18" because the task is at a
    * higher level (not inside the sprint).
@@ -651,13 +695,15 @@ export class SyncService {
 
     // Log available sprints for debugging (only first time)
     if (sprints.length > 0) {
-      logger.info('[resolveSprintByIterationPath] Available sprints:', {
+      logger.debug('[resolveSprintByIterationPath] Available sprints:', {
         count: sprints.length,
         sprints: sprints.slice(0, 5).map((s) => ({
           id: s.id,
           name: s.name,
           iterationPath: s.iterationPath,
-          normalized: s.iterationPath ? this.normalizeIterationPath(s.iterationPath) : null,
+          normalized: s.iterationPath
+            ? this.normalizeIterationPath(s.iterationPath)
+            : null,
         })),
       });
     }
@@ -667,57 +713,60 @@ export class SyncService {
       normalizedTaskPath,
     });
 
-    // 1. Exact match first
-    const exactMatch = sprints.find(
-      (s) =>
-        s.iterationPath &&
-        this.normalizeIterationPath(s.iterationPath) === normalizedTaskPath,
-    );
-    if (exactMatch) {
-      logger.info('[resolveSprintByIterationPath] Exact match found:', {
-        sprintId: exactMatch.id,
-        sprintName: exactMatch.name,
-        sprintIterationPath: exactMatch.iterationPath,
-      });
-      return exactMatch.id;
-    }
+    // Delegate to pure utility function
+    const result = resolveSprintByIterationPathUtil(iterationPath, sprints);
 
-    // 2. Hierarchical match: task path starts with sprint path
-    // This means the task is inside the sprint's iteration
-    // Sort by path length descending to match the most specific sprint first
-    const sortedSprints = [...sprints]
-      .filter((s) => s.iterationPath)
-      .sort((a, b) => (b.iterationPath?.length ?? 0) - (a.iterationPath?.length ?? 0));
-
-    for (const sprint of sortedSprints) {
-      const sprintPath = this.normalizeIterationPath(sprint.iterationPath!);
-
-      // Task path must START with sprint path (task is inside sprint)
-      // Add backslash to ensure we match complete segments
-      const sprintPathWithSeparator = sprintPath + '\\';
-      if (normalizedTaskPath.startsWith(sprintPathWithSeparator) || normalizedTaskPath === sprintPath) {
-        logger.info('[resolveSprintByIterationPath] Hierarchical match found:', {
-          sprintId: sprint.id,
-          sprintName: sprint.name,
-          sprintPath,
+    if (result !== null) {
+      const matched = sprints.find((s) => s.id === result);
+      if (matched) {
+        logger.info('[resolveSprintByIterationPath] Match found:', {
+          sprintId: matched.id,
+          sprintName: matched.name,
+          sprintIterationPath: matched.iterationPath,
           taskPath: normalizedTaskPath,
         });
-        return sprint.id;
       }
+    } else {
+      const sortedSprints = [...sprints]
+        .filter((s) => s.iterationPath)
+        .sort(
+          (a, b) =>
+            (b.iterationPath?.length ?? 0) - (a.iterationPath?.length ?? 0),
+        );
+      logger.warning(
+        '[resolveSprintByIterationPath] Iteration_Path não resolvido — nenhuma sprint local corresponde. sprint_id será null.',
+        {
+          taskIterationPath: iterationPath,
+          normalizedTaskPath,
+          availableSprintPaths: sortedSprints
+            .slice(0, 5)
+            .map((s) => this.normalizeIterationPath(s.iterationPath!)),
+        },
+      );
     }
 
-    // No match found - task is not inside any sprint
-    logger.info('[resolveSprintByIterationPath] No match found for:', {
-      taskIterationPath: iterationPath,
-      normalizedTaskPath,
-      availableSprintPaths: sortedSprints.slice(0, 5).map((s) => this.normalizeIterationPath(s.iterationPath!)),
-    });
-    return null;
+    return result;
   }
 
   /**
    * Resolve Task → Team: match task's areaPath with team's azureAreaPath.
-   * Supports exact match, hierarchical match, and flexible matching (ignoring intermediate segments like "Area").
+   *
+   * Rules:
+   * 1. Exact match: task.areaPath === team.azureAreaPath
+   * 2. Hierarchical match: task.areaPath starts with team.azureAreaPath
+   *    (longest prefix wins — most specific team)
+   *
+   * If no team matches, returns null and emits a warning log.
+   */
+  /**
+   * Resolve Task → Team: match task's areaPath with team's azureAreaPath.
+   *
+   * Rules:
+   * 1. Exact match: task.areaPath === team.azureAreaPath
+   * 2. Hierarchical match: task.areaPath starts with team.azureAreaPath
+   *    (longest prefix wins — most specific team)
+   *
+   * If no team matches, returns null and emits a warning log.
    */
   private resolveTeamByAreaPath(
     areaPath: string | undefined,
@@ -743,111 +792,60 @@ export class SyncService {
       })),
     });
 
-    // Build entries from teams with azureAreaPath (supports ";" separated paths)
-    const entries: { id: number; path: string; segments: string[] }[] = [];
-    for (const team of teams) {
-      if (!team.azureAreaPath) continue;
-      const paths = team.azureAreaPath
-        .split(';')
-        .map((p) => p.trim())
-        .filter(Boolean);
-      for (const p of paths) {
-        const normalized = p.replace(/^\\+/, '').trim();
-        const segments = normalized.toLowerCase().split('\\').filter(Boolean);
-        entries.push({ id: team.id, path: normalized, segments });
-      }
-    }
+    // Delegate to pure utility function
+    const result = resolveTeamByAreaPathUtil(areaPath, teams);
 
-    const taskSegments = normalizedAreaPath.split('\\').filter(Boolean);
-
-    // 1. Exact match first
-    for (const entry of entries) {
-      if (normalizedAreaPath === entry.path.toLowerCase()) {
-        logger.debug('[resolveTeamByAreaPath] Exact match found:', {
-          teamId: entry.id,
-          teamPath: entry.path,
+    if (result !== null) {
+      const matched = teams.find((t) => t.id === result);
+      if (matched) {
+        logger.debug('[resolveTeamByAreaPath] Match found:', {
+          teamId: matched.id,
+          teamPath: matched.azureAreaPath,
         });
-        return entry.id;
       }
-    }
-
-    // 2. Hierarchical match — most specific (longest) path first
-    const sorted = [...entries].sort((a, b) => b.path.length - a.path.length);
-    for (const entry of sorted) {
-      const prefix = entry.path.toLowerCase() + '\\';
-      if (normalizedAreaPath.startsWith(prefix)) {
-        logger.debug('[resolveTeamByAreaPath] Hierarchical match found:', {
-          teamId: entry.id,
-          teamPath: entry.path,
-        });
-        return entry.id;
-      }
-    }
-
-    // 3. Check if task path ends with team's last segment
-    const lastTaskSegment = taskSegments[taskSegments.length - 1];
-    for (const entry of sorted) {
-      const lastTeamSegment = entry.segments[entry.segments.length - 1];
-      if (lastTaskSegment === lastTeamSegment && entry.segments.length >= 2) {
-        logger.debug('[resolveTeamByAreaPath] Last segment match found:', {
-          teamId: entry.id,
-          teamPath: entry.path,
-          lastSegment: lastTaskSegment,
-        });
-        return entry.id;
-      }
-    }
-
-    // 4. Flexible match: compare segments ignoring intermediate differences
-    // Example: "\Tribo SEIF\Projetos\Gestão de Terceiros" matches "\Tribo SEIF\Area\Projetos\Gestão de Terceiros"
-    for (const entry of sorted) {
-      // Check if all team segments exist in task segments in the same order
-      let taskIndex = 0;
-      let matchCount = 0;
-
-      for (const teamSegment of entry.segments) {
-        // Find this team segment in remaining task segments
-        while (taskIndex < taskSegments.length) {
-          if (taskSegments[taskIndex] === teamSegment) {
-            matchCount++;
-            taskIndex++;
-            break;
-          }
-          taskIndex++;
-        }
-      }
-
-      // If all team segments were found in order, it's a match
-      if (matchCount === entry.segments.length && entry.segments.length >= 2) {
-        logger.debug('[resolveTeamByAreaPath] Flexible match found:', {
+    } else {
+      logger.warning(
+        '[resolveTeamByAreaPath] Area_Path não resolvido — nenhum time local corresponde. team_id será null.',
+        {
           taskAreaPath: areaPath,
-          teamAreaPath: entry.path,
-          teamId: entry.id,
-        });
-        return entry.id;
-      }
+          normalizedAreaPath,
+        },
+      );
     }
 
-    logger.error('[resolveTeamByAreaPath] No match found for:', {
-      taskAreaPath: areaPath,
-    });
-    return null;
+    return result;
   }
 
   /**
    * Link parent-child relationships between tasks based on Azure DevOps relations.
    * This runs after all tasks have been created/updated.
+   *
+   * Optimized: pre-loads all azure_devops tasks into a Map (1 query)
+   * instead of 2 queries per work item.
    */
   private async linkTaskHierarchy(workItems: AzureWorkItem[]): Promise<void> {
     let linkedCount = 0;
     let errorCount = 0;
+
+    // Pre-load all azure_devops tasks into a Map<externalId, id> — 1 query
+    const allTasks = await this.taskRepository.find({
+      where: { origin: 'azure_devops' as const },
+    });
+    const taskMap = new Map<string, { id: number; title: string }>();
+    for (const task of allTasks) {
+      if (task.externalId) {
+        taskMap.set(task.externalId, { id: task.id, title: task.title });
+      }
+    }
+
+    // Collect all updates to batch them
+    const updates: Array<{ childId: number; parentId: number }> = [];
 
     for (const workItem of workItems) {
       if (!workItem.relations || workItem.relations.length === 0) {
         continue;
       }
 
-      // Find parent relation (Child -> Parent)
       const parentRelation = workItem.relations.find(
         (r) => r.rel === 'System.LinkTypes.Hierarchy-Reverse',
       );
@@ -857,7 +855,6 @@ export class SyncService {
       }
 
       try {
-        // Extract parent work item ID from URL
         const match = parentRelation.url.match(/workItems\/(\d+)$/);
         if (!match) {
           continue;
@@ -866,27 +863,11 @@ export class SyncService {
         const parentExternalId = match[1];
         const childExternalId = String(workItem.id);
 
-        // Find both tasks in database
-        const [childTask] = await this.taskRepository.find({
-          where: {
-            externalId: childExternalId,
-            origin: 'azure_devops',
-          },
-        });
-
-        const [parentTask] = await this.taskRepository.find({
-          where: {
-            externalId: parentExternalId,
-            origin: 'azure_devops',
-          },
-        });
+        const childTask = taskMap.get(childExternalId);
+        const parentTask = taskMap.get(parentExternalId);
 
         if (childTask && parentTask) {
-          // Link child to parent
-          await this.taskRepository.update(
-            { id: childTask.id },
-            { parentId: parentTask.id },
-          );
+          updates.push({ childId: childTask.id, parentId: parentTask.id });
           linkedCount++;
 
           if (linkedCount <= 5) {
@@ -907,6 +888,20 @@ export class SyncService {
           });
         }
       }
+    }
+
+    // Batch the updates in groups
+    const LINK_BATCH = 100;
+    for (let i = 0; i < updates.length; i += LINK_BATCH) {
+      const batch = updates.slice(i, i + LINK_BATCH);
+      await Promise.all(
+        batch.map((u) =>
+          this.taskRepository.update(
+            { id: u.childId },
+            { parentId: u.parentId },
+          ),
+        ),
+      );
     }
 
     logger.info('[linkTaskHierarchy] Summary:', {

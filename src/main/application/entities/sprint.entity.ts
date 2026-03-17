@@ -29,7 +29,7 @@ export class SprintEntity extends AuditableEntity {
   @JoinColumn({ name: 'team_id' })
   team?: TeamEntity;
 
-  @Column({ name: 'team_id', nullable: true })
+  @Column({ name: 'team_id', type: 'integer', nullable: true })
   teamId?: number;
 
   @Column({ type: 'text', nullable: true })
@@ -38,7 +38,7 @@ export class SprintEntity extends AuditableEntity {
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive!: boolean;
 
-  @Column({ name: 'iteration_path', nullable: true })
+  @Column({ name: 'iteration_path', type: 'text', nullable: true })
   iterationPath?: string;
 
   @OneToMany('TaskEntity', 'sprint')

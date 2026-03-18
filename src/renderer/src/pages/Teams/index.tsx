@@ -8,14 +8,6 @@ import {
   CircularProgress,
   Stack,
   TextField,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TablePagination,
-  Paper,
   Chip,
   InputAdornment,
 } from '@mui/material';
@@ -32,7 +24,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { Modal } from '@renderer/components/Modal';
 import { useTeams } from '@renderer/hooks/useTeams';
 import { useTableSort } from '@renderer/hooks/useTableSort';
-import { SortableTableCell } from '@renderer/components/SortableTableCell';
+import { StandardTable, type StandardColumn } from '@renderer/components/StandardTable';
 import {
   PageContainer,
   PlaceholderContent,
@@ -50,6 +42,14 @@ interface TeamFormData {
   name: string;
   description: string;
 }
+
+const TEAM_COLUMNS: StandardColumn[] = [
+  { id: 'name', label: 'Nome' },
+  { id: 'description', label: 'Descrição' },
+  { id: 'azureAreaPath', label: 'Area Path' },
+  { id: 'isActive', label: 'Status' },
+  { id: 'actions', label: 'Ações', noSort: true, align: 'right' },
+];
 
 export function TeamsPage() {
   const {
@@ -311,131 +311,67 @@ export function TeamsPage() {
       </FiltersContainer>
 
       {filteredTeams.length > 0 ? (
-        <Paper sx={{ width: '100%', overflow: 'hidden', borderRadius: '1rem' }}>
-          <TableContainer>
-            <Table stickyHeader>
-              <TableHead>
-                <TableRow>
-                  <SortableTableCell
-                    id="name"
-                    label="Nome"
-                    sortConfig={sortConfig}
-                    onSort={handleSort}
-                  />
-                  <SortableTableCell
-                    id="description"
-                    label="Descrição"
-                    sortConfig={sortConfig}
-                    onSort={handleSort}
-                  />
-                  <SortableTableCell
-                    id="azureAreaPath"
-                    label="Area Path"
-                    sortConfig={sortConfig}
-                    onSort={handleSort}
-                  />
-                  <SortableTableCell
-                    id="isActive"
-                    label="Status"
-                    sortConfig={sortConfig}
-                    onSort={handleSort}
-                  />
-                  <SortableTableCell
-                    id="actions"
-                    label="Ações"
-                    sortConfig={sortConfig}
-                    onSort={handleSort}
-                    noSort
-                    align="right"
-                  />
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {paginatedTeams.map((team) => (
-                  <TableRow key={team.id} hover>
-                    <TableCell>
-                      <Typography fontWeight={500}>{team.name}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color="text.secondary">
-                        {team.description || '-'}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      {team.azureAreaPath ? (
-                        <Box
-                          sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}
-                        >
-                          {team.azureAreaPath
-                            .split(';')
-                            .map((p) => p.trim())
-                            .filter(Boolean)
-                            .map((path) => (
-                              <Chip
-                                key={path}
-                                label={path}
-                                size="small"
-                                variant="outlined"
-                              />
-                            ))}
-                        </Box>
-                      ) : (
-                        <Typography variant="body2" color="text.secondary">
-                          -
-                        </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={team.isActive ? 'Ativa' : 'Inativa'}
-                        color={team.isActive ? 'success' : 'default'}
-                        size="small"
-                        variant={team.isActive ? 'filled' : 'outlined'}
-                        onClick={() => handleToggleStatus(team)}
-                        sx={{ cursor: 'pointer' }}
-                      />
-                    </TableCell>
-                    <TableCell align="right">
-                      <Tooltip title="Editar">
-                        <IconButton
-                          size="small"
-                          onClick={() => handleEditTeam(team)}
-                        >
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Excluir">
-                        <IconButton
-                          size="small"
-                          onClick={() => handleDeleteClick(team)}
-                          color="error"
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-          <TablePagination
-            rowsPerPageOptions={[5, 10, 25]}
-            component="div"
-            count={filteredTeams.length}
-            rowsPerPage={rowsPerPage}
-            page={page}
-            onPageChange={(_, newPage) => setPage(newPage)}
-            onRowsPerPageChange={(e) => {
-              setRowsPerPage(parseInt(e.target.value, 10));
-              setPage(0);
-            }}
-            labelRowsPerPage="Linhas por página:"
-            labelDisplayedRows={({ from, to, count }) =>
-              `${from}-${to} de ${count !== -1 ? count : `mais de ${to}`}`
-            }
-          />
-        </Paper>
+        <StandardTable
+          columns={TEAM_COLUMNS}
+          rows={paginatedTeams.map((team) => ({
+            id: team.id,
+            cells: {
+              name: <Typography fontWeight={500}>{team.name}</Typography>,
+              description: (
+                <Typography variant="body2" color="text.secondary">
+                  {team.description || '-'}
+                </Typography>
+              ),
+              azureAreaPath: team.azureAreaPath ? (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                  {team.azureAreaPath
+                    .split(';')
+                    .map((p) => p.trim())
+                    .filter(Boolean)
+                    .map((path) => (
+                      <Chip key={path} label={path} size="small" variant="outlined" />
+                    ))}
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.secondary">-</Typography>
+              ),
+              isActive: (
+                <Chip
+                  label={team.isActive ? 'Ativa' : 'Inativa'}
+                  color={team.isActive ? 'success' : 'default'}
+                  size="small"
+                  variant={team.isActive ? 'filled' : 'outlined'}
+                  onClick={() => handleToggleStatus(team)}
+                  sx={{ cursor: 'pointer' }}
+                />
+              ),
+              actions: (
+                <>
+                  <Tooltip title="Editar">
+                    <IconButton size="small" onClick={() => handleEditTeam(team)}>
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Excluir">
+                    <IconButton size="small" onClick={() => handleDeleteClick(team)} color="error">
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </>
+              ),
+            },
+          }))}
+          sortConfig={sortConfig}
+          onSort={handleSort}
+          page={page}
+          rowsPerPage={rowsPerPage}
+          totalCount={filteredTeams.length}
+          onPageChange={setPage}
+          onRowsPerPageChange={setRowsPerPage}
+          emptyIcon={<GroupsIcon sx={{ fontSize: 64, color: 'text.secondary' }} />}
+          emptyTitle={searchTerm ? 'Nenhuma equipe encontrada' : 'Nenhuma equipe cadastrada'}
+          emptyDescription={searchTerm ? 'Tente ajustar os filtros de busca' : 'Clique em "Nova Equipe" para adicionar a primeira equipe'}
+        />
       ) : (
         <PlaceholderContent>
           <GroupsIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />

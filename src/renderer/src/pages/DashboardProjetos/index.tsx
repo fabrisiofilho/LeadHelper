@@ -18,13 +18,6 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
   type SelectChangeEvent,
 } from '@mui/material';
 import {
@@ -34,54 +27,39 @@ import {
   CheckCircle as CheckCircleIcon,
   HourglassEmpty as HourglassEmptyIcon,
   Cancel as CancelIcon,
-  TrendingUp as TrendingUpIcon,
   ExpandMore as ExpandMoreIcon,
+  Code as CodeIcon,
+  VerifiedUser as AuditIcon,
+  Gavel as HomologacaoIcon,
+  RocketLaunch as ImplantacaoIcon,
 } from '@mui/icons-material';
 import { PageLayout } from '@renderer/components/PageLayout';
+import { useTableSort } from '@renderer/hooks/useTableSort';
+import { StandardTable, type StandardColumn } from '@renderer/components/StandardTable';
+import { TaskViewModal } from '@renderer/components/TaskViewModal';
 import type {
   Sprint,
   ProjetosResult,
   ProjetosItem,
   SprintAlert,
-  SprintQuantitativeSummary,
   Task,
 } from '@shared/interfaces/config/index.types';
 
-const STATUS_COLOR: Record<string, string> = {
-  // Azure DevOps real states
-  Novo: '#2196F3',
-  New: '#2196F3',
-  Active: '#FFC107',
-  'In Progress': '#FFC107',
-  'Em Andamento': '#FFC107',
-  'Em Desenvolvimento': '#FF9800',
-  'Em Auditoria': '#AB47BC',
-  'Aguardando Auditoria': '#CE93D8',
-  'Em Homologação': '#7E57C2',
-  'Aguardando Validação': '#9575CD',
-  'Preparando para Dev': '#42A5F5',
-  Done: '#4CAF50',
-  Closed: '#9E9E9E',
-  Finalizado: '#4CAF50',
-  Cancelado: '#EF5350',
-  // Legacy
-  pending: '#2196F3',
-  in_progress: '#FFC107',
-  completed: '#4CAF50',
-  cancelled: '#9E9E9E',
-};
-
+import { getStatusColor } from '@shared/constants/status-colors';
 const STATUS_CONFIG: Record<
   string,
   {
     label: string;
-    color: 'default' | 'primary' | 'success' | 'error' | 'warning';
+    color: 'default' | 'primary' | 'success' | 'error' | 'warning' | 'info' | 'secondary';
   }
 > = {
-  pending: { label: 'Pendente', color: 'warning' },
-  inProgress: { label: 'Em Andamento', color: 'primary' },
-  completed: { label: 'Concluído', color: 'success' },
-  cancelled: { label: 'Cancelado', color: 'error' },
+  pending: { label: 'Pendentes', color: 'warning' },
+  desenvolvimento: { label: 'Desenvolvimento', color: 'primary' },
+  auditoria: { label: 'Auditoria', color: 'secondary' },
+  homologacao: { label: 'Homologação', color: 'info' },
+  implantacao: { label: 'Implantação', color: 'default' },
+  completed: { label: 'Concluídos', color: 'success' },
+  cancelled: { label: 'Cancelados', color: 'error' },
 };
 
 function categorizeStatus(
@@ -101,6 +79,10 @@ function categorizeStatus(
     'Aguardando Auditoria',
     'Aguardando Validação',
     'Aguardando Implantação',
+    'Aguardando Homologação',
+    'Em Implantação',
+    'Em validação',
+    'Em classificação',
     'Preparando para Dev',
   ];
   if (completed.includes(status)) return 'completed';
@@ -109,9 +91,93 @@ function categorizeStatus(
   return 'pending';
 }
 
-// ── Children row for accordion ──
+type DetailedCategory = 'pending' | 'desenvolvimento' | 'auditoria' | 'homologacao' | 'implantacao' | 'completed' | 'cancelled';
 
-function ChildrenTable({ children }: { children: Task[] }) {
+function categorizeStatusDetailed(status: string): DetailedCategory {
+  const completed = ['completed', 'Done', 'Closed', 'Resolved', 'Finalizado'];
+  const cancelled = ['cancelled', 'Removed', 'Cut', 'Cancelado'];
+  const auditoria = ['Aguardando Auditoria', 'Aguardando auditoria', 'Em Auditoria', 'Em auditoria'];
+  const homologacao = [
+    'Aguardando Homologação', 'Aguardando homologação',
+    'Em Homologação', 'Em homologação',
+    'Aguardando Validação', 'Aguardando validação',
+    'Em validação', 'Em Validação',
+  ];
+  const implantacao = [
+    'Aguardando Implantação', 'Aguardando implantação',
+    'Em Implantação', 'Em implantação',
+  ];
+  const desenvolvimento = [
+    'in_progress', 'Active', 'In Progress', 'Committed',
+    'Em Andamento', 'Em andamento', 'Em Desenvolvimento', 'Em desenvolvimento',
+    'Preparando para Dev', 'Em classificação', 'Backlog Comprometido',
+  ];
+
+  if (completed.includes(status)) return 'completed';
+  if (cancelled.includes(status)) return 'cancelled';
+  if (implantacao.includes(status)) return 'implantacao';
+  if (homologacao.includes(status)) return 'homologacao';
+  if (auditoria.includes(status)) return 'auditoria';
+  if (desenvolvimento.includes(status)) return 'desenvolvimento';
+  return 'pending';
+}
+
+/**
+ * Derive the displayed status for a parent item considering both its own
+ * status and the progress of its children.
+ *
+ * Rules:
+ * - If the parent's own status is already categorized as inProgress, completed
+ *   or cancelled, use it directly (but show the real Azure DevOps label when
+ *   it's a known "homologação/validação" status).
+ * - If the parent is "pending" but ALL children are completed, treat it as
+ *   "Em Homologação" since the work is done and awaiting validation.
+ * - If the parent is "pending" but SOME children are completed or in progress,
+ *   treat it as "inProgress".
+ */
+function deriveParentDisplayStatus(
+  item: ProjetosItem,
+): { cat: string; label: string; color: 'default' | 'primary' | 'success' | 'error' | 'warning' | 'info' | 'secondary' } {
+  const { task, childrenCount, completedChildrenCount } = item;
+  const detailedCat = categorizeStatusDetailed(task.status);
+
+  // If the detailed category already captures the real status, use it
+  if (detailedCat !== 'pending') {
+    const cfg = STATUS_CONFIG[detailedCat];
+    return { cat: detailedCat, label: task.status, color: cfg.color };
+  }
+
+  // Parent is "pending" — check children to derive a better status
+  if (childrenCount > 0 && completedChildrenCount === childrenCount) {
+    return { cat: 'homologacao', label: 'Em Homologação', color: STATUS_CONFIG.homologacao.color };
+  }
+
+  if (childrenCount > 0 && completedChildrenCount > 0) {
+    return { cat: 'desenvolvimento', label: 'Em Andamento', color: STATUS_CONFIG.desenvolvimento.color };
+  }
+
+  // Truly pending
+  const cfg = STATUS_CONFIG.pending;
+  return { cat: 'pending', label: cfg.label, color: cfg.color };
+}
+
+// ── Children columns ──
+
+const CHILDREN_COLUMNS: StandardColumn[] = [
+  { id: 'externalId', label: 'ID', width: 80 },
+  { id: 'type', label: 'Tipo', width: 100 },
+  { id: 'title', label: 'Título' },
+  { id: 'status', label: 'Status', width: 140 },
+  { id: 'assignedToName', label: 'Responsável', width: 160 },
+];
+
+// ── Children table for accordion ──
+
+function ChildrenTable({ children, onTaskClick }: { children: Task[]; onTaskClick: (task: Task) => void }) {
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const { sortedItems, sortConfig, handleSort } = useTableSort(children);
+
   if (children.length === 0) {
     return (
       <Typography variant="body2" color="text.secondary" sx={{ py: 1, pl: 2 }}>
@@ -129,109 +195,79 @@ function ChildrenTable({ children }: { children: Task[] }) {
     { pending: 0, inProgress: 0, completed: 0, cancelled: 0 },
   );
 
+  const paginatedChildren = sortedItems.slice(
+    page * rowsPerPage,
+    page * rowsPerPage + rowsPerPage,
+  );
+
   return (
     <Box>
       <Stack direction="row" spacing={1} mb={1} pl={1}>
         {statusSummary.completed > 0 && (
-          <Chip
-            label={`${statusSummary.completed} concluído(s)`}
-            size="small"
-            color="success"
-            variant="outlined"
-          />
+          <Chip label={`${statusSummary.completed} concluído(s)`} size="small" color="success" variant="outlined" />
         )}
         {statusSummary.inProgress > 0 && (
-          <Chip
-            label={`${statusSummary.inProgress} em andamento`}
-            size="small"
-            color="primary"
-            variant="outlined"
-          />
+          <Chip label={`${statusSummary.inProgress} em andamento`} size="small" color="primary" variant="outlined" />
         )}
         {statusSummary.pending > 0 && (
-          <Chip
-            label={`${statusSummary.pending} pendente(s)`}
-            size="small"
-            color="warning"
-            variant="outlined"
-          />
+          <Chip label={`${statusSummary.pending} pendente(s)`} size="small" color="warning" variant="outlined" />
         )}
         {statusSummary.cancelled > 0 && (
-          <Chip
-            label={`${statusSummary.cancelled} cancelado(s)`}
-            size="small"
-            color="error"
-            variant="outlined"
-          />
+          <Chip label={`${statusSummary.cancelled} cancelado(s)`} size="small" color="error" variant="outlined" />
         )}
       </Stack>
-      <TableContainer component={Paper} variant="outlined">
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>ID</TableCell>
-              <TableCell>Tipo</TableCell>
-              <TableCell>Título</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Responsável</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {children.map((child) => {
-              const statusColor = STATUS_COLOR[child.status] ?? '#757575';
-              return (
-                <TableRow key={child.id}>
-                  <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                    <Typography variant="caption" color="text.secondary">
-                      #{child.externalId ?? child.id}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={child.type}
-                      size="small"
-                      variant="outlined"
-                      sx={{ fontSize: '0.65rem' }}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Typography
-                      variant="body2"
-                      sx={{ wordBreak: 'break-word' }}
-                    >
-                      {child.title}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={child.status}
-                      size="small"
-                      sx={{
-                        bgcolor: statusColor,
-                        color: '#fff',
-                        fontWeight: 600,
-                        fontSize: '0.65rem',
-                      }}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2">
-                      {child.assignedToName || '—'}
-                    </Typography>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </TableContainer>
+      <StandardTable
+        columns={CHILDREN_COLUMNS}
+        rows={paginatedChildren.map((child) => ({
+          id: child.id,
+          onClick: () => onTaskClick(child),
+          cells: {
+            externalId: (
+              <Typography variant="caption" color="text.secondary">
+                #{child.externalId ?? child.id}
+              </Typography>
+            ),
+            type: (
+              <Chip label={child.type} size="small" variant="outlined" sx={{ fontSize: '0.65rem' }} />
+            ),
+            title: (
+              <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
+                {child.title}
+              </Typography>
+            ),
+            status: (
+              <Chip
+                label={child.status}
+                size="small"
+                sx={{
+                  bgcolor: getStatusColor(child.status),
+                  color: '#fff',
+                  fontWeight: 600,
+                  fontSize: '0.65rem',
+                }}
+              />
+            ),
+            assignedToName: (
+              <Typography variant="body2">{child.assignedToName || '—'}</Typography>
+            ),
+          },
+        }))}
+        sortConfig={sortConfig}
+        onSort={handleSort}
+        page={page}
+        rowsPerPage={rowsPerPage}
+        totalCount={sortedItems.length}
+        onPageChange={setPage}
+        onRowsPerPageChange={setRowsPerPage}
+        rowsPerPageOptions={[5, 10, 25]}
+      />
     </Box>
   );
 }
 
 // ── User Story Accordion ──
 
-function UserStoryAccordion({ item }: { item: ProjetosItem }) {
+function UserStoryAccordion({ item, onTaskClick }: { item: ProjetosItem; onTaskClick: (task: Task) => void }) {
   const [children, setChildren] = useState<Task[] | null>(null);
   const [loadingChildren, setLoadingChildren] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -261,16 +297,17 @@ function UserStoryAccordion({ item }: { item: ProjetosItem }) {
   );
 
   const { task } = item;
-  const cat = categorizeStatus(task.status);
-  const statusCfg = STATUS_CONFIG[cat];
-  const borderColor =
-    cat === 'completed'
-      ? 'success.main'
-      : cat === 'inProgress'
-        ? 'primary.main'
-        : cat === 'cancelled'
-          ? 'error.main'
-          : 'warning.main';
+  const derived = deriveParentDisplayStatus(item);
+  const borderColorMap: Record<string, string> = {
+    completed: '#66BB6A',
+    cancelled: '#EF5350',
+    desenvolvimento: '#FF7043',
+    auditoria: '#AB47BC',
+    homologacao: '#7E57C2',
+    implantacao: '#26A69A',
+    pending: '#FFA726',
+  };
+  const borderColor = borderColorMap[derived.cat] || '#FFA726';
 
   return (
     <Accordion
@@ -300,9 +337,9 @@ function UserStoryAccordion({ item }: { item: ProjetosItem }) {
               #{task.externalId ?? task.id}
             </Typography>
             <Chip
-              label={statusCfg.label}
+              label={derived.label}
               size="small"
-              color={statusCfg.color}
+              color={derived.color}
             />
             {task.assignedToName && (
               <Chip
@@ -312,15 +349,23 @@ function UserStoryAccordion({ item }: { item: ProjetosItem }) {
                 sx={{ fontSize: '0.7rem' }}
               />
             )}
-            {item.childrenCount > 0 && (
-              <Chip
-                label={`${item.completedChildrenCount}/${item.childrenCount} filhos`}
-                size="small"
-                variant="outlined"
-                color={item.progressPercent === 100 ? 'success' : 'default'}
-                sx={{ fontSize: '0.7rem' }}
-              />
-            )}
+            {item.childrenCount > 0 && (() => {
+              const allDone = item.progressPercent === 100;
+              return (
+                <Chip
+                  label={`${item.completedChildrenCount}/${item.childrenCount} filhos`}
+                  size="small"
+                  variant={allDone ? 'outlined' : 'filled'}
+                  sx={{
+                    fontSize: '0.7rem',
+                    fontWeight: allDone ? 400 : 700,
+                    ...(allDone
+                      ? { color: 'text.disabled', borderColor: 'divider' }
+                      : { bgcolor: '#FF7043', color: '#fff' }),
+                  }}
+                />
+              );
+            })()}
           </Stack>
           <Typography
             variant="body2"
@@ -329,14 +374,25 @@ function UserStoryAccordion({ item }: { item: ProjetosItem }) {
           >
             {task.title}
           </Typography>
-          {item.childrenCount > 0 && (
-            <LinearProgress
-              variant="determinate"
-              value={item.progressPercent}
-              color={item.progressPercent === 100 ? 'success' : 'primary'}
-              sx={{ height: 4, borderRadius: 2, mt: 0.5 }}
-            />
-          )}
+          {item.childrenCount > 0 && (() => {
+            const allDone = item.progressPercent === 100;
+            return (
+              <LinearProgress
+                variant="determinate"
+                value={item.progressPercent}
+                sx={{
+                  height: 4,
+                  borderRadius: 2,
+                  mt: 0.5,
+                  bgcolor: allDone ? 'action.disabledBackground' : undefined,
+                  '& .MuiLinearProgress-bar': {
+                    bgcolor: allDone ? 'text.disabled' : '#FF7043',
+                    borderRadius: 2,
+                  },
+                }}
+              />
+            );
+          })()}
         </Stack>
       </AccordionSummary>
       <AccordionDetails>
@@ -345,7 +401,7 @@ function UserStoryAccordion({ item }: { item: ProjetosItem }) {
             <CircularProgress size={24} />
           </Stack>
         ) : children ? (
-          <ChildrenTable children={children} />
+          <ChildrenTable children={children} onTaskClick={onTaskClick} />
         ) : null}
       </AccordionDetails>
     </Accordion>
@@ -362,6 +418,18 @@ export function DashboardProjetosPage() {
   const [loadingSprints, setLoadingSprints] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+
+  const handleTaskClick = useCallback((task: Task) => {
+    setSelectedTask(task);
+    setIsTaskModalOpen(true);
+  }, []);
+
+  const handleCloseTaskModal = useCallback(() => {
+    setIsTaskModalOpen(false);
+    setSelectedTask(null);
+  }, []);
 
   const loadSprints = useCallback(async () => {
     setLoadingSprints(true);
@@ -436,28 +504,31 @@ export function DashboardProjetosPage() {
     ? result.items.filter((i) => i.task.type === 'User Story')
     : [];
 
-  // Group user stories by status category
-  const grouped = {
-    pending: userStories.filter(
-      (i) => categorizeStatus(i.task.status) === 'pending',
-    ),
-    inProgress: userStories.filter(
-      (i) => categorizeStatus(i.task.status) === 'inProgress',
-    ),
-    completed: userStories.filter(
-      (i) => categorizeStatus(i.task.status) === 'completed',
-    ),
-    cancelled: userStories.filter(
-      (i) => categorizeStatus(i.task.status) === 'cancelled',
-    ),
+  // Group user stories by detailed status category
+  const grouped: Record<DetailedCategory, ProjetosItem[]> = {
+    pending: [],
+    desenvolvimento: [],
+    auditoria: [],
+    homologacao: [],
+    implantacao: [],
+    completed: [],
+    cancelled: [],
   };
+  for (const item of userStories) {
+    const derived = deriveParentDisplayStatus(item);
+    const cat = (derived.cat in grouped ? derived.cat : 'pending') as DetailedCategory;
+    grouped[cat].push(item);
+  }
 
   // Summary based on user stories only
-  const usSummary: SprintQuantitativeSummary | null = result
+  const usSummary = result
     ? {
         total: userStories.length,
         completed: grouped.completed.length,
-        inProgress: grouped.inProgress.length,
+        desenvolvimento: grouped.desenvolvimento.length,
+        auditoria: grouped.auditoria.length,
+        homologacao: grouped.homologacao.length,
+        implantacao: grouped.implantacao.length,
         pending: grouped.pending.length,
         cancelled: grouped.cancelled.length,
         completionPercentage:
@@ -561,7 +632,7 @@ export function DashboardProjetosPage() {
           {result.alerts.length > 0 && <AlertsSection alerts={result.alerts} />}
 
           {/* User Stories grouped by status */}
-          {(['inProgress', 'pending', 'completed', 'cancelled'] as const).map(
+          {(['desenvolvimento', 'auditoria', 'homologacao', 'implantacao', 'pending', 'completed', 'cancelled'] as DetailedCategory[]).map(
             (key) => {
               const items = grouped[key];
               if (items.length === 0) return null;
@@ -576,7 +647,7 @@ export function DashboardProjetosPage() {
                   </Stack>
                   <Stack spacing={1}>
                     {items.map((item) => (
-                      <UserStoryAccordion key={item.task.id} item={item} />
+                      <UserStoryAccordion key={item.task.id} item={item} onTaskClick={handleTaskClick} />
                     ))}
                   </Stack>
                 </Box>
@@ -595,6 +666,12 @@ export function DashboardProjetosPage() {
           Nenhum dado encontrado para a sprint selecionada.
         </Alert>
       )}
+
+      <TaskViewModal
+        open={isTaskModalOpen}
+        task={selectedTask}
+        onClose={handleCloseTaskModal}
+      />
     </PageLayout>
   );
 }
@@ -603,7 +680,19 @@ export default DashboardProjetosPage;
 
 // ── Summary Section ──
 
-function SummarySection({ summary }: { summary: SprintQuantitativeSummary }) {
+interface ProjetosSummary {
+  total: number;
+  completed: number;
+  desenvolvimento: number;
+  auditoria: number;
+  homologacao: number;
+  implantacao: number;
+  pending: number;
+  cancelled: number;
+  completionPercentage: number;
+}
+
+function SummarySection({ summary }: { summary: ProjetosSummary }) {
   const stats = [
     {
       label: 'Total',
@@ -612,22 +701,40 @@ function SummarySection({ summary }: { summary: SprintQuantitativeSummary }) {
       color: 'text.primary',
     },
     {
-      label: 'Concluídos',
-      value: summary.completed,
-      icon: <CheckCircleIcon />,
-      color: 'success.main',
+      label: 'Desenvolvimento',
+      value: summary.desenvolvimento,
+      icon: <CodeIcon />,
+      hexColor: '#FF7043',
     },
     {
-      label: 'Em Andamento',
-      value: summary.inProgress,
-      icon: <TrendingUpIcon />,
-      color: 'primary.main',
+      label: 'Auditoria',
+      value: summary.auditoria,
+      icon: <AuditIcon />,
+      hexColor: '#AB47BC',
+    },
+    {
+      label: 'Homologação',
+      value: summary.homologacao,
+      icon: <HomologacaoIcon />,
+      hexColor: '#7E57C2',
+    },
+    {
+      label: 'Implantação',
+      value: summary.implantacao,
+      icon: <ImplantacaoIcon />,
+      hexColor: '#26A69A',
     },
     {
       label: 'Pendentes',
       value: summary.pending,
       icon: <HourglassEmptyIcon />,
       color: 'warning.main',
+    },
+    {
+      label: 'Concluídos',
+      value: summary.completed,
+      icon: <CheckCircleIcon />,
+      color: 'success.main',
     },
     {
       label: 'Cancelados',
@@ -651,11 +758,11 @@ function SummarySection({ summary }: { summary: SprintQuantitativeSummary }) {
               spacing={0.5}
               sx={{ minWidth: 80 }}
             >
-              <Box sx={{ color: stat.color }}>{stat.icon}</Box>
+              <Box sx={{ color: stat.hexColor || stat.color }}>{stat.icon}</Box>
               <Typography
                 variant="h5"
                 fontWeight={700}
-                sx={{ color: stat.color }}
+                sx={{ color: stat.hexColor || stat.color }}
               >
                 {stat.value}
               </Typography>

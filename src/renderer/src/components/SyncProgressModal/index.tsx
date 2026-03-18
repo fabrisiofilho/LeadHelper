@@ -1,13 +1,10 @@
 import { useEffect, useState } from 'react';
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
   Box,
   Typography,
   LinearProgress,
   Stack,
-  Alert,
+  Paper,
   Chip,
 } from '@mui/material';
 import {
@@ -15,8 +12,10 @@ import {
   Sync as SyncIcon,
 } from '@mui/icons-material';
 
+type SyncStep = 'sprints' | 'teams' | 'work_items' | 'members' | 'tasks' | 'complete';
+
 interface SyncProgress {
-  step: 'sprints' | 'teams' | 'work_items' | 'members' | 'tasks' | 'complete';
+  step: SyncStep;
   message: string;
   current: number;
   total: number;
@@ -28,7 +27,9 @@ interface SyncProgressModalProps {
   onClose: () => void;
 }
 
-const stepLabels: Record<SyncProgress['step'], string> = {
+const STEPS: SyncStep[] = ['sprints', 'teams', 'work_items', 'members', 'tasks'];
+
+const stepLabels: Record<SyncStep, string> = {
   sprints: 'Sprints',
   teams: 'Equipes',
   work_items: 'Work Items',
@@ -37,28 +38,22 @@ const stepLabels: Record<SyncProgress['step'], string> = {
   complete: 'Concluído',
 };
 
-export function SyncProgressModal({ open, onClose }: SyncProgressModalProps) {
-  const [progress, setProgress] = useState<SyncProgress>({
-    step: 'sprints',
-    message: 'Iniciando sincronização...',
-    current: 0,
-    total: 100,
-    percentage: 0,
-  });
+const initialProgress: SyncProgress = {
+  step: 'sprints',
+  message: 'Iniciando sincronização...',
+  current: 0,
+  total: 100,
+  percentage: 0,
+};
 
+export function SyncProgressModal({ open, onClose }: SyncProgressModalProps) {
+  const [progress, setProgress] = useState<SyncProgress>(initialProgress);
   const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set());
   const [isComplete, setIsComplete] = useState(false);
 
   useEffect(() => {
     if (!open) {
-      // Reset state when modal closes
-      setProgress({
-        step: 'sprints',
-        message: 'Iniciando sincronização...',
-        current: 0,
-        total: 100,
-        percentage: 0,
-      });
+      setProgress(initialProgress);
       setCompletedSteps(new Set());
       setIsComplete(false);
       return;
@@ -69,143 +64,107 @@ export function SyncProgressModal({ open, onClose }: SyncProgressModalProps) {
 
       if (data.step === 'complete') {
         setIsComplete(true);
-        // Auto-close after 2 seconds
-        setTimeout(() => {
-          onClose();
-        }, 2000);
+        setTimeout(onClose, 2000);
       } else {
-        // Mark previous steps as completed
         setCompletedSteps((prev) => {
           const newSet = new Set(prev);
-          const steps: SyncProgress['step'][] = [
-            'sprints',
-            'teams',
-            'work_items',
-            'members',
-            'tasks',
-          ];
-          const currentIndex = steps.indexOf(data.step);
+          const currentIndex = STEPS.indexOf(data.step);
           for (let i = 0; i < currentIndex; i++) {
-            newSet.add(steps[i]);
+            newSet.add(STEPS[i]);
           }
           return newSet;
         });
       }
     };
 
-    window.electronAPI.onSyncProgress(handleProgress);
-
+    const unsub = window.electronAPI.onSyncProgress(handleProgress);
     return () => {
-      // Cleanup listener
+      if (typeof unsub === 'function') unsub();
       window.electronAPI.offSyncProgress?.(handleProgress);
     };
   }, [open, onClose]);
 
+  if (!open) return null;
+
   return (
-    <Dialog
-      open={open}
-      maxWidth="sm"
-      fullWidth
-      disableEscapeKeyDown={!isComplete}
-      onClose={isComplete ? onClose : undefined}
+    <Box
+      sx={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9999,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        bgcolor: 'rgba(0,0,0,0.6)',
+        backdropFilter: 'blur(4px)',
+      }}
     >
-      <DialogTitle>
-        <Stack direction="row" alignItems="center" spacing={1}>
-          {isComplete ? (
-            <CheckCircleIcon color="success" />
-          ) : (
-            <SyncIcon className="rotating-icon" />
-          )}
-          <Typography variant="h6">
-            {isComplete
-              ? 'Sincronização Concluída'
-              : 'Sincronizando com Azure DevOps'}
-          </Typography>
+      <Paper
+        elevation={8}
+        sx={{
+          borderRadius: 4,
+          p: '2rem 3rem',
+          minWidth: 420,
+          maxWidth: 520,
+          textAlign: 'center',
+        }}
+      >
+        {isComplete ? (
+          <CheckCircleIcon sx={{ fontSize: 48, color: 'success.main', mb: 2 }} />
+        ) : (
+          <SyncIcon
+            className="sync-rotate"
+            sx={{ fontSize: 48, color: 'primary.main', mb: 2 }}
+          />
+        )}
+
+        <Typography variant="h6" gutterBottom>
+          {isComplete ? 'Sincronização Concluída!' : 'Sincronizando com Azure DevOps'}
+        </Typography>
+
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          {progress.message}
+        </Typography>
+
+        <LinearProgress
+          variant="determinate"
+          value={progress.percentage}
+          color={isComplete ? 'success' : 'primary'}
+          sx={{ height: 8, borderRadius: 1, mb: 0.5 }}
+        />
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
+          {progress.percentage}%
+        </Typography>
+
+        <Stack direction="row" spacing={1} justifyContent="center" flexWrap="wrap" useFlexGap>
+          {STEPS.map((step) => {
+            const done = completedSteps.has(step) || isComplete;
+            const current = progress.step === step && !isComplete;
+            return (
+              <Chip
+                key={step}
+                label={stepLabels[step]}
+                size="small"
+                color={done ? 'success' : current ? 'primary' : 'default'}
+                variant={current ? 'filled' : 'outlined'}
+                icon={done ? <CheckCircleIcon /> : undefined}
+              />
+            );
+          })}
         </Stack>
-      </DialogTitle>
-
-      <DialogContent>
-        <Stack spacing={3}>
-          {isComplete ? (
-            <Alert severity="success">
-              Todos os dados foram sincronizados com sucesso!
-            </Alert>
-          ) : (
-            <>
-              <Box>
-                <Typography variant="body2" color="text.secondary" gutterBottom>
-                  {progress.message}
-                </Typography>
-                <LinearProgress
-                  variant="determinate"
-                  value={progress.percentage}
-                  sx={{ height: 8, borderRadius: 1, mt: 1 }}
-                />
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ mt: 0.5, display: 'block' }}
-                >
-                  {progress.percentage}%
-                </Typography>
-              </Box>
-
-              <Stack spacing={1}>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Etapas:
-                </Typography>
-                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  {(
-                    [
-                      'sprints',
-                      'teams',
-                      'work_items',
-                      'members',
-                      'tasks',
-                    ] as const
-                  ).map((step) => {
-                    const isCompleted = completedSteps.has(step);
-                    const isCurrent = progress.step === step;
-
-                    return (
-                      <Chip
-                        key={step}
-                        label={stepLabels[step]}
-                        size="small"
-                        color={
-                          isCompleted
-                            ? 'success'
-                            : isCurrent
-                              ? 'primary'
-                              : 'default'
-                        }
-                        variant={isCurrent ? 'filled' : 'outlined'}
-                        icon={isCompleted ? <CheckCircleIcon /> : undefined}
-                      />
-                    );
-                  })}
-                </Stack>
-              </Stack>
-            </>
-          )}
-        </Stack>
-      </DialogContent>
+      </Paper>
 
       <style>
         {`
-          @keyframes rotate {
-            from {
-              transform: rotate(0deg);
-            }
-            to {
-              transform: rotate(360deg);
-            }
+          @keyframes sync-rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
           }
-          .rotating-icon {
-            animation: rotate 2s linear infinite;
+          .sync-rotate {
+            animation: sync-rotate 1.5s linear infinite;
           }
         `}
       </style>
-    </Dialog>
+    </Box>
   );
 }

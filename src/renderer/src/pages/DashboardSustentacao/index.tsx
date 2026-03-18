@@ -3,7 +3,6 @@ import {
   useEffect,
   useCallback,
   useMemo,
-  useTransition,
   memo,
 } from 'react';
 import {
@@ -15,9 +14,6 @@ import {
   CircularProgress,
   Chip,
   Alert,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   Table,
   TableBody,
   TableCell,
@@ -25,13 +21,9 @@ import {
   TableHead,
   TableRow,
   Paper,
-  Tab,
-  Tabs,
-  Fade,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
-  ExpandMore as ExpandMoreIcon,
   LocalFireDepartment as FireIcon,
   Diamond as DiamondIcon,
   TimerOff as TimerOffIcon,
@@ -43,7 +35,9 @@ import {
   PictureAsPdf as PdfIcon,
 } from '@mui/icons-material';
 import { PageLayout } from '@renderer/components/PageLayout';
+import { TaskViewModal } from '@renderer/components/TaskViewModal';
 import type { SustentacaoItemWithSLA } from '@shared/interfaces/config/index.types';
+import type { Task } from '@shared/interfaces/config/index.types';
 
 // ── constants ──
 
@@ -107,7 +101,7 @@ function isGestao(areaPath?: string): boolean {
   return areaPath?.startsWith(AREA_GESTAO) ?? false;
 }
 function areaLabel(areaPath?: string): string {
-  return isGestao(areaPath) ? 'GT' : 'CT';
+  return isGestao(areaPath) ? 'Gestão de Terceiros' : 'Chamada Tecnológica';
 }
 
 /** Sort weight: Ticket GT=0, Improvement GT=1, Ticket CT=2, Improvement CT=3 */
@@ -272,6 +266,7 @@ interface ItemRowProps {
   onToggleSla: (externalId: string, excluded: boolean) => void;
   onToggleHidden: (externalId: string, hidden: boolean) => void;
   onCopyLink: (externalId: string) => void;
+  onRowClick: (task: Task) => void;
 }
 
 const ItemRow = memo(function ItemRow({
@@ -280,6 +275,7 @@ const ItemRow = memo(function ItemRow({
   onToggleSla,
   onToggleHidden,
   onCopyLink,
+  onRowClick,
 }: ItemRowProps) {
   const t = item.task;
   const prio = t.priority ?? 'medium';
@@ -293,7 +289,10 @@ const ItemRow = memo(function ItemRow({
       sx={{
         opacity: item.isHidden ? 0.45 : 1,
         bgcolor: noAssignee ? 'rgba(255,152,0,0.06)' : undefined,
+        cursor: 'pointer',
+        '&:hover': { bgcolor: 'action.hover' },
       }}
+      onClick={() => onRowClick(t)}
     >
       {/* Item: ID + Tipo + Área + Prio empilhados verticalmente */}
       <TableCell sx={{ verticalAlign: 'middle', py: 1 }}>
@@ -419,7 +418,7 @@ const ItemRow = memo(function ItemRow({
       </TableCell>
 
       {/* Ações */}
-      <TableCell sx={{ whiteSpace: 'nowrap', verticalAlign: 'middle', py: 1 }}>
+      <TableCell sx={{ whiteSpace: 'nowrap', verticalAlign: 'middle', py: 1 }} onClick={(e) => e.stopPropagation()}>
         {isTicket && (
           <Tooltip title={item.slaExcluded ? 'Restaurar SLA' : 'Excluir SLA'}>
             <IconButton
@@ -465,6 +464,7 @@ interface ItemTableProps {
   onToggleSla: (externalId: string, excluded: boolean) => void;
   onToggleHidden: (externalId: string, hidden: boolean) => void;
   onCopyLink: (externalId: string) => void;
+  onRowClick: (task: Task) => void;
 }
 
 const ItemTable = memo(function ItemTable({
@@ -474,6 +474,7 @@ const ItemTable = memo(function ItemTable({
   onToggleSla,
   onToggleHidden,
   onCopyLink,
+  onRowClick,
 }: ItemTableProps) {
   const visible = showHidden ? items : items.filter((i) => !i.isHidden);
 
@@ -515,6 +516,7 @@ const ItemTable = memo(function ItemTable({
               onToggleSla={onToggleSla}
               onToggleHidden={onToggleHidden}
               onCopyLink={onCopyLink}
+              onRowClick={onRowClick}
             />
           ))}
         </TableBody>
@@ -523,84 +525,15 @@ const ItemTable = memo(function ItemTable({
   );
 });
 
-// ── StateAccordion (for CT/GT tabs) ──
-
-interface StateAccordionProps {
-  status: string;
-  items: SustentacaoItemWithSLA[];
-  showHidden: boolean;
-  onToggleSla: (externalId: string, excluded: boolean) => void;
-  onToggleHidden: (externalId: string, hidden: boolean) => void;
-  onCopyLink: (externalId: string) => void;
-}
-
-function StateAccordion({
-  status,
-  items,
-  showHidden,
-  onToggleSla,
-  onToggleHidden,
-  onCopyLink,
-}: StateAccordionProps) {
-  const [expanded, setExpanded] = useState(false);
-  const [rendered, setRendered] = useState(false);
-
-  const handleChange = useCallback(
-    (_: unknown, isExpanded: boolean) => {
-      setExpanded(isExpanded);
-      if (isExpanded && !rendered) {
-        requestAnimationFrame(() => setRendered(true));
-      }
-    },
-    [rendered],
-  );
-
-  const visibleCount = showHidden
-    ? items.length
-    : items.filter((i) => !i.isHidden).length;
-
-  return (
-    <Accordion
-      expanded={expanded}
-      onChange={handleChange}
-      TransitionProps={{ unmountOnExit: true }}
-      sx={{ '&:before': { display: 'none' } }}
-    >
-      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-        <Stack direction="row" alignItems="center" spacing={1}>
-          <Typography variant="subtitle2">{status}</Typography>
-          <Chip label={visibleCount} size="small" />
-        </Stack>
-      </AccordionSummary>
-      <AccordionDetails sx={{ p: 0 }}>
-        {expanded && !rendered ? (
-          <Stack alignItems="center" py={3}>
-            <CircularProgress size={24} />
-          </Stack>
-        ) : rendered ? (
-          <ItemTable
-            items={items}
-            showAreaColumn={false}
-            showHidden={showHidden}
-            onToggleSla={onToggleSla}
-            onToggleHidden={onToggleHidden}
-            onCopyLink={onCopyLink}
-          />
-        ) : null}
-      </AccordionDetails>
-    </Accordion>
-  );
-}
-
 // ── Main Component ──
 
 export function DashboardSustentacaoPage() {
   const [items, setItems] = useState<SustentacaoItemWithSLA[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState(0);
   const [showHidden, setShowHidden] = useState(false);
-  const [isPending, startTransition] = useTransition();
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
 
   const api = (
     window as unknown as {
@@ -668,13 +601,18 @@ export function DashboardSustentacaoPage() {
     navigator.clipboard.writeText(url).catch(() => {});
   }, []);
 
-  const handleTabChange = useCallback((_: unknown, newTab: number) => {
-    startTransition(() => setTab(newTab));
+  const handleRowClick = useCallback((task: Task) => {
+    setSelectedTask(task);
+    setIsTaskModalOpen(true);
+  }, []);
+
+  const handleCloseTaskModal = useCallback(() => {
+    setIsTaskModalOpen(false);
+    setSelectedTask(null);
   }, []);
 
   // ── derived data ──
 
-  // Dashboard tab: split into Dev and Audit lanes
   const { devItems, auditItems } = useMemo(() => {
     const dev: SustentacaoItemWithSLA[] = [];
     const audit: SustentacaoItemWithSLA[] = [];
@@ -686,18 +624,6 @@ export function DashboardSustentacaoPage() {
     dev.sort(dashboardSort);
     audit.sort(dashboardSort);
     return { devItems: dev, auditItems: audit };
-  }, [items]);
-
-  // CT tab: items filtered by Chamada Tecnológica, grouped by status
-  const ctGrouped = useMemo(() => {
-    const filtered = items.filter((i) => !isGestao(i.task.areaPath));
-    return groupByStatus(filtered);
-  }, [items]);
-
-  // GT tab: items filtered by Gestão de Terceiros, grouped by status
-  const gtGrouped = useMemo(() => {
-    const filtered = items.filter((i) => isGestao(i.task.areaPath));
-    return groupByStatus(filtered);
   }, [items]);
 
   // ── loading / error states ──
@@ -755,167 +681,78 @@ export function DashboardSustentacaoPage() {
         </Stack>
       </Stack>
 
-      {/* Tabs */}
-      <Tabs value={tab} onChange={handleTabChange} sx={{ mb: 2 }}>
-        <Tab label="Dashboard" />
-        <Tab label="Chamada Tecnológica" />
-        <Tab label="Gestão de Terceiros" />
-      </Tabs>
-
-      {/* Loading overlay for tab transitions */}
-      <Box sx={{ position: 'relative' }}>
-        <Fade in={isPending}>
-          <Box
-            sx={{
-              position: 'absolute',
-              inset: 0,
-              zIndex: 10,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              bgcolor: 'rgba(255,255,255,0.7)',
-              minHeight: 200,
-            }}
-          >
-            <CircularProgress />
-          </Box>
-        </Fade>
-
-        {/* Tab 0: Dashboard — flat lists */}
-        {tab === 0 && (
-          <Stack spacing={3}>
-            {/* Desenvolvimento */}
-            <Box>
-              <Stack direction="row" alignItems="center" spacing={1} mb={1}>
-                <FireIcon sx={{ color: '#ed6c02' }} />
-                <Typography variant="h6">Desenvolvimento</Typography>
-                <Chip
-                  label={
-                    devItems.filter((i) => showHidden || !i.isHidden).length
-                  }
-                  size="small"
-                />
-                <Tooltip title="Exportar PDF">
-                  <IconButton
-                    size="small"
-                    onClick={() => exportToPdf(devItems, 'Desenvolvimento - Sustentação', showHidden)}
-                  >
-                    <PdfIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </Stack>
-              <ItemTable
-                items={devItems}
-                showAreaColumn
-                showHidden={showHidden}
-                onToggleSla={handleToggleSla}
-                onToggleHidden={handleToggleHidden}
-                onCopyLink={handleCopyLink}
-              />
-            </Box>
-
-            {/* Auditoria */}
-            <Box>
-              <Stack direction="row" alignItems="center" spacing={1} mb={1}>
-                <DiamondIcon sx={{ color: '#7e57c2' }} />
-                <Typography variant="h6">Auditoria</Typography>
-                <Chip
-                  label={
-                    auditItems.filter((i) => showHidden || !i.isHidden).length
-                  }
-                  size="small"
-                />
-                <Tooltip title="Exportar PDF">
-                  <IconButton
-                    size="small"
-                    onClick={() => exportToPdf(auditItems, 'Auditoria - Sustentação', showHidden)}
-                  >
-                    <PdfIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </Stack>
-              <ItemTable
-                items={auditItems}
-                showAreaColumn
-                showHidden={showHidden}
-                onToggleSla={handleToggleSla}
-                onToggleHidden={handleToggleHidden}
-                onCopyLink={handleCopyLink}
-              />
-            </Box>
+      {/* Content */}
+      <Stack spacing={3}>
+        {/* Desenvolvimento */}
+        <Box>
+          <Stack direction="row" alignItems="center" spacing={1} mb={1}>
+            <FireIcon sx={{ color: '#ed6c02' }} />
+            <Typography variant="h6">Desenvolvimento</Typography>
+            <Chip
+              label={
+                devItems.filter((i) => showHidden || !i.isHidden).length
+              }
+              size="small"
+            />
+            <Tooltip title="Exportar PDF">
+              <IconButton
+                size="small"
+                onClick={() => exportToPdf(devItems, 'Desenvolvimento - Sustentação', showHidden)}
+              >
+                <PdfIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
           </Stack>
-        )}
+          <ItemTable
+            items={devItems}
+            showAreaColumn
+            showHidden={showHidden}
+            onToggleSla={handleToggleSla}
+            onToggleHidden={handleToggleHidden}
+            onCopyLink={handleCopyLink}
+            onRowClick={handleRowClick}
+          />
+        </Box>
 
-        {/* Tab 1: Chamada Tecnológica — accordions by status */}
-        {tab === 1 && (
-          <Stack spacing={1}>
-            {ctGrouped.map(([status, statusItems]) => (
-              <StateAccordion
-                key={status}
-                status={status}
-                items={statusItems}
-                showHidden={showHidden}
-                onToggleSla={handleToggleSla}
-                onToggleHidden={handleToggleHidden}
-                onCopyLink={handleCopyLink}
-              />
-            ))}
-            {ctGrouped.length === 0 && (
-              <Typography color="text.secondary" textAlign="center" py={4}>
-                Nenhum item de Chamada Tecnológica.
-              </Typography>
-            )}
+        {/* Auditoria */}
+        <Box>
+          <Stack direction="row" alignItems="center" spacing={1} mb={1}>
+            <DiamondIcon sx={{ color: '#7e57c2' }} />
+            <Typography variant="h6">Auditoria</Typography>
+            <Chip
+              label={
+                auditItems.filter((i) => showHidden || !i.isHidden).length
+              }
+              size="small"
+            />
+            <Tooltip title="Exportar PDF">
+              <IconButton
+                size="small"
+                onClick={() => exportToPdf(auditItems, 'Auditoria - Sustentação', showHidden)}
+              >
+                <PdfIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
           </Stack>
-        )}
+          <ItemTable
+            items={auditItems}
+            showAreaColumn
+            showHidden={showHidden}
+            onToggleSla={handleToggleSla}
+            onToggleHidden={handleToggleHidden}
+            onCopyLink={handleCopyLink}
+            onRowClick={handleRowClick}
+          />
+        </Box>
+      </Stack>
 
-        {/* Tab 2: Gestão de Terceiros — accordions by status */}
-        {tab === 2 && (
-          <Stack spacing={1}>
-            {gtGrouped.map(([status, statusItems]) => (
-              <StateAccordion
-                key={status}
-                status={status}
-                items={statusItems}
-                showHidden={showHidden}
-                onToggleSla={handleToggleSla}
-                onToggleHidden={handleToggleHidden}
-                onCopyLink={handleCopyLink}
-              />
-            ))}
-            {gtGrouped.length === 0 && (
-              <Typography color="text.secondary" textAlign="center" py={4}>
-                Nenhum item de Gestão de Terceiros.
-              </Typography>
-            )}
-          </Stack>
-        )}
-      </Box>
+      <TaskViewModal
+        open={isTaskModalOpen}
+        task={selectedTask}
+        onClose={handleCloseTaskModal}
+      />
     </PageLayout>
   );
 }
 
-// ── utility: group items by status, sorted by STATE_ORDER ──
 
-function groupByStatus(
-  items: SustentacaoItemWithSLA[],
-): [string, SustentacaoItemWithSLA[]][] {
-  const map = new Map<string, SustentacaoItemWithSLA[]>();
-  for (const item of items) {
-    const s = item.task.status;
-    if (!map.has(s)) map.set(s, []);
-    map.get(s)!.push(item);
-  }
-  // Sort groups by STATE_ORDER, unknown statuses go last
-  const entries = Array.from(map.entries());
-  entries.sort(([a], [b]) => (STATE_ORDER[a] ?? 50) - (STATE_ORDER[b] ?? 50));
-  // Sort items within each group by priority then SLA
-  for (const [, groupItems] of entries) {
-    groupItems.sort((a, b) => {
-      const pa = PRIO_ORDER[a.task.priority] ?? 99;
-      const pb = PRIO_ORDER[b.task.priority] ?? 99;
-      if (pa !== pb) return pa - pb;
-      return a.businessHoursRemaining - b.businessHoursRemaining;
-    });
-  }
-  return entries;
-}

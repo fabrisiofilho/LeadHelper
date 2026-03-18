@@ -16,6 +16,8 @@ import {
   ITaskLocalPriorityController,
   IHierarchyController,
   ITaskLocalKanbanController,
+  ISyncController,
+  SyncStatus,
 } from '@shared/interfaces/config/index.types';
 import {
   IAutoUpdaterController,
@@ -129,6 +131,9 @@ const hierarchyController = createControllerFromConfig(
 const taskLocalKanbanController = createControllerFromConfig(
   'taskLocalKanban',
 ) as unknown as ITaskLocalKanbanController;
+const syncController = createControllerFromConfig(
+  'sync',
+) as unknown as ISyncController;
 
 const api: CustomElectronAPI = {
   // Team Management Controllers
@@ -147,6 +152,7 @@ const api: CustomElectronAPI = {
   taskLocalPriority: taskLocalPriorityController,
   hierarchy: hierarchyController,
   taskLocalKanban: taskLocalKanbanController,
+  sync: syncController,
 
   // Utility methods
   openExternalUrl: (url: string) => {
@@ -186,6 +192,16 @@ const api: CustomElectronAPI = {
 
   offSyncProgress: (callback: (event: any, progress: any) => void): void => {
     ipcRenderer.removeListener('sync:progress', callback as any);
+  },
+
+  onSyncStatusChanged: (callback: (status: SyncStatus) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, status: SyncStatus) => {
+      callback(status);
+    };
+    ipcRenderer.on('sync:status-changed', handler);
+    return () => {
+      ipcRenderer.removeListener('sync:status-changed', handler);
+    };
   },
 };
 

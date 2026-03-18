@@ -92,4 +92,19 @@ export class AzureDevOpsController extends BaseHandler {
       return { success: false, error: message };
     }
   }
+
+  @IpcMethod('azure-devops:proxyImage')
+  async proxyImage(imageUrl: string): Promise<ApiResponse<string>> {
+    try {
+      const dataUri = await this.service.proxyImage(imageUrl);
+      return { success: true, data: dataUri };
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Erro ao buscar imagem';
+      logger.error('AzureDevOpsController.proxyImage error:', error);
+      return { success: false, error: message };
+    }
+  }
 }

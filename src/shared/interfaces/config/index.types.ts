@@ -674,6 +674,7 @@ export interface IAzureDevOpsController {
   fetchWorkItems(filters?: WorkItemFilters): Promise<ApiResponse<WorkItem[]>>;
   fetchIterations(): Promise<ApiResponse<IterationNode[]>>;
   fullSync(): Promise<ApiResponse<FullSyncResult>>;
+  proxyImage(imageUrl: string): Promise<ApiResponse<string>>;
 }
 
 export interface IAllocationController {
@@ -1001,6 +1002,21 @@ export interface HierarchyProgress {
 }
 
 // ============================================================================
+// Sync Status Types
+// ============================================================================
+
+export interface SyncStatus {
+  lastSyncAt: string | null;
+  nextSyncAt: string | null;
+  isSyncing: boolean;
+  isConfigured: boolean;
+}
+
+export interface ISyncController {
+  getStatus(): Promise<ApiResponse<SyncStatus>>;
+}
+
+// ============================================================================
 // Custom Electron API
 // ============================================================================
 
@@ -1021,6 +1037,7 @@ export interface CustomElectronAPI {
   taskLocalPriority: ITaskLocalPriorityController;
   hierarchy: IHierarchyController;
   taskLocalKanban: ITaskLocalKanbanController;
+  sync: ISyncController;
 
   // Utility methods
   openExternalUrl: (url: string) => void;
@@ -1028,4 +1045,5 @@ export interface CustomElectronAPI {
   onAutoUpdaterStatus: (callback: (state: UpdateState) => void) => () => void;
   onSyncProgress: (callback: (event: any, progress: any) => void) => () => void;
   offSyncProgress?: (callback: (event: any, progress: any) => void) => void;
+  onSyncStatusChanged: (callback: (status: SyncStatus) => void) => () => void;
 }

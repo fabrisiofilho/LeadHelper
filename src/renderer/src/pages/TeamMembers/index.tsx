@@ -9,14 +9,6 @@ import {
   Stack,
   TextField,
   MenuItem,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TablePagination,
-  Paper,
   Chip,
   InputAdornment,
 } from '@mui/material';
@@ -35,7 +27,7 @@ import { Modal } from '@renderer/components/Modal';
 import { useTeamMembers } from '@renderer/hooks/useTeamMembers';
 import { usePositions } from '@renderer/hooks/usePositions';
 import { useTableSort } from '@renderer/hooks/useTableSort';
-import { SortableTableCell } from '@renderer/components/SortableTableCell';
+import { StandardTable, type StandardColumn } from '@renderer/components/StandardTable';
 import {
   PageContainer,
   PlaceholderContent,
@@ -67,6 +59,14 @@ interface TeamMemberFormData {
   email: string;
   positionId?: number;
 }
+
+const MEMBER_COLUMNS: StandardColumn[] = [
+  { id: 'name', label: 'Nome' },
+  { id: 'email', label: 'Email' },
+  { id: 'position', label: 'Cargo' },
+  { id: 'isActive', label: 'Status' },
+  { id: 'actions', label: 'Ações', noSort: true, align: 'right' },
+];
 
 export function TeamMembersPage() {
   const {
@@ -394,124 +394,71 @@ export function TeamMembersPage() {
       </FiltersContainer>
 
       {filteredMembers.length > 0 ? (
-        <Paper sx={{ width: '100%', overflow: 'hidden', borderRadius: '1rem' }}>
-          <TableContainer>
-            <Table stickyHeader>
-              <TableHead>
-                <TableRow>
-                  <SortableTableCell
-                    id="name"
-                    label="Nome"
-                    sortConfig={sortConfig}
-                    onSort={handleSort}
-                  />
-                  <SortableTableCell
-                    id="email"
-                    label="Email"
-                    sortConfig={sortConfig}
-                    onSort={handleSort}
-                  />
-                  <SortableTableCell
-                    id="position"
-                    label="Cargo"
-                    sortConfig={sortConfig}
-                    onSort={handleSort}
-                  />
-                  <SortableTableCell
-                    id="isActive"
-                    label="Status"
-                    sortConfig={sortConfig}
-                    onSort={handleSort}
-                  />
-                  <SortableTableCell
-                    id="actions"
-                    label="Ações"
-                    sortConfig={sortConfig}
-                    onSort={handleSort}
-                    noSort
-                    align="right"
-                  />
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {paginatedMembers.map((member) => (
-                  <TableRow key={member.id} hover>
-                    <TableCell>
-                      <Typography fontWeight={500}>{member.name}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color="text.secondary">
-                        {member.email}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      {member.position ? (
-                        <Chip
-                          label={member.position.name}
-                          color="primary"
-                          size="small"
-                          variant="outlined"
-                        />
-                      ) : (
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                          fontStyle="italic"
-                        >
-                          Sem cargo
-                        </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={member.isActive ? 'Ativo' : 'Inativo'}
-                        color={member.isActive ? 'success' : 'default'}
-                        size="small"
-                        variant={member.isActive ? 'filled' : 'outlined'}
-                      />
-                    </TableCell>
-                    <TableCell align="right">
-                      <Tooltip title="Editar">
-                        <IconButton
-                          size="small"
-                          onClick={() => handleEditMember(member)}
-                        >
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title={member.isActive ? 'Desativar' : 'Ativar'}>
-                        <IconButton
-                          size="small"
-                          onClick={() => handleToggleStatus(member)}
-                          color={member.isActive ? 'warning' : 'success'}
-                        >
-                          {member.isActive ? (
-                            <PersonOffIcon fontSize="small" />
-                          ) : (
-                            <PersonAddIcon fontSize="small" />
-                          )}
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-          <TablePagination
-            rowsPerPageOptions={[5, 10, 25]}
-            component="div"
-            count={filteredMembers.length}
-            rowsPerPage={rowsPerPage}
-            page={page}
-            onPageChange={handleChangePage}
-            onRowsPerPageChange={handleChangeRowsPerPage}
-            labelRowsPerPage="Linhas por página:"
-            labelDisplayedRows={({ from, to, count }) =>
-              `${from}-${to} de ${count !== -1 ? count : `mais de ${to}`}`
-            }
-          />
-        </Paper>
+        <StandardTable
+          columns={MEMBER_COLUMNS}
+          rows={paginatedMembers.map((member) => ({
+            id: member.id,
+            cells: {
+              name: <Typography fontWeight={500}>{member.name}</Typography>,
+              email: (
+                <Typography variant="body2" color="text.secondary">
+                  {member.email}
+                </Typography>
+              ),
+              position: member.position ? (
+                <Chip label={member.position.name} color="primary" size="small" variant="outlined" />
+              ) : (
+                <Typography variant="body2" color="text.secondary" fontStyle="italic">
+                  Sem cargo
+                </Typography>
+              ),
+              isActive: (
+                <Chip
+                  label={member.isActive ? 'Ativo' : 'Inativo'}
+                  color={member.isActive ? 'success' : 'default'}
+                  size="small"
+                  variant={member.isActive ? 'filled' : 'outlined'}
+                />
+              ),
+              actions: (
+                <>
+                  <Tooltip title="Editar">
+                    <IconButton size="small" onClick={() => handleEditMember(member)}>
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title={member.isActive ? 'Desativar' : 'Ativar'}>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleToggleStatus(member)}
+                      color={member.isActive ? 'warning' : 'success'}
+                    >
+                      {member.isActive ? <PersonOffIcon fontSize="small" /> : <PersonAddIcon fontSize="small" />}
+                    </IconButton>
+                  </Tooltip>
+                </>
+              ),
+            },
+          }))}
+          sortConfig={sortConfig}
+          onSort={handleSort}
+          page={page}
+          rowsPerPage={rowsPerPage}
+          totalCount={filteredMembers.length}
+          onPageChange={setPage}
+          onRowsPerPageChange={(rpp) => { setRowsPerPage(rpp); setPage(0); }}
+          emptyIcon={<PeopleIcon sx={{ fontSize: 64, color: 'text.secondary' }} />}
+          emptyTitle={
+            searchTerm || positionFilter || statusFilter !== 'all'
+              ? 'Nenhum membro encontrado com os filtros aplicados'
+              : 'Nenhum membro cadastrado'
+          }
+          emptyDescription={
+            searchTerm || positionFilter || statusFilter !== 'all'
+              ? 'Tente ajustar os filtros de busca'
+              : 'Clique em "Novo Membro" para adicionar o primeiro membro da equipe'
+          }
+        />
       ) : (
         <PlaceholderContent>
           <PeopleIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />

@@ -6,6 +6,7 @@ import GroupIcon from '@mui/icons-material/Group';
 import styled from 'styled-components';
 import { rgba } from 'polished';
 import { Task } from '@shared/interfaces/config/index.types';
+import { getStatusColor as _getCentralStatusColor } from '@shared/constants/status-colors';
 
 /**
  * Props for the SimplifiedCard component.
@@ -59,21 +60,8 @@ type StatusType =
   | string;
 
 const getStatusColor = (status: StatusType): { bg: string; text: string } => {
-  const normalizedStatus = status?.toLowerCase() || '';
-
-  if (normalizedStatus === 'new' || normalizedStatus === 'to do') {
-    return { bg: '#919EAB', text: '#FFFFFF' }; // grey
-  }
-  if (normalizedStatus === 'active' || normalizedStatus === 'in progress') {
-    return { bg: '#135bec', text: '#FFFFFF' }; // blue
-  }
-  if (normalizedStatus === 'resolved' || normalizedStatus === 'done') {
-    return { bg: '#36B37E', text: '#FFFFFF' }; // green
-  }
-  if (normalizedStatus === 'closed') {
-    return { bg: '#4c669a', text: '#FFFFFF' }; // dark grey
-  }
-  return { bg: '#919EAB', text: '#FFFFFF' }; // default grey
+  const color = _getCentralStatusColor(status || '');
+  return { bg: color, text: '#FFFFFF' };
 };
 
 // Styled components

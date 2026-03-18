@@ -23,6 +23,7 @@ import {
   OpenInNew as OpenIcon,
 } from '@mui/icons-material';
 import type { Task } from '@shared/interfaces/config/index.types';
+import { getStatusColor } from '@shared/constants/status-colors';
 
 interface TaskHierarchyProps {
   task: Task;
@@ -31,22 +32,20 @@ interface TaskHierarchyProps {
   maxLevel?: number;
 }
 
-const typeConfig = {
-  task: { label: 'Tarefa', color: '#2196f3', icon: TaskIcon },
-  bug: { label: 'Bug', color: '#f44336', icon: BugIcon },
-  feature: { label: 'Feature', color: '#9c27b0', icon: FeatureIcon },
-  user_story: { label: 'User Story', color: '#4caf50', icon: FeatureIcon },
-  epic: { label: 'Epic', color: '#ff9800', icon: EpicIcon },
-  improvement: { label: 'Melhoria', color: '#ff9800', icon: ImprovementIcon },
-  support: { label: 'Suporte', color: '#00bcd4', icon: SupportIcon },
+const typeConfigMap: Record<string, { label: string; color: string; icon: typeof TaskIcon }> = {
+  'Task': { label: 'Task', color: '#4caf50', icon: TaskIcon },
+  'Bug': { label: 'Bug', color: '#f44336', icon: BugIcon },
+  'Feature': { label: 'Feature', color: '#1565c0', icon: FeatureIcon },
+  'User Story': { label: 'User Story', color: '#2196f3', icon: FeatureIcon },
+  'Epic': { label: 'Epic', color: '#9c27b0', icon: EpicIcon },
+  'Improvement': { label: 'Improvement', color: '#ff9800', icon: ImprovementIcon },
+  'Ticket': { label: 'Ticket', color: '#d32f2f', icon: SupportIcon },
 };
 
-const statusColors = {
-  pending: '#9e9e9e',
-  in_progress: '#2196f3',
-  completed: '#4caf50',
-  cancelled: '#f44336',
-};
+function getTypeConfig(type?: string) {
+  if (!type) return { label: 'Desconhecido', color: '#9e9e9e', icon: TaskIcon };
+  return typeConfigMap[type] || { label: type, color: '#2196f3', icon: TaskIcon };
+}
 
 function TaskHierarchyItem({
   task,
@@ -61,12 +60,9 @@ function TaskHierarchyItem({
   const canExpand = hasChildren && level < maxLevel;
   const isCurrentTask = currentTaskId === task.id;
 
-  const type =
-    typeConfig[task.type as keyof typeof typeConfig] || typeConfig.task;
+  const type = getTypeConfig(task.type);
   const TypeIcon = type.icon;
-  const statusColor =
-    statusColors[task.status as keyof typeof statusColors] ||
-    statusColors.pending;
+  const statusColor = getStatusColor(task.status);
 
   const handleToggle = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -77,7 +73,6 @@ function TaskHierarchyItem({
     (e: React.MouseEvent) => {
       e.stopPropagation();
       if (onTaskClick) {
-        console.log('[TaskHierarchyItem] Clicked task:', task.id, task.title);
         onTaskClick(task);
       }
     },
@@ -205,12 +200,15 @@ function TaskHierarchyItem({
                   fontWeight: 500,
                 }}
               />
-              <Box
+              <Chip
+                label={task.status}
+                size="small"
                 sx={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
+                  height: 20,
+                  fontSize: '0.7rem',
                   bgcolor: statusColor,
+                  color: '#fff',
+                  fontWeight: 500,
                 }}
               />
               {task.storyPoints !== undefined && task.storyPoints !== null && (
@@ -234,6 +232,11 @@ function TaskHierarchyItem({
                     fontSize: '0.7rem',
                   }}
                 />
+              )}
+              {task.assignedToName && (
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                  {task.assignedToName}
+                </Typography>
               )}
             </Stack>
           </Box>
@@ -280,15 +283,6 @@ export function TaskHierarchy({
   const hasHierarchy =
     task.parent || (task.children && task.children.length > 0);
 
-  console.log('[TaskHierarchy] Rendering with task:', {
-    id: task.id,
-    title: task.title,
-    hasParent: !!task.parent,
-    hasChildren: !!task.children && task.children.length > 0,
-    childrenCount: task.children?.length || 0,
-    hasHierarchy,
-  });
-
   if (!hasHierarchy) {
     return (
       <Paper
@@ -316,13 +310,6 @@ export function TaskHierarchy({
     rootTask = rootTask.parent;
     depth++;
   }
-
-  console.log('[TaskHierarchy] Root task found:', {
-    rootId: rootTask.id,
-    rootTitle: rootTask.title,
-    currentId: task.id,
-    depth,
-  });
 
   return (
     <Box>

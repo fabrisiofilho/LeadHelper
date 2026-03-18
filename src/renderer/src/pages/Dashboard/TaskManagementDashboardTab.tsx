@@ -17,6 +17,7 @@ import {
   FiberManualRecord as DotIcon,
 } from '@mui/icons-material';
 import type { TaskManagementDashboard } from '@shared/interfaces/config/index.types';
+import { getStatusColor as getStatusColorFromMap } from '@shared/constants/status-colors';
 import {
   SummaryCard,
   SummaryCardIcon,
@@ -40,15 +41,7 @@ const statusLabels: Record<string, string> = {
   cancelled: 'Cancelado',
 };
 
-const statusColors: Record<string, string> = {
-  backlog: '#9e9e9e',
-  todo: '#2196F3',
-  in_progress: '#FF9800',
-  code_review: '#9C27B0',
-  testing: '#00BCD4',
-  done: '#4CAF50',
-  cancelled: '#f44336',
-};
+const statusColors = (status: string): string => getStatusColorFromMap(status);
 
 const typeLabels: Record<string, string> = {
   task: 'Tarefa',
@@ -204,7 +197,7 @@ export function TaskManagementDashboardTab() {
                     <DotIcon
                       sx={{
                         fontSize: 10,
-                        color: statusColors[status] || '#9e9e9e',
+                        color: statusColors(status),
                       }}
                     />
                     <Typography variant="body2" sx={{ flex: 1 }}>
@@ -217,8 +210,8 @@ export function TaskManagementDashboardTab() {
                         height: 20,
                         fontSize: '0.7rem',
                         fontWeight: 600,
-                        bgcolor: (statusColors[status] || '#9e9e9e') + '20',
-                        color: statusColors[status] || '#9e9e9e',
+                        bgcolor: statusColors(status) + '20',
+                        color: statusColors(status),
                       }}
                     />
                     <Box sx={{ width: 60 }}>
@@ -234,7 +227,7 @@ export function TaskManagementDashboardTab() {
                           borderRadius: 2,
                           '& .MuiLinearProgress-bar': {
                             borderRadius: 2,
-                            bgcolor: statusColors[status] || '#9e9e9e',
+                            bgcolor: statusColors(status),
                           },
                         }}
                       />

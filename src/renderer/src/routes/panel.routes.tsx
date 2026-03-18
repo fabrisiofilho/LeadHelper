@@ -5,7 +5,6 @@ import CloudOutlinedIcon from '@mui/icons-material/CloudOutlined';
 import WorkOutlinedIcon from '@mui/icons-material/WorkOutlined';
 import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 import GroupWorkOutlinedIcon from '@mui/icons-material/GroupWorkOutlined';
-import ViewKanbanOutlinedIcon from '@mui/icons-material/ViewKanbanOutlined';
 import TaskAltOutlinedIcon from '@mui/icons-material/TaskAltOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import { Navigate, Route, Routes } from 'react-router-dom';
@@ -21,7 +20,6 @@ import { AzureDevOpsConfigPage } from '@renderer/pages/AzureDevOpsConfig';
 import { PositionsPage } from '@renderer/pages/Positions';
 import { TeamsPage } from '@renderer/pages/Teams';
 import { TeamAllocationPage } from '@renderer/pages/TeamAllocation';
-import { SprintsTasksPage } from '@renderer/pages/SprintsTasks';
 import { TaskManagementPage } from '@renderer/pages/TaskManagement';
 import { SystemSettingsPage } from '@renderer/pages/SystemSettings';
 
@@ -57,12 +55,6 @@ const GENERAL_SECTION: IDrawerSection = {
       label: 'Gestão de Tarefas',
       path: '/panel/task-management',
       icon: <TaskAltOutlinedIcon />,
-      canAccess: true,
-    },
-    {
-      label: 'Sprints',
-      path: '/panel/sprints-tasks',
-      icon: <ViewKanbanOutlinedIcon />,
       canAccess: true,
     },
     {
@@ -117,14 +109,6 @@ const ROUTES_ITEMS: WithRouteProps<IDrawerItem>[] = [
     canAccess: true,
     routeElement: <TaskManagementPage />,
     routePath: '/task-management',
-  },
-  {
-    label: 'Sprints',
-    path: '/panel/sprints-tasks',
-    icon: <ViewKanbanOutlinedIcon />,
-    canAccess: true,
-    routeElement: <SprintsTasksPage />,
-    routePath: '/sprints-tasks',
   },
   {
     label: 'Cargos',

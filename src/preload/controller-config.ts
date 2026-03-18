@@ -126,6 +126,7 @@ export const CONTROLLER_CONFIG = {
       'fetchWorkItems',
       'fetchIterations',
       'fullSync',
+      'proxyImage',
     ] as const,
   },
   autoUpdater: {
@@ -175,6 +176,10 @@ export const CONTROLLER_CONFIG = {
       'resetPosition',
       'getByContext',
     ] as const,
+  },
+  sync: {
+    prefix: 'sync',
+    methods: ['getStatus'] as const,
   },
 } as const;
 

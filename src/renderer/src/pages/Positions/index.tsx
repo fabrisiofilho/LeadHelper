@@ -8,14 +8,6 @@ import {
   CircularProgress,
   Stack,
   TextField,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TablePagination,
-  Paper,
   Chip,
   InputAdornment,
 } from '@mui/material';
@@ -32,7 +24,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { Modal } from '@renderer/components/Modal';
 import { usePositions } from '@renderer/hooks/usePositions';
 import { useTableSort } from '@renderer/hooks/useTableSort';
-import { SortableTableCell } from '@renderer/components/SortableTableCell';
+import { StandardTable, type StandardColumn } from '@renderer/components/StandardTable';
 import {
   PageContainer,
   PlaceholderContent,
@@ -49,6 +41,13 @@ interface PositionFormData {
   name: string;
   description: string;
 }
+
+const POSITION_COLUMNS: StandardColumn[] = [
+  { id: 'name', label: 'Nome' },
+  { id: 'description', label: 'Descrição' },
+  { id: 'isActive', label: 'Status' },
+  { id: 'actions', label: 'Ações', noSort: true, align: 'right' },
+];
 
 export function PositionsPage() {
   const {
@@ -278,101 +277,54 @@ export function PositionsPage() {
       </FiltersContainer>
 
       {filteredPositions.length > 0 ? (
-        <Paper sx={{ width: '100%', overflow: 'hidden', borderRadius: '1rem' }}>
-          <TableContainer>
-            <Table stickyHeader>
-              <TableHead>
-                <TableRow>
-                  <SortableTableCell
-                    id="name"
-                    label="Nome"
-                    sortConfig={sortConfig}
-                    onSort={handleSort}
-                  />
-                  <SortableTableCell
-                    id="description"
-                    label="Descrição"
-                    sortConfig={sortConfig}
-                    onSort={handleSort}
-                  />
-                  <SortableTableCell
-                    id="isActive"
-                    label="Status"
-                    sortConfig={sortConfig}
-                    onSort={handleSort}
-                  />
-                  <SortableTableCell
-                    id="actions"
-                    label="Ações"
-                    sortConfig={sortConfig}
-                    onSort={handleSort}
-                    noSort
-                    align="right"
-                  />
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {paginatedPositions.map((position) => (
-                  <TableRow key={position.id} hover>
-                    <TableCell>
-                      <Typography fontWeight={500}>{position.name}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color="text.secondary">
-                        {position.description || '-'}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={position.isActive ? 'Ativo' : 'Inativo'}
-                        color={position.isActive ? 'success' : 'default'}
-                        size="small"
-                        variant={position.isActive ? 'filled' : 'outlined'}
-                        onClick={() => handleToggleStatus(position)}
-                        sx={{ cursor: 'pointer' }}
-                      />
-                    </TableCell>
-                    <TableCell align="right">
-                      <Tooltip title="Editar">
-                        <IconButton
-                          size="small"
-                          onClick={() => handleEditPosition(position)}
-                        >
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Excluir">
-                        <IconButton
-                          size="small"
-                          onClick={() => handleDeleteClick(position)}
-                          color="error"
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-          <TablePagination
-            rowsPerPageOptions={[5, 10, 25]}
-            component="div"
-            count={filteredPositions.length}
-            rowsPerPage={rowsPerPage}
-            page={page}
-            onPageChange={(_, newPage) => setPage(newPage)}
-            onRowsPerPageChange={(e) => {
-              setRowsPerPage(parseInt(e.target.value, 10));
-              setPage(0);
-            }}
-            labelRowsPerPage="Linhas por página:"
-            labelDisplayedRows={({ from, to, count }) =>
-              `${from}-${to} de ${count !== -1 ? count : `mais de ${to}`}`
-            }
-          />
-        </Paper>
+        <StandardTable
+          columns={POSITION_COLUMNS}
+          rows={paginatedPositions.map((position) => ({
+            id: position.id,
+            cells: {
+              name: <Typography fontWeight={500}>{position.name}</Typography>,
+              description: (
+                <Typography variant="body2" color="text.secondary">
+                  {position.description || '-'}
+                </Typography>
+              ),
+              isActive: (
+                <Chip
+                  label={position.isActive ? 'Ativo' : 'Inativo'}
+                  color={position.isActive ? 'success' : 'default'}
+                  size="small"
+                  variant={position.isActive ? 'filled' : 'outlined'}
+                  onClick={() => handleToggleStatus(position)}
+                  sx={{ cursor: 'pointer' }}
+                />
+              ),
+              actions: (
+                <>
+                  <Tooltip title="Editar">
+                    <IconButton size="small" onClick={() => handleEditPosition(position)}>
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Excluir">
+                    <IconButton size="small" onClick={() => handleDeleteClick(position)} color="error">
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </>
+              ),
+            },
+          }))}
+          sortConfig={sortConfig}
+          onSort={handleSort}
+          page={page}
+          rowsPerPage={rowsPerPage}
+          totalCount={filteredPositions.length}
+          onPageChange={setPage}
+          onRowsPerPageChange={setRowsPerPage}
+          emptyIcon={<WorkIcon sx={{ fontSize: 64, color: 'text.secondary' }} />}
+          emptyTitle={searchTerm ? 'Nenhum cargo encontrado' : 'Nenhum cargo cadastrado'}
+          emptyDescription={searchTerm ? 'Tente ajustar os filtros de busca' : 'Clique em "Novo Cargo" para adicionar o primeiro cargo'}
+        />
       ) : (
         <PlaceholderContent>
           <WorkIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />

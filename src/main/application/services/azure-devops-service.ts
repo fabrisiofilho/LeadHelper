@@ -1568,6 +1568,67 @@ export class AzureDevOpsService {
     return result;
   }
 
+    /**
+     * Proxy an external image URL through the main process, adding Azure DevOps
+     * authentication when the URL belongs to the configured organization.
+     * Returns a base64 data-URI string that can be used directly in <img src>.
+     */
+    async proxyImage(imageUrl: string): Promise<string> {
+        const authHeader = await this.buildAuthHeaderForUrl(imageUrl);
+        const headers: Record<string, string> = {};
+        if (authHeader) {
+          headers['Authorization'] = authHeader;
+        }
+
+        // Follow redirects manually to preserve auth header across hops
+        let currentUrl = imageUrl;
+        const MAX_REDIRECTS = 5;
+
+        for (let i = 0; i < MAX_REDIRECTS; i++) {
+          const response = await fetch(currentUrl, {
+            method: 'GET',
+            headers,
+            redirect: 'manual',
+          });
+
+          if (response.status >= 300 && response.status < 400) {
+            const location = response.headers.get('location');
+            if (!location) {
+              throw new Error(`Redirect without Location header: ${response.status}`);
+            }
+            // Resolve relative redirects
+            currentUrl = new URL(location, currentUrl).toString();
+            continue;
+          }
+
+          if (!response.ok) {
+            throw new Error(`Failed to fetch image: ${response.status}`);
+          }
+
+          const contentType = response.headers.get('content-type') || 'image/png';
+          const buffer = Buffer.from(await response.arrayBuffer());
+          return `data:${contentType};base64,${buffer.toString('base64')}`;
+        }
+
+        throw new Error('Too many redirects');
+      }
+
+      private async buildAuthHeaderForUrl(url: string): Promise<string | null> {
+        const fullConfig = await this.getFullConfig();
+        if (!fullConfig) return null;
+
+        try {
+          const orgHost = new URL(fullConfig.organizationUrl).host.toLowerCase();
+          const imgHost = new URL(url).host.toLowerCase();
+          if (imgHost === orgHost || imgHost.endsWith(`.${orgHost}`)) {
+            return `Basic ${Buffer.from(`:${fullConfig.pat}`).toString('base64')}`;
+          }
+        } catch {
+          // invalid URL
+        }
+        return null;
+      }
+
 
 
 }

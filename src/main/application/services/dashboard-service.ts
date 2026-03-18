@@ -16,6 +16,7 @@ import {
   SLA_LIMITS,
   type TaskPriority,
 } from '@shared/interfaces/config/index.types';
+import { getStatusColor as _getStatusColor } from '@shared/constants/status-colors';
 
 
 import { TaskSlaExclusionRepository } from '../repositories/task-sla-exclusion-repository';
@@ -270,7 +271,9 @@ const IN_PROGRESS_STATUSES = [
   'in_progress', 'Active', 'In Progress', 'Committed',
   'Em Andamento', 'Em Desenvolvimento', 'Em Auditoria',
   'Em Homologação', 'Aguardando Auditoria', 'Aguardando Validação',
-  'Aguardando Implantação', 'Preparando para Dev',
+  'Aguardando Implantação', 'Aguardando Homologação',
+  'Em Implantação', 'Em validação', 'Em classificação',
+  'Preparando para Dev',
 ];
 
 /**
@@ -278,7 +281,7 @@ const IN_PROGRESS_STATUSES = [
  */
 const PENDING_STATUSES = [
   'pending', 'New', 'Novo', 'Em Levantamento',
-  'Backlog Comprometido',
+  'Em levantamento', 'Backlog Comprometido',
 ];
 
 /**
@@ -294,40 +297,9 @@ export function categorizeStatus(status: string): 'pending' | 'inProgress' | 'co
 
 /**
  * Color mapping for status badges.
- * Property 36: New=blue, Active/In Progress=yellow, Resolved/Done=green, Closed=gray
+ * Property 36: Centralized in @shared/constants/status-colors
  */
-const STATUS_COLORS: Record<string, string> = {
-  // Azure DevOps real states
-  Novo: '#2196F3',
-  New: '#2196F3',
-  'Em Levantamento': '#2196F3',
-  'Backlog Comprometido': '#2196F3',
-  'Preparando para Dev': '#42A5F5',
-  Active: '#FFC107',
-  'In Progress': '#FFC107',
-  'Em Andamento': '#FFC107',
-  'Em Desenvolvimento': '#FF9800',
-  'Em Auditoria': '#AB47BC',
-  'Aguardando Auditoria': '#CE93D8',
-  'Em Homologação': '#7E57C2',
-  'Aguardando Validação': '#9575CD',
-  'Aguardando Implantação': '#26A69A',
-  Committed: '#FFC107',
-  Resolved: '#66BB6A',
-  Done: '#4CAF50',
-  Closed: '#9E9E9E',
-  Finalizado: '#4CAF50',
-  Removed: '#EF5350',
-  Cut: '#EF5350',
-  Cancelado: '#EF5350',
-  // Legacy mapped values
-  pending: '#2196F3',
-  in_progress: '#FFC107',
-  completed: '#4CAF50',
-  cancelled: '#9E9E9E',
-};
-
-const DEFAULT_STATUS_COLOR = '#757575'; // default gray
+const STATUS_COLORS_LOOKUP = _getStatusColor;
 
 /**
  * Pure function to find the current sprint from a list of sprints for a given reference date.
@@ -1278,7 +1250,7 @@ export class DashboardService {
       ([status, count]) => ({
         status,
         count,
-        color: STATUS_COLORS[status] ?? DEFAULT_STATUS_COLOR,
+        color: STATUS_COLORS_LOOKUP(status),
       }),
     );
 
@@ -1469,7 +1441,19 @@ export class DashboardService {
     }
 
     // Req 3.5: Flag in-progress items not updated in 2+ business days as "stagnant"
-    for (const item of groupedByStatus.inProgress) {
+    // Only alert for desenvolvimento and auditoria phases — homologação/implantação are post-dev
+    const ALERT_STATUSES = [
+      'in_progress', 'Active', 'In Progress', 'Committed',
+      'Em Andamento', 'Em andamento', 'Em Desenvolvimento', 'Em desenvolvimento',
+      'Preparando para Dev', 'Em classificação', 'Backlog Comprometido',
+      'Aguardando Auditoria', 'Aguardando auditoria', 'Em Auditoria', 'Em auditoria',
+    ];
+
+    const alertableInProgress = groupedByStatus.inProgress.filter(
+      (item) => ALERT_STATUSES.includes(item.task.status),
+    );
+
+    for (const item of alertableInProgress) {
       const lastUpdate = item.task.updatedAt;
       if (lastUpdate) {
         const businessDaysSinceUpdate = calculateBusinessDaysSince(lastUpdate, referenceDate);

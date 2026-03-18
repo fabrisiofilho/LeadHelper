@@ -8,6 +8,7 @@ import {
   CircularProgress,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import { getStatusColor as _getStatusColor } from '@shared/constants/status-colors';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import {
   LineChart,
@@ -177,19 +178,6 @@ export function HierarchyCharts({
    */
   const calculateStatusDistribution = useCallback(
     (taskList: Task[]): StatusDistribution[] => {
-      const statusColors: Record<string, string> = {
-        New: '#2196F3',
-        Active: '#FFC107',
-        'In Progress': '#FFC107',
-        Resolved: '#4CAF50',
-        Done: '#4CAF50',
-        Closed: '#9E9E9E',
-        pending: '#2196F3',
-        in_progress: '#FFC107',
-        completed: '#4CAF50',
-        cancelled: '#9E9E9E',
-      };
-
       const statusMap = new Map<string, number>();
       for (const task of taskList) {
         const status = task.status ?? 'unknown';
@@ -200,7 +188,7 @@ export function HierarchyCharts({
         .map(([status, count]) => ({
           status,
           count,
-          color: statusColors[status] ?? '#757575',
+          color: _getStatusColor(status),
         }))
         .sort((a, b) => b.count - a.count);
     },

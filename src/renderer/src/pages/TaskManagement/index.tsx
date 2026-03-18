@@ -24,13 +24,9 @@ import {
 import { useTasks } from '@renderer/hooks/useTasks';
 import { useTeams } from '@renderer/hooks/useTeams';
 import { useSprints } from '@renderer/hooks/useSprints';
+import { useTableSort } from '@renderer/hooks/useTableSort';
 import { TaskViewModal } from '@renderer/components/TaskViewModal';
-import {
-  ListTable,
-  type ListTableRow,
-  type ListTableHeadCell,
-} from '@renderer/components/ListTable';
-import type { IPageSort } from '@renderer/types/page/sort';
+import { StandardTable, type StandardColumn } from '@renderer/components/StandardTable';
 import type { Task } from '@shared/interfaces/config/index.types';
 import { PageContainer, ContentArea, FiltersContainer } from './styles';
 
@@ -78,8 +74,8 @@ const EMPTY_FILTERS: TaskManagementFilters = {
   sprintId: 'all',
 };
 
-// Table head cells configuration
-const HEAD_CELLS: ListTableHeadCell[] = [
+// Table columns configuration
+const HEAD_CELLS: StandardColumn[] = [
   { id: 'externalId', label: 'ID', width: 100 },
   { id: 'title', label: 'Título', width: '30%' },
   { id: 'type', label: 'Tipo', width: 120 },
@@ -90,19 +86,7 @@ const HEAD_CELLS: ListTableHeadCell[] = [
 ];
 
 // Status color mapping
-const getStatusColor = (status: string): string => {
-  const statusColors: Record<string, string> = {
-    pending: '#9e9e9e',
-    in_progress: '#2196f3',
-    completed: '#4caf50',
-    cancelled: '#f44336',
-    new: '#2196f3',
-    active: '#ff9800',
-    resolved: '#4caf50',
-    closed: '#9e9e9e',
-  };
-  return statusColors[status.toLowerCase()] || '#9e9e9e';
-};
+import { getStatusColor } from '@shared/constants/status-colors';
 
 // Type color mapping
 const getTypeColor = (type: string): string => {
@@ -132,7 +116,6 @@ export function TaskManagementPage() {
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
-  const [sorts, setSorts] = useState<IPageSort[]>([]);
 
   const { tasks, loading: tasksLoading, findAll: findAllTasks } = useTasks();
   const { findAll: findAllTeams } = useTeams();
@@ -209,54 +192,12 @@ export function TaskManagementPage() {
     return result;
   }, [tasks, filters]);
 
-  // Sort tasks (Property 17)
-  const sortedTasks = useMemo(() => {
-    if (sorts.length === 0) return filteredTasks;
-
-    return [...filteredTasks].sort((a, b) => {
-      for (const sort of sorts) {
-        let aValue: string | number | undefined;
-        let bValue: string | number | undefined;
-
-        switch (sort.property) {
-          case 'externalId':
-            aValue = a.externalId || '';
-            bValue = b.externalId || '';
-            break;
-          case 'title':
-            aValue = a.title.toLowerCase();
-            bValue = b.title.toLowerCase();
-            break;
-          case 'type':
-            aValue = a.type || '';
-            bValue = b.type || '';
-            break;
-          case 'status':
-            aValue = a.status;
-            bValue = b.status;
-            break;
-          case 'assignedToName':
-            aValue = a.assignedToName || '';
-            bValue = b.assignedToName || '';
-            break;
-          case 'team':
-            aValue = getTeamTypeFromAreaPath(a.areaPath);
-            bValue = getTeamTypeFromAreaPath(b.areaPath);
-            break;
-          case 'sprint':
-            aValue = a.sprint?.name || '';
-            bValue = b.sprint?.name || '';
-            break;
-          default:
-            continue;
-        }
-
-        if (aValue < bValue) return sort.direction === 'ASC' ? -1 : 1;
-        if (aValue > bValue) return sort.direction === 'ASC' ? 1 : -1;
-      }
-      return 0;
-    });
-  }, [filteredTasks, sorts]);
+  // Sort tasks using standardized hook
+  const {
+    sortedItems: sortedTasks,
+    sortConfig,
+    handleSort,
+  } = useTableSort(filteredTasks);
 
   // Paginated tasks
   const paginatedTasks = useMemo(() => {
@@ -264,12 +205,12 @@ export function TaskManagementPage() {
     return sortedTasks.slice(start, start + rowsPerPage);
   }, [sortedTasks, page, rowsPerPage]);
 
-  // Convert tasks to table rows
-  const tableRows: ListTableRow[] = useMemo(() => {
+  // Build StandardTable rows from paginated tasks
+  const tableRows = useMemo(() => {
     return paginatedTasks.map((task) => ({
       id: task.id,
       onClick: () => handleTaskClick(task),
-      content: {
+      cells: {
         externalId: (
           <Typography variant="body2" fontWeight={500} color="primary">
             {task.externalId || `#${task.id}`}
@@ -521,18 +462,17 @@ export function TaskManagementPage() {
         </FiltersContainer>
 
         {/* Results Table */}
-        <ListTable
-          headCells={HEAD_CELLS}
+        <StandardTable
+          columns={HEAD_CELLS}
           rows={tableRows}
+          sortConfig={sortConfig}
+          onSort={handleSort}
           page={page}
-          totalElements={sortedTasks.length}
           rowsPerPage={rowsPerPage}
+          totalCount={sortedTasks.length}
+          onPageChange={setPage}
+          onRowsPerPageChange={setRowsPerPage}
           rowsPerPageOptions={[10, 25, 50, 100]}
-          loading={tasksLoading}
-          sorts={sorts}
-          onChangeSorts={setSorts}
-          onChangePage={setPage}
-          onChangeRowsPerPage={setRowsPerPage}
           fullHeight
         />
       </ContentArea>

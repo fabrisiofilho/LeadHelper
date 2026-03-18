@@ -58,3 +58,7 @@ export function loadIpcControllers() {
 export function setSyncControllerWindow(window: any) {
   SyncController.getInstance().setMainWindow(window);
 }
+
+export function startAutoSync() {
+  SyncController.getInstance().startAutoSync();
+}

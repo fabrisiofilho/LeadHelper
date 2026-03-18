@@ -18,9 +18,10 @@ import {
   Refresh as RefreshIcon,
   Warning as WarningIcon,
   Edit as EditIcon,
-  PersonOff as PersonOffIcon,
-  PersonAdd as PersonAddIcon,
+  ToggleOff as ToggleOffIcon,
+  ToggleOn as ToggleOnIcon,
   Search as SearchIcon,
+  Upload as UploadIcon,
 } from '@mui/icons-material';
 import { useForm, Controller } from 'react-hook-form';
 import { Modal } from '@renderer/components/Modal';
@@ -28,6 +29,7 @@ import { useTeamMembers } from '@renderer/hooks/useTeamMembers';
 import { usePositions } from '@renderer/hooks/usePositions';
 import { useTableSort } from '@renderer/hooks/useTableSort';
 import { StandardTable, type StandardColumn } from '@renderer/components/StandardTable';
+import { ImportPositionsModal } from '@renderer/components/ImportPositionsModal';
 import {
   PageContainer,
   PlaceholderContent,
@@ -93,6 +95,7 @@ export function TeamMembersPage() {
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [memberToToggle, setMemberToToggle] = useState<TeamMember | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
 
   // Filters
   const [positionFilter, setPositionFilter] = useState<number | ''>('');
@@ -319,6 +322,14 @@ export function TeamMembersPage() {
             </IconButton>
           </Tooltip>
           <Button
+            variant="outlined"
+            startIcon={<UploadIcon />}
+            onClick={() => setIsImportOpen(true)}
+            sx={{ borderRadius: '0.5rem' }}
+          >
+            Importar Cargos
+          </Button>
+          <Button
             variant="contained"
             startIcon={<AddIcon />}
             onClick={handleNewMember}
@@ -433,7 +444,7 @@ export function TeamMembersPage() {
                       onClick={() => handleToggleStatus(member)}
                       color={member.isActive ? 'warning' : 'success'}
                     >
-                      {member.isActive ? <PersonOffIcon fontSize="small" /> : <PersonAddIcon fontSize="small" />}
+                      {member.isActive ? <ToggleOffIcon fontSize="small" /> : <ToggleOnIcon fontSize="small" />}
                     </IconButton>
                   </Tooltip>
                 </>
@@ -606,6 +617,16 @@ export function TeamMembersPage() {
           </Typography>
         )}
       </Modal>
+
+      <ImportPositionsModal
+        open={isImportOpen}
+        onClose={() => { setIsImportOpen(false); loadTeamMembers(); }}
+        positions={positions}
+        memberEmails={teamMembers.map((m) => m.email)}
+        onImport={async (rows) => {
+          await window.electronAPI.teamMember.importPositions(rows);
+        }}
+      />
     </PageContainer>
   );
 }

@@ -129,4 +129,32 @@ export class TeamMemberController extends BaseHandler {
       return { success: false, error: message };
     }
   }
+
+  @IpcMethod('team-member:importPositions')
+  async importPositions(
+    rows: Array<{ email: string; positionId: number }>,
+  ): Promise<ApiResponse<{ updated: number; errors: string[] }>> {
+    try {
+      let updated = 0;
+      const errors: string[] = [];
+      for (const row of rows) {
+        try {
+          const member = await this.service.findByEmail(row.email);
+          if (!member) {
+            errors.push(`Membro com email "${row.email}" não encontrado`);
+            continue;
+          }
+          await this.service.update(member.id, { positionId: row.positionId });
+          updated++;
+        } catch (err) {
+          errors.push(`Erro ao atualizar "${row.email}": ${err instanceof Error ? err.message : 'Erro desconhecido'}`);
+        }
+      }
+      return { success: true, data: { updated, errors } };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro ao importar cargos';
+      logger.error('TeamMemberController.importPositions error:', error);
+      return { success: false, error: message };
+    }
+  }
 }

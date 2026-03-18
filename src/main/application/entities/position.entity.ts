@@ -16,6 +16,9 @@ export class PositionEntity extends AuditableEntity {
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive!: boolean;
 
+  @Column({ name: 'allowed_statuses', type: 'text', nullable: true })
+  allowedStatuses?: string;
+
   @OneToMany('TeamMemberEntity', 'position')
   teamMembers?: TeamMemberEntity[];
 }

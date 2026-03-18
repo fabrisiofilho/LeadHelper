@@ -10,6 +10,7 @@ import {
   TextField,
   Chip,
   InputAdornment,
+  Autocomplete,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -19,6 +20,8 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
   Search as SearchIcon,
+  ToggleOff as ToggleOffIcon,
+  ToggleOn as ToggleOnIcon,
 } from '@mui/icons-material';
 import { useForm, Controller } from 'react-hook-form';
 import { Modal } from '@renderer/components/Modal';
@@ -42,9 +45,30 @@ interface PositionFormData {
   description: string;
 }
 
+const AVAILABLE_STATUSES = [
+  'Novo',
+  'Em classificação',
+  'Backlog Comprometido',
+  'Em levantamento',
+  'Preparando para Dev',
+  'Aguardando validação',
+  'Em validação',
+  'Em desenvolvimento',
+  'Em andamento',
+  'Aguardando auditoria',
+  'Em auditoria',
+  'Aguardando homologação',
+  'Em homologação',
+  'Aguardando implantação',
+  'Em implantação',
+  'Finalizado',
+  'Cancelado',
+];
+
 const POSITION_COLUMNS: StandardColumn[] = [
   { id: 'name', label: 'Nome' },
   { id: 'description', label: 'Descrição' },
+  { id: 'allowedStatuses', label: 'Status Permitidos' },
   { id: 'isActive', label: 'Status' },
   { id: 'actions', label: 'Ações', noSort: true, align: 'right' },
 ];
@@ -74,6 +98,10 @@ export function PositionsPage() {
   );
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+  const [positionToToggle, setPositionToToggle] = useState<Position | null>(null);
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
@@ -118,6 +146,7 @@ export function PositionsPage() {
   const handleNewPosition = () => {
     setSelectedPosition(null);
     reset({ name: '', description: '' });
+    setSelectedStatuses([]);
     setIsFormOpen(true);
   };
 
@@ -127,23 +156,29 @@ export function PositionsPage() {
       name: position.name,
       description: position.description ?? '',
     });
+    setSelectedStatuses(
+      position.allowedStatuses ? position.allowedStatuses.split(',').map((s) => s.trim()).filter(Boolean) : [],
+    );
     setIsFormOpen(true);
   };
 
   const handleCloseForm = () => {
     setIsFormOpen(false);
     setSelectedPosition(null);
+    setSelectedStatuses([]);
     reset();
     clearError();
   };
 
   const handleSavePosition = async (data: PositionFormData) => {
     setFormLoading(true);
+    const allowedStatuses = selectedStatuses.length > 0 ? selectedStatuses.join(',') : undefined;
     try {
       if (selectedPosition) {
         const updateData: UpdatePositionInput = {
           name: data.name,
           description: data.description || undefined,
+          allowedStatuses,
         };
         const result = await update(selectedPosition.id, updateData);
         if (result) handleCloseForm();
@@ -151,6 +186,7 @@ export function PositionsPage() {
         const createData: CreatePositionInput = {
           name: data.name,
           description: data.description || undefined,
+          allowedStatuses,
         };
         const result = await create(createData);
         if (result) handleCloseForm();
@@ -179,11 +215,24 @@ export function PositionsPage() {
     }
   };
 
-  const handleToggleStatus = async (position: Position) => {
-    if (position.isActive) {
-      await deactivate(position.id);
-    } else {
-      await activate(position.id);
+  const handleToggleStatus = (position: Position) => {
+    setPositionToToggle(position);
+    setIsStatusModalOpen(true);
+  };
+
+  const handleConfirmToggleStatus = async () => {
+    if (!positionToToggle) return;
+    setStatusLoading(true);
+    try {
+      if (positionToToggle.isActive) {
+        await deactivate(positionToToggle.id);
+      } else {
+        await activate(positionToToggle.id);
+      }
+      setIsStatusModalOpen(false);
+      setPositionToToggle(null);
+    } finally {
+      setStatusLoading(false);
     }
   };
 
@@ -288,14 +337,21 @@ export function PositionsPage() {
                   {position.description || '-'}
                 </Typography>
               ),
+              allowedStatuses: position.allowedStatuses ? (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                  {position.allowedStatuses.split(',').map((s) => s.trim()).filter(Boolean).map((status) => (
+                    <Chip key={status} label={status} size="small" variant="outlined" sx={{ fontSize: '0.7rem', height: 20 }} />
+                  ))}
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.secondary">—</Typography>
+              ),
               isActive: (
                 <Chip
                   label={position.isActive ? 'Ativo' : 'Inativo'}
                   color={position.isActive ? 'success' : 'default'}
                   size="small"
                   variant={position.isActive ? 'filled' : 'outlined'}
-                  onClick={() => handleToggleStatus(position)}
-                  sx={{ cursor: 'pointer' }}
                 />
               ),
               actions: (
@@ -303,6 +359,15 @@ export function PositionsPage() {
                   <Tooltip title="Editar">
                     <IconButton size="small" onClick={() => handleEditPosition(position)}>
                       <EditIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title={position.isActive ? 'Desativar' : 'Ativar'}>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleToggleStatus(position)}
+                      color={position.isActive ? 'warning' : 'success'}
+                    >
+                      {position.isActive ? <ToggleOffIcon fontSize="small" /> : <ToggleOnIcon fontSize="small" />}
                     </IconButton>
                   </Tooltip>
                   <Tooltip title="Excluir">
@@ -395,6 +460,25 @@ export function PositionsPage() {
               />
             )}
           />
+          <Autocomplete
+            multiple
+            options={AVAILABLE_STATUSES}
+            value={selectedStatuses}
+            onChange={(_e, val) => setSelectedStatuses(val)}
+            renderTags={(value, getTagProps) =>
+              value.map((option, index) => (
+                <Chip {...getTagProps({ index })} key={option} label={option} size="small" />
+              ))
+            }
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Status Permitidos"
+                placeholder="Selecione os status válidos para este cargo"
+                helperText="Status em que é esperado que este cargo tenha demandas atribuídas"
+              />
+            )}
+          />
         </FormContainer>
       </Modal>
 
@@ -418,6 +502,31 @@ export function PositionsPage() {
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
           Esta ação não pode ser desfeita.
         </Typography>
+      </Modal>
+
+      <Modal
+        variant="danger"
+        open={isStatusModalOpen}
+        title={positionToToggle?.isActive ? 'Desativar Cargo' : 'Ativar Cargo'}
+        handleClose={() => {
+          setIsStatusModalOpen(false);
+          setPositionToToggle(null);
+        }}
+        handleConfirm={handleConfirmToggleStatus}
+        confirmLabel={positionToToggle?.isActive ? 'Desativar' : 'Ativar'}
+        cancelLabel="Cancelar"
+        loading={statusLoading}
+      >
+        <Typography>
+          Tem certeza que deseja{' '}
+          {positionToToggle?.isActive ? 'desativar' : 'ativar'} o cargo{' '}
+          <strong>{positionToToggle?.name}</strong>?
+        </Typography>
+        {positionToToggle?.isActive && (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            O cargo será marcado como inativo, mas os membros associados serão preservados.
+          </Typography>
+        )}
       </Modal>
     </PageContainer>
   );

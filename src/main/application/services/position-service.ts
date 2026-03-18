@@ -5,11 +5,13 @@ import { logger } from '@main/infrastructure/log/logger';
 export interface CreatePositionInput {
   name: string;
   description?: string;
+  allowedStatuses?: string;
 }
 
 export interface UpdatePositionInput {
   name?: string;
   description?: string;
+  allowedStatuses?: string;
 }
 
 export interface PositionFilters {
@@ -34,6 +36,7 @@ export class PositionService {
     return this.repository.create({
       name: data.name,
       description: data.description,
+      allowedStatuses: data.allowedStatuses,
       isActive: true,
     });
   }

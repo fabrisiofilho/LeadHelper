@@ -267,6 +267,7 @@ interface ItemRowProps {
   onToggleHidden: (externalId: string, hidden: boolean) => void;
   onCopyLink: (externalId: string) => void;
   onRowClick: (task: Task) => void;
+  positionMap: Map<string, string[]>;
 }
 
 const ItemRow = memo(function ItemRow({
@@ -276,6 +277,7 @@ const ItemRow = memo(function ItemRow({
   onToggleHidden,
   onCopyLink,
   onRowClick,
+  positionMap,
 }: ItemRowProps) {
   const t = item.task;
   const prio = t.priority ?? 'medium';
@@ -283,6 +285,14 @@ const ItemRow = memo(function ItemRow({
   const prioColor = PRIO_COLOR[prio] ?? '#757575';
   const isTicket = t.type === 'Ticket';
   const noAssignee = !t.assignedToName;
+
+  // Check if assignee's position allows this status
+  const wrongPosition = useMemo(() => {
+    if (noAssignee || !t.assignedToEmail || !t.status) return false;
+    const allowed = positionMap.get(t.assignedToEmail.toLowerCase());
+    if (!allowed || allowed.length === 0) return false; // no config = no alert
+    return !allowed.includes(t.status.toLowerCase());
+  }, [noAssignee, t.assignedToEmail, t.status, positionMap]);
 
   return (
     <TableRow
@@ -358,6 +368,11 @@ const ItemRow = memo(function ItemRow({
           {noAssignee && (
             <Tooltip title="Sem responsável atribuído">
               <WarningIcon sx={{ fontSize: 16, color: 'warning.main' }} />
+            </Tooltip>
+          )}
+          {wrongPosition && (
+            <Tooltip title="Responsável com cargo inadequado para este status">
+              <WarningIcon sx={{ fontSize: 16, color: 'error.main' }} />
             </Tooltip>
           )}
           <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
@@ -465,6 +480,7 @@ interface ItemTableProps {
   onToggleHidden: (externalId: string, hidden: boolean) => void;
   onCopyLink: (externalId: string) => void;
   onRowClick: (task: Task) => void;
+  positionMap: Map<string, string[]>;
 }
 
 const ItemTable = memo(function ItemTable({
@@ -475,6 +491,7 @@ const ItemTable = memo(function ItemTable({
   onToggleHidden,
   onCopyLink,
   onRowClick,
+  positionMap,
 }: ItemTableProps) {
   const visible = showHidden ? items : items.filter((i) => !i.isHidden);
 
@@ -517,6 +534,7 @@ const ItemTable = memo(function ItemTable({
               onToggleHidden={onToggleHidden}
               onCopyLink={onCopyLink}
               onRowClick={onRowClick}
+              positionMap={positionMap}
             />
           ))}
         </TableBody>
@@ -534,6 +552,7 @@ export function DashboardSustentacaoPage() {
   const [showHidden, setShowHidden] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [positionMap, setPositionMap] = useState<Map<string, string[]>>(new Map());
 
   const api = (
     window as unknown as {
@@ -546,11 +565,28 @@ export function DashboardSustentacaoPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.dashboard.getSustentacaoItems();
+      const [res, membersRes] = await Promise.all([
+        api.dashboard.getSustentacaoItems(),
+        api.teamMember.findAll(),
+      ]);
       if (res.success && res.data) {
         setItems(res.data);
       } else {
         setError(res.error ?? 'Erro ao carregar itens');
+      }
+      // Build email → allowedStatuses map
+      if (membersRes.success && membersRes.data) {
+        const map = new Map<string, string[]>();
+        for (const m of membersRes.data) {
+          if (m.email && (m.position as any)?.allowedStatuses) {
+            const statuses = ((m.position as any).allowedStatuses as string)
+              .split(',')
+              .map((s: string) => s.trim().toLowerCase())
+              .filter(Boolean);
+            map.set(m.email.toLowerCase(), statuses);
+          }
+        }
+        setPositionMap(map);
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Erro inesperado');
@@ -711,6 +747,7 @@ export function DashboardSustentacaoPage() {
             onToggleHidden={handleToggleHidden}
             onCopyLink={handleCopyLink}
             onRowClick={handleRowClick}
+            positionMap={positionMap}
           />
         </Box>
 
@@ -742,6 +779,7 @@ export function DashboardSustentacaoPage() {
             onToggleHidden={handleToggleHidden}
             onCopyLink={handleCopyLink}
             onRowClick={handleRowClick}
+            positionMap={positionMap}
           />
         </Box>
       </Stack>

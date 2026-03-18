@@ -136,6 +136,11 @@ export class TeamMemberService {
     return entities.map((entity) => this.mapToDto(entity));
   }
 
+  async findByEmail(email: string): Promise<TeamMember | null> {
+    const entity = await this.repository.findByEmail(email);
+    return entity ? this.mapToDto(entity) : null;
+  }
+
   async findAll(filters?: TeamMemberFilters): Promise<TeamMember[]> {
     let entities: TeamMemberEntity[];
 
@@ -164,6 +169,7 @@ export class TeamMemberService {
             id: entity.position.id,
             name: entity.position.name,
             description: entity.position.description,
+            allowedStatuses: entity.position.allowedStatuses,
           }
         : undefined,
       teams: entity.teams?.map((t) => ({

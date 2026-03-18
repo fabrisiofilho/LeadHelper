@@ -48,6 +48,7 @@ interface StandardTableProps {
   emptyAction?: ReactNode;
   stickyHeader?: boolean;
   fullHeight?: boolean;
+  hidePagination?: boolean;
 }
 
 export function StandardTable({
@@ -67,6 +68,7 @@ export function StandardTable({
   emptyAction,
   stickyHeader = true,
   fullHeight = false,
+  hidePagination = false,
 }: StandardTableProps) {
   if (rows.length === 0 && totalCount === 0) {
     return (
@@ -133,7 +135,8 @@ export function StandardTable({
           </TableBody>
         </Table>
       </TableContainer>
-      <TablePagination
+      {!hidePagination && (
+        <TablePagination
         rowsPerPageOptions={rowsPerPageOptions}
         component="div"
         count={totalCount}
@@ -149,6 +152,7 @@ export function StandardTable({
           `${from}-${to} de ${count !== -1 ? count : `mais de ${to}`}`
         }
       />
+      )}
     </Paper>
   );
 }

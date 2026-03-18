@@ -55,6 +55,7 @@ export const CONTROLLER_CONFIG = {
       'findById',
       'findAll',
       'findByRole',
+      'importPositions',
     ] as const,
   },
   task: {

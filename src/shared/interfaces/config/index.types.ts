@@ -28,6 +28,7 @@ export interface Position {
   name: string;
   description?: string;
   isActive: boolean;
+  allowedStatuses?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -35,11 +36,13 @@ export interface Position {
 export interface CreatePositionInput {
   name: string;
   description?: string;
+  allowedStatuses?: string;
 }
 
 export interface UpdatePositionInput {
   name?: string;
   description?: string;
+  allowedStatuses?: string;
 }
 
 export interface PositionFilters {
@@ -605,6 +608,9 @@ export interface ITeamMemberController {
   findById(id: number): Promise<ApiResponse<TeamMember | null>>;
   findAll(filters?: TeamMemberFilters): Promise<ApiResponse<TeamMember[]>>;
   findByRole(role: TeamMemberRole): Promise<ApiResponse<TeamMember[]>>;
+  importPositions(
+    rows: Array<{ email: string; positionId: number }>,
+  ): Promise<ApiResponse<{ updated: number; errors: string[] }>>;
 }
 
 export interface ITaskController {

@@ -19,6 +19,8 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
   Search as SearchIcon,
+  ToggleOff as ToggleOffIcon,
+  ToggleOn as ToggleOnIcon,
 } from '@mui/icons-material';
 import { useForm, Controller } from 'react-hook-form';
 import { Modal } from '@renderer/components/Modal';
@@ -72,6 +74,9 @@ export function TeamsPage() {
   const [teamToDelete, setTeamToDelete] = useState<Team | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+  const [teamToToggle, setTeamToToggle] = useState<Team | null>(null);
+  const [statusLoading, setStatusLoading] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [areaPaths, setAreaPaths] = useState<string[]>([]);
@@ -213,11 +218,24 @@ export function TeamsPage() {
     }
   };
 
-  const handleToggleStatus = async (team: Team) => {
-    if (team.isActive) {
-      await deactivate(team.id);
-    } else {
-      await activate(team.id);
+  const handleToggleStatus = (team: Team) => {
+    setTeamToToggle(team);
+    setIsStatusModalOpen(true);
+  };
+
+  const handleConfirmToggleStatus = async () => {
+    if (!teamToToggle) return;
+    setStatusLoading(true);
+    try {
+      if (teamToToggle.isActive) {
+        await deactivate(teamToToggle.id);
+      } else {
+        await activate(teamToToggle.id);
+      }
+      setIsStatusModalOpen(false);
+      setTeamToToggle(null);
+    } finally {
+      setStatusLoading(false);
     }
   };
 
@@ -341,8 +359,6 @@ export function TeamsPage() {
                   color={team.isActive ? 'success' : 'default'}
                   size="small"
                   variant={team.isActive ? 'filled' : 'outlined'}
-                  onClick={() => handleToggleStatus(team)}
-                  sx={{ cursor: 'pointer' }}
                 />
               ),
               actions: (
@@ -350,6 +366,15 @@ export function TeamsPage() {
                   <Tooltip title="Editar">
                     <IconButton size="small" onClick={() => handleEditTeam(team)}>
                       <EditIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title={team.isActive ? 'Desativar' : 'Ativar'}>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleToggleStatus(team)}
+                      color={team.isActive ? 'warning' : 'success'}
+                    >
+                      {team.isActive ? <ToggleOffIcon fontSize="small" /> : <ToggleOnIcon fontSize="small" />}
                     </IconButton>
                   </Tooltip>
                   <Tooltip title="Excluir">
@@ -503,6 +528,31 @@ export function TeamsPage() {
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
           Esta ação não pode ser desfeita.
         </Typography>
+      </Modal>
+
+      <Modal
+        variant="danger"
+        open={isStatusModalOpen}
+        title={teamToToggle?.isActive ? 'Desativar Equipe' : 'Ativar Equipe'}
+        handleClose={() => {
+          setIsStatusModalOpen(false);
+          setTeamToToggle(null);
+        }}
+        handleConfirm={handleConfirmToggleStatus}
+        confirmLabel={teamToToggle?.isActive ? 'Desativar' : 'Ativar'}
+        cancelLabel="Cancelar"
+        loading={statusLoading}
+      >
+        <Typography>
+          Tem certeza que deseja{' '}
+          {teamToToggle?.isActive ? 'desativar' : 'ativar'} a equipe{' '}
+          <strong>{teamToToggle?.name}</strong>?
+        </Typography>
+        {teamToToggle?.isActive && (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            A equipe será marcada como inativa, mas os membros e histórico serão preservados.
+          </Typography>
+        )}
       </Modal>
     </PageContainer>
   );

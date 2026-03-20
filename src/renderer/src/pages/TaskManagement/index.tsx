@@ -27,6 +27,7 @@ import { useSprints } from '@renderer/hooks/useSprints';
 import { useTableSort } from '@renderer/hooks/useTableSort';
 import { TaskViewModal } from '@renderer/components/TaskViewModal';
 import { StandardTable, type StandardColumn } from '@renderer/components/StandardTable';
+import { WorkItemTypeChip } from '@renderer/components/WorkItemTypeChip';
 import type { Task } from '@shared/interfaces/config/index.types';
 import { PageContainer, ContentArea, FiltersContainer } from './styles';
 
@@ -91,15 +92,17 @@ import { getStatusColor } from '@shared/constants/status-colors';
 // Type color mapping
 const getTypeColor = (type: string): string => {
   const typeColors: Record<string, string> = {
-    epic: '#9c27b0',
-    feature: '#1565c0',
+    epic: '#ff8c00',
+    feature: '#9c27b0',
+    improvement: '#e91e63',
+    rework: '#d32f2f',
+    bug: '#d32f2f',
+    roadmap: '#424242',
+    task: '#c8a415',
+    ticket: '#4caf50',
     'user story': '#2196f3',
-    task: '#4caf50',
-    ticket: '#ff9800',
-    improvement: '#ffc107',
-    bug: '#f44336',
   };
-  return typeColors[type.toLowerCase()] || '#2196f3';
+  return typeColors[type.toLowerCase()] || '#757575';
 };
 
 // Get team type from area path
@@ -232,16 +235,7 @@ export function TaskManagementPage() {
           </Tooltip>
         ),
         type: task.type ? (
-          <Chip
-            label={task.type}
-            size="small"
-            sx={{
-              bgcolor: getTypeColor(task.type),
-              color: 'white',
-              fontWeight: 500,
-              fontSize: '0.75rem',
-            }}
-          />
+          <WorkItemTypeChip type={task.type} />
         ) : (
           '-'
         ),

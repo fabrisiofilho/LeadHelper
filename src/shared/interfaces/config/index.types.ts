@@ -187,10 +187,10 @@ export type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
  * Business hours: 08:00–12:00 and 13:30–17:30 (8h/day).
  */
 export const SLA_LIMITS: Record<TaskPriority, number> = {
-  critical: 40,  // Prioridade 1: 40 horas úteis (5 dias úteis)
-  high: 24,      // Prioridade 2: 24 horas úteis (3 dias úteis)
-  medium: 8,     // Prioridade 3: 8 horas úteis (1 dia útil)
-  low: 4,        // Prioridade 4: 4 horas úteis (meio dia útil)
+  critical: 4,   // Prioridade 4 (Crítica): 4 horas úteis
+  high: 8,       // Prioridade 3 (Alta): 8 horas úteis (1 dia útil)
+  medium: 24,    // Prioridade 2 (Média): 24 horas úteis (3 dias úteis)
+  low: 40,       // Prioridade 1 (Baixa): 40 horas úteis (5 dias úteis)
 };
 
 // TaskType uses Azure DevOps work item types directly (Epic, Feature, User Story, Task, Bug, etc.)
@@ -343,6 +343,7 @@ export interface GanttItem {
   allocationId: number;
   sprintId?: number;
   sprintName?: string;
+  notes?: string;
 }
 
 export interface GanttData {
@@ -641,6 +642,7 @@ export interface IDashboardController {
   getSustentacaoItems(
     options?: SustentacaoOptions,
   ): Promise<ApiResponse<SustentacaoItemWithSLA[]>>;
+  getSustentacaoMetrics(statuses?: string[]): Promise<ApiResponse<SustentacaoMetrics>>;
   getSustentacaoMembersWithCards(): Promise<ApiResponse<SustentacaoMemberWithCards[]>>;
   getProjetosItems(sprintId: number): Promise<ApiResponse<ProjetosResult>>;
   getTaskUpdateHistory(taskId: number): Promise<ApiResponse<TaskUpdateRecord[]>>;
@@ -905,6 +907,25 @@ export interface SustentacaoItemWithSLA extends SustentacaoItem {
 }
 
 /**
+ * Metrics for the Sustentação dashboard KPI cards.
+ */
+export interface SustentacaoMetrics {
+  totalOpen: number;
+  openTickets: number;
+  openImprovements: number;
+  slaViolatedCount: number;
+  slaViolatedPercent: number;
+  slaWarningCount: number;
+  unassignedCount: number;
+  avgAgeBusinessHours: number;
+  avgCloseTimeBusinessHours: number | null; // null if no closed tickets in period
+  closedTicketsLast30Days: number;
+  byPriority: { priority: string; count: number }[];
+  oldestOpenTicketHours: number | null;
+  oldestOpenTicketExternalId: string | null;
+}
+
+/**
  * Represents a Sustentação team member with their in-progress cards.
  * Used by the Sustentação dashboard to display members and their workload.
  *
@@ -951,8 +972,11 @@ export interface SprintQuantitativeSummary {
 export interface SprintAlert {
   type: 'pending_no_progress' | 'stagnant';
   taskId: number;
+  externalId?: string;
   taskTitle: string;
   message: string;
+  parentExternalId?: string;
+  parentTitle?: string;
 }
 
 /**

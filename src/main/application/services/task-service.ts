@@ -258,6 +258,8 @@ export class TaskService {
         : undefined,
       assignedToName: entity.assignedToName,
       assignedToEmail: entity.assignedToEmail,
+      azureCreatedDate: entity.azureCreatedDate,
+      azureChangedDate: entity.azureChangedDate,
       parentId: entity.parentId,
       parent: entity.parent ? this.mapToDto(entity.parent) : undefined,
       children: entity.children

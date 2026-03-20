@@ -40,7 +40,13 @@ export function SyncStatusIndicator() {
 
   useEffect(() => {
     fetchStatus();
-    const unsub = window.electronAPI.onSyncStatusChanged((s) => setStatus(s));
+    const unsub = window.electronAPI.onSyncStatusChanged((s) => {
+      setStatus(s);
+      // Auto-open modal when backend starts syncing (auto-sync or otherwise)
+      if (s.isSyncing) {
+        setShowSyncModal(true);
+      }
+    });
     const interval = setInterval(fetchStatus, 30_000);
     return () => { unsub(); clearInterval(interval); };
   }, [fetchStatus]);
@@ -51,7 +57,7 @@ export function SyncStatusIndicator() {
       return;
     }
     if (status.isSyncing) return;
-    setShowSyncModal(true);
+    // Modal will open automatically via onSyncStatusChanged when isSyncing becomes true
     window.electronAPI.azureDevOps.fullSync().finally(() => fetchStatus());
   }, [status.isConfigured, status.isSyncing, navigate, fetchStatus]);
 

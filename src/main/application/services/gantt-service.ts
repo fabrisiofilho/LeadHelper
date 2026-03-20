@@ -15,6 +15,7 @@ export interface GanttItem {
   allocationId: number;
   sprintId?: number;
   sprintName?: string;
+  notes?: string;
 }
 
 export interface GanttData {
@@ -79,7 +80,7 @@ export class GanttService {
         // Agrupar por membro - criar um item por alocação
         items.push({
           id: `allocation-${allocation.id}`,
-          name: allocation.teamMember?.name || 'Membro desconhecido',
+          name: allocation.team?.name || 'Equipe desconhecida',
           start: allocation.startDate,
           end: allocation.endDate || new Date(),
           progress: 0,
@@ -87,6 +88,7 @@ export class GanttService {
           teamMemberId: allocation.teamMemberId,
           teamMemberName: allocation.teamMember?.name,
           allocationId: allocation.id,
+          notes: allocation.notes,
         });
 
         // Adicionar tarefas como sub-itens

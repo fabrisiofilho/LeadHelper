@@ -192,6 +192,21 @@ export class DashboardController extends BaseHandler {
     }
   }
 
+  @IpcMethod('dashboard:getSustentacaoMetrics')
+  async getSustentacaoMetrics(statuses?: string[]): Promise<ApiResponse<import('@shared/interfaces/config/index.types').SustentacaoMetrics>> {
+    try {
+      const result = await this.service.getSustentacaoMetrics(statuses);
+      return { success: true, data: result };
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Erro ao obter métricas de Sustentação';
+      logger.error('DashboardController.getSustentacaoMetrics error:', error);
+      return { success: false, error: message };
+    }
+  }
+
   /**
    * Get Sustentação team members with their in-progress cards.
    *

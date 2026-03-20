@@ -390,10 +390,10 @@ describe('Feature: leadhelper-restructure, Property 6: determinação de status 
     /**
      * **Validates: Requirements 2.6**
      */
-    expect(SLA_LIMITS.critical).toBe(40);
-    expect(SLA_LIMITS.high).toBe(24);
-    expect(SLA_LIMITS.medium).toBe(8);
-    expect(SLA_LIMITS.low).toBe(4);
+    expect(SLA_LIMITS.critical).toBe(4);
+    expect(SLA_LIMITS.high).toBe(8);
+    expect(SLA_LIMITS.medium).toBe(24);
+    expect(SLA_LIMITS.low).toBe(40);
   });
 });
 

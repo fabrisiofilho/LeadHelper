@@ -104,6 +104,7 @@ export const CONTROLLER_CONFIG = {
       'getTaskManagementDashboard',
       'getSprintDashboard',
       'getSustentacaoItems',
+      'getSustentacaoMetrics',
       'getSustentacaoMembersWithCards',
       'getProjetosItems',
       'getTaskUpdateHistory',

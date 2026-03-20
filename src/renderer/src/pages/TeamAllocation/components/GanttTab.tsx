@@ -266,10 +266,10 @@ export function GanttTab() {
               <Stack spacing={2} sx={{ pt: 1 }}>
                 <Box>
                   <Typography variant="caption" color="text.secondary">
-                    Tarefa
+                    Equipe
                   </Typography>
                   <Typography variant="body1" fontWeight={500}>
-                    {selectedItem.taskTitle || selectedItem.name}
+                    {selectedItem.name}
                   </Typography>
                 </Box>
                 {selectedItem.teamMemberName && (
@@ -302,13 +302,13 @@ export function GanttTab() {
                     </Typography>
                   </Box>
                 </Stack>
-                {selectedItem.sprintName && (
+                {selectedItem.notes && (
                   <Box>
                     <Typography variant="caption" color="text.secondary">
-                      Sprint
+                      Motivo
                     </Typography>
-                    <Typography variant="body1" fontWeight={500}>
-                      {selectedItem.sprintName}
+                    <Typography variant="body1">
+                      {selectedItem.notes}
                     </Typography>
                   </Box>
                 )}

@@ -46,6 +46,7 @@ import type {
 } from '@shared/interfaces/config/index.types';
 
 import { getStatusColor } from '@shared/constants/status-colors';
+import { WorkItemTypeChip } from '@renderer/components/WorkItemTypeChip';
 const STATUS_CONFIG: Record<
   string,
   {
@@ -228,7 +229,7 @@ function ChildrenTable({ children, onTaskClick }: { children: Task[]; onTaskClic
               </Typography>
             ),
             type: (
-              <Chip label={child.type} size="small" variant="outlined" sx={{ fontSize: '0.65rem' }} />
+              <WorkItemTypeChip type={child.type} />
             ),
             title: (
               <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
@@ -796,23 +797,122 @@ function SummarySection({ summary }: { summary: ProjetosSummary }) {
 // ── Alerts Section ──
 
 function AlertsSection({ alerts }: { alerts: SprintAlert[] }) {
+  // Group alerts by parent User Story (or "Sem User Story" for orphans)
+  const grouped = new Map<string, { parentTitle: string; parentExternalId?: string; alerts: SprintAlert[] }>();
+
+  for (const alert of alerts) {
+    const key = alert.parentExternalId ?? '__orphan__';
+    if (!grouped.has(key)) {
+      grouped.set(key, {
+        parentTitle: alert.parentTitle ?? 'Sem User Story',
+        parentExternalId: alert.parentExternalId,
+        alerts: [],
+      });
+    }
+    grouped.get(key)!.alerts.push(alert);
+  }
+
+  const pendingCount = alerts.filter(a => a.type === 'pending_no_progress').length;
+  const stagnantCount = alerts.filter(a => a.type === 'stagnant').length;
+
   return (
-    <Stack spacing={1}>
-      <Typography variant="subtitle1" fontWeight={600}>
-        Alertas da Sprint
-      </Typography>
-      {alerts.map((alert) => (
-        <Alert
-          key={`${alert.type}-${alert.taskId}`}
-          severity={alert.type === 'pending_no_progress' ? 'warning' : 'error'}
-          icon={<WarningIcon />}
-        >
-          <Typography variant="body2" fontWeight={600}>
-            #{alert.taskId} — {alert.taskTitle}
+    <Accordion
+      defaultExpanded={false}
+      sx={{
+        borderLeft: 4,
+        borderLeftColor: 'warning.main',
+        '&:before': { display: 'none' },
+      }}
+    >
+      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+        <Stack direction="row" alignItems="center" spacing={1.5}>
+          <WarningIcon color="warning" />
+          <Typography variant="subtitle1" fontWeight={600}>
+            Alertas da Sprint
           </Typography>
-          <Typography variant="caption">{alert.message}</Typography>
-        </Alert>
-      ))}
-    </Stack>
+          <Chip label={alerts.length} size="small" color="warning" />
+          {pendingCount > 0 && (
+            <Chip
+              label={`${pendingCount} sem progresso`}
+              size="small"
+              variant="outlined"
+              color="warning"
+              sx={{ fontSize: '0.7rem' }}
+            />
+          )}
+          {stagnantCount > 0 && (
+            <Chip
+              label={`${stagnantCount} estagnado(s)`}
+              size="small"
+              variant="outlined"
+              color="error"
+              sx={{ fontSize: '0.7rem' }}
+            />
+          )}
+        </Stack>
+      </AccordionSummary>
+      <AccordionDetails sx={{ pt: 0 }}>
+        <Stack spacing={1.5}>
+          {Array.from(grouped.entries()).map(([key, group]) => (
+            <Box key={key}>
+              <Typography
+                variant="caption"
+                fontWeight={700}
+                color="text.secondary"
+                sx={{ mb: 0.5, display: 'block' }}
+              >
+                {group.parentExternalId ? `#${group.parentExternalId} — ` : ''}
+                {group.parentTitle}
+              </Typography>
+              <Stack spacing={0.5} pl={1}>
+                {group.alerts.map((alert) => (
+                  <Stack
+                    key={`${alert.type}-${alert.taskId}`}
+                    direction="row"
+                    alignItems="flex-start"
+                    spacing={1}
+                    sx={{
+                      py: 0.5,
+                      px: 1,
+                      borderRadius: 1,
+                      bgcolor: alert.type === 'stagnant'
+                        ? 'rgba(211,47,47,0.06)'
+                        : 'rgba(237,108,2,0.06)',
+                    }}
+                  >
+                    <WarningIcon
+                      sx={{
+                        fontSize: 16,
+                        mt: 0.2,
+                        color: alert.type === 'stagnant' ? 'error.main' : 'warning.main',
+                      }}
+                    />
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="body2" sx={{ lineHeight: 1.4 }}>
+                        <Typography
+                          component="span"
+                          variant="body2"
+                          fontWeight={700}
+                          color="text.secondary"
+                        >
+                          #{alert.externalId ?? alert.taskId}
+                        </Typography>
+                        {' — '}
+                        {alert.taskTitle}
+                      </Typography>
+                      <Typography variant="caption" color="text.disabled">
+                        {alert.type === 'pending_no_progress'
+                          ? 'Sem progresso'
+                          : 'Sem atualização recente'}
+                      </Typography>
+                    </Box>
+                  </Stack>
+                ))}
+              </Stack>
+            </Box>
+          ))}
+        </Stack>
+      </AccordionDetails>
+    </Accordion>
   );
 }

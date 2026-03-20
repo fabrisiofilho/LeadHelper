@@ -249,8 +249,8 @@ export function GanttChart({
   const renderTooltip = (item: GanttItem) => (
     <TooltipContent>
       <TooltipRow>
-        <TooltipLabel>Tarefa:</TooltipLabel>
-        <TooltipValue>{item.taskTitle || item.name}</TooltipValue>
+        <TooltipLabel>Equipe:</TooltipLabel>
+        <TooltipValue>{item.name}</TooltipValue>
       </TooltipRow>
       {item.teamMemberName && (
         <TooltipRow>
@@ -266,10 +266,10 @@ export function GanttChart({
         <TooltipLabel>Fim:</TooltipLabel>
         <TooltipValue>{formatDate(item.end)}</TooltipValue>
       </TooltipRow>
-      {item.sprintName && (
+      {item.notes && (
         <TooltipRow>
-          <TooltipLabel>Sprint:</TooltipLabel>
-          <TooltipValue>{item.sprintName}</TooltipValue>
+          <TooltipLabel>Motivo:</TooltipLabel>
+          <TooltipValue>{item.notes}</TooltipValue>
         </TooltipRow>
       )}
     </TooltipContent>
@@ -347,14 +347,14 @@ export function GanttChart({
                       onClick={() => handleBarClick(item)}
                       role="button"
                       tabIndex={0}
-                      aria-label={`${item.taskTitle || item.name}, ${item.teamMemberName || ''}, de ${formatDate(item.start)} até ${formatDate(item.end)}`}
+                      aria-label={`${item.name}, ${item.teamMemberName || ''}, de ${formatDate(item.start)} até ${formatDate(item.end)}`}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                           handleBarClick(item);
                         }
                       }}
                     >
-                      <BarLabel>{item.taskTitle || item.name}</BarLabel>
+                      <BarLabel>{item.name}</BarLabel>
                     </GanttBar>
                   </Tooltip>
                 );

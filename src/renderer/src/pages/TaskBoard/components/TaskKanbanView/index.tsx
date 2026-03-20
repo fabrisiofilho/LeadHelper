@@ -14,6 +14,7 @@ import type {
   TaskStatusConfig,
 } from '@shared/interfaces/config/index.types';
 import { getTaskTypeOption } from '@renderer/utils/task-type';
+import { WorkItemTypeChip } from '@renderer/components/WorkItemTypeChip';
 
 interface TaskKanbanViewProps {
   tasks: Task[];
@@ -156,22 +157,7 @@ export function TaskKanbanView({
                       flexWrap="wrap"
                       useFlexGap
                     >
-                      {(() => {
-                        const typeOpt = getTaskTypeOption(task.type);
-                        return (
-                          <Chip
-                            label={typeOpt.label}
-                            size="small"
-                            sx={{
-                              height: 18,
-                              fontSize: '0.6rem',
-                              bgcolor: typeOpt.color + '18',
-                              color: typeOpt.color,
-                              fontWeight: 600,
-                            }}
-                          />
-                        );
-                      })()}
+                      <WorkItemTypeChip type={task.type || 'Task'} sx={{ height: 18, fontSize: '0.6rem' }} />
                       {task.team && (
                         <Chip
                           label={task.team.name}

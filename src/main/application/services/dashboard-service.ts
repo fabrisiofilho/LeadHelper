@@ -139,8 +139,11 @@ export interface ProjetosItem {
 export interface SprintAlert {
   type: 'pending_no_progress' | 'stagnant';
   taskId: number;
+  externalId?: string;
   taskTitle: string;
   message: string;
+  parentExternalId?: string;
+  parentTitle?: string;
 }
 
 /**
@@ -955,6 +958,111 @@ export class DashboardService {
     return items.filter((item) => item.isStale).length;
   }
 
+  /**
+   * Get metrics/KPIs for the Sustentação dashboard.
+   * Calculates stats from both open items and recently closed Tickets.
+   */
+  async getSustentacaoMetrics(statuses?: string[]): Promise<import('@shared/interfaces/config/index.types').SustentacaoMetrics> {
+    logger.debug('[DashboardService.getSustentacaoMetrics]', { statuses });
+
+    // 1. Get open items (already calculated with SLA)
+    const allOpenItems = await this.getSustentacaoItems();
+
+    // Filter by statuses if provided (dev + auditoria lanes)
+    const statusSet = statuses ? new Set(statuses.map(s => s.toLowerCase())) : null;
+    const openItems = statusSet
+      ? allOpenItems.filter(i => statusSet.has(i.task.status.toLowerCase()))
+      : allOpenItems;
+
+    // Exclude hidden items entirely from metrics (they are irrelevant, e.g. hour-tracking tasks)
+    const visibleItems = openItems.filter(i => !i.isHidden);
+
+    const openTickets = visibleItems.filter(i => i.task.type === 'Ticket');
+    const openImprovements = visibleItems.filter(i => i.task.type === 'Improvement');
+
+    // SLA metrics: only tickets that are NOT SLA-excluded
+    const ticketsWithSla = openTickets.filter(i => !i.slaExcluded);
+    const slaViolated = ticketsWithSla.filter(i => i.slaViolated);
+    const slaWarning = ticketsWithSla.filter(i => i.slaWarning);
+    const unassigned = visibleItems.filter(i => !i.task.assignedToName);
+
+    // Average age of open Tickets (business hours) — only SLA-active
+    const avgAge = ticketsWithSla.length > 0
+      ? ticketsWithSla.reduce((sum, i) => sum + i.businessHoursElapsed, 0) / ticketsWithSla.length
+      : 0;
+
+    // Oldest open ticket (with externalId) — only SLA-active
+    let oldestTicketHours: number | null = null;
+    let oldestTicketExternalId: string | null = null;
+    if (ticketsWithSla.length > 0) {
+      let oldest = ticketsWithSla[0];
+      for (const t of ticketsWithSla) {
+        if (t.businessHoursElapsed > oldest.businessHoursElapsed) {
+          oldest = t;
+        }
+      }
+      oldestTicketHours = oldest.businessHoursElapsed;
+      oldestTicketExternalId = oldest.task.externalId ?? null;
+    }
+
+    // By priority
+    const prioMap = new Map<string, number>();
+    for (const item of visibleItems) {
+      const p = item.task.priority ?? 'medium';
+      prioMap.set(p, (prioMap.get(p) ?? 0) + 1);
+    }
+    const byPriority = Array.from(prioMap.entries()).map(([priority, count]) => ({ priority, count }));
+
+    // 2. Get recently closed Tickets for avg close time (all closed, not filtered by status)
+    const allTasks = await this.taskRepository.findAllWithRelations();
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const closedTickets = allTasks.filter(task => {
+      const isTicket = task.type === 'Ticket';
+      const isSustentacao = task.areaPath?.startsWith(SUSTENTACAO_AREA_PATH_PATTERN) ?? false;
+      const isClosed = CLOSED_STATUSES.includes(task.status);
+      const closedRecently = task.updatedAt && task.updatedAt >= thirtyDaysAgo;
+      return isTicket && isSustentacao && isClosed && closedRecently;
+    });
+
+    let avgCloseTime: number | null = null;
+    if (closedTickets.length > 0) {
+      const closeTimes: number[] = [];
+      for (const t of closedTickets) {
+        const start = t.azureCreatedDate ?? t.startDate ?? t.createdAt;
+        const end = t.updatedAt ?? now;
+        if (start) {
+          closeTimes.push(calculateBusinessHours(start, end));
+        }
+      }
+      if (closeTimes.length > 0) {
+        avgCloseTime = closeTimes.reduce((a, b) => a + b, 0) / closeTimes.length;
+      }
+    }
+
+    const activeTickets = ticketsWithSla;
+
+    return {
+      totalOpen: visibleItems.length,
+      openTickets: openTickets.length,
+      openImprovements: openImprovements.length,
+      slaViolatedCount: slaViolated.length,
+      slaViolatedPercent: activeTickets.length > 0
+        ? Math.round((slaViolated.length / activeTickets.length) * 100)
+        : 0,
+      slaWarningCount: slaWarning.length,
+      unassignedCount: unassigned.length,
+      avgAgeBusinessHours: Math.round(avgAge * 10) / 10,
+      avgCloseTimeBusinessHours: avgCloseTime !== null ? Math.round(avgCloseTime * 10) / 10 : null,
+      closedTicketsLast30Days: closedTickets.length,
+      byPriority,
+      oldestOpenTicketHours: oldestTicketHours !== null ? Math.round(oldestTicketHours * 10) / 10 : null,
+      oldestOpenTicketExternalId: oldestTicketExternalId,
+    };
+  }
+
   // ============================================================================
   // Task Update History Methods
   // ============================================================================
@@ -1435,7 +1543,10 @@ export class DashboardService {
       alerts.push({
         type: 'pending_no_progress',
         taskId: item.task.id,
+        externalId: item.task.externalId ?? undefined,
         taskTitle: item.task.title,
+        parentExternalId: item.task.parent?.externalId ?? undefined,
+        parentTitle: item.task.parent?.title ?? undefined,
         message: `Item "${item.task.title}" está pendente sem progresso com ${businessDaysRemaining} dia(s) útil(eis) restante(s) na sprint.`,
       });
     }
@@ -1461,7 +1572,10 @@ export class DashboardService {
           alerts.push({
             type: 'stagnant',
             taskId: item.task.id,
+            externalId: item.task.externalId ?? undefined,
             taskTitle: item.task.title,
+            parentExternalId: item.task.parent?.externalId ?? undefined,
+            parentTitle: item.task.parent?.title ?? undefined,
             message: `Item "${item.task.title}" está em andamento sem atualização há ${businessDaysSinceUpdate} dia(s) útil(eis) com ${businessDaysRemaining} dia(s) útil(eis) restante(s) na sprint.`,
           });
         }

@@ -11,6 +11,7 @@ import type { SprintEntity } from './sprint.entity';
 import type { TeamEntity } from './team.entity';
 import type { TaskCommentEntity } from './task-comment.entity';
 import { DateTransformer } from '../../infrastructure/database/date-transformer';
+import { DateTimeTransformer } from '../../infrastructure/database/datetime-transformer';
 
 export type TaskStatus =
   | 'pending'
@@ -101,7 +102,7 @@ export class TaskEntity extends AuditableEntity {
     name: 'azure_created_date',
     type: 'datetime',
     nullable: true,
-    transformer: DateTransformer,
+    transformer: DateTimeTransformer,
   })
   azureCreatedDate?: Date;
 
@@ -109,7 +110,7 @@ export class TaskEntity extends AuditableEntity {
     name: 'azure_changed_date',
     type: 'datetime',
     nullable: true,
-    transformer: DateTransformer,
+    transformer: DateTimeTransformer,
   })
   azureChangedDate?: Date;
 

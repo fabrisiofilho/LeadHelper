@@ -21,11 +21,11 @@ import {
   TableHead,
   TableRow,
   Paper,
+  Switch,
+  FormControlLabel,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
-  LocalFireDepartment as FireIcon,
-  Diamond as DiamondIcon,
   TimerOff as TimerOffIcon,
   Timer as TimerIcon,
   VisibilityOff as HideIcon,
@@ -33,10 +33,19 @@ import {
   ContentCopy as CopyIcon,
   WarningAmber as WarningIcon,
   PictureAsPdf as PdfIcon,
+  ConfirmationNumber as TicketIcon,
+  Build as ImprovementIcon,
+  ErrorOutline as ViolatedIcon,
+  PersonOff as UnassignedIcon,
+  AccessTime as AvgTimeIcon,
+  CheckCircleOutline as ClosedIcon,
+  HourglassTop as OldestIcon,
+  InfoOutlined as InfoIcon,
 } from '@mui/icons-material';
 import { PageLayout } from '@renderer/components/PageLayout';
 import { TaskViewModal } from '@renderer/components/TaskViewModal';
-import type { SustentacaoItemWithSLA } from '@shared/interfaces/config/index.types';
+import { WorkItemTypeChip } from '@renderer/components/WorkItemTypeChip';
+import type { SustentacaoItemWithSLA, SustentacaoMetrics } from '@shared/interfaces/config/index.types';
 import type { Task } from '@shared/interfaces/config/index.types';
 
 // ── constants ──
@@ -76,6 +85,20 @@ const AUDIT_STATUSES = new Set([
   'Aguardando auditoria',
   'Em Auditoria',
   'Em auditoria',
+]);
+
+/** Statuses that belong to the "Análise" lane (pre-development) */
+const ANALYSIS_STATUSES = new Set([
+  'Em classificação',
+  'Em Classificação',
+  'Backlog Comprometido',
+  'Backlog comprometido',
+  'Em levantamento',
+  'Em Levantamento',
+  'Aguardando validação',
+  'Aguardando Validação',
+  'Em validação',
+  'Em Validação',
 ]);
 
 const STATE_ORDER: Record<string, number> = {
@@ -137,6 +160,15 @@ function formatSlaRemaining(hours: number): string {
   if (d > 0 && h > 0) return `${d}d ${h}h`;
   if (d > 0) return `${d}d`;
   return `${h}h`;
+}
+
+function formatSlaDelay(hours: number): string {
+  const overdue = Math.abs(hours);
+  const d = Math.floor(overdue / 8);
+  const h = Math.round(overdue % 8);
+  if (d > 0 && h > 0) return `${d}d ${h}h atraso`;
+  if (d > 0) return `${d}d atraso`;
+  return `${h}h atraso`;
 }
 
 function slaChipColor(
@@ -206,14 +238,14 @@ async function exportToPdf(
             }
 
             const prioColor = PRIO_COLOR[t.priority] ?? '#757575';
-            const typeColor = isTicket ? '#d32f2f' : '#1976d2';
+            const typeColor = isTicket ? '#4caf50' : '#e91e63';
             const areaColor = isGestao(t.areaPath) ? '#1565c0' : '#c62828';
             const areaBg = isGestao(t.areaPath) ? '#e3f2fd' : '#fce4ec';
 
             return `<tr style="background:${bgColor};${noAssignee ? 'border-left:3px solid #ed6c02;' : ''}">
               <td style="padding:5px 8px;vertical-align:top;">
                 <span style="color:#666;font-weight:600;font-size:10px;">#${t.externalId ?? t.id}</span><br/>
-                <span style="display:inline-block;padding:1px 6px;border:1px solid ${typeColor};color:${typeColor};border-radius:10px;font-size:9px;font-weight:600;">${t.type}</span>
+                <span style="display:inline-block;padding:1px 6px;background:${typeColor};color:#fff;border-radius:10px;font-size:9px;font-weight:600;">${t.type}</span>
                 <span style="display:inline-block;padding:1px 6px;background:${areaBg};color:${areaColor};border-radius:10px;font-size:9px;font-weight:600;">${area}</span>
                 <span style="display:inline-block;padding:1px 6px;background:${prioColor};color:#fff;border-radius:10px;font-size:9px;font-weight:700;">${prio}</span>
               </td>
@@ -268,6 +300,7 @@ interface ItemRowProps {
   onCopyLink: (externalId: string) => void;
   onRowClick: (task: Task) => void;
   positionMap: Map<string, string[]>;
+  isBusy: boolean;
 }
 
 const ItemRow = memo(function ItemRow({
@@ -278,6 +311,7 @@ const ItemRow = memo(function ItemRow({
   onCopyLink,
   onRowClick,
   positionMap,
+  isBusy,
 }: ItemRowProps) {
   const t = item.task;
   const prio = t.priority ?? 'medium';
@@ -298,7 +332,11 @@ const ItemRow = memo(function ItemRow({
     <TableRow
       sx={{
         opacity: item.isHidden ? 0.45 : 1,
-        bgcolor: noAssignee ? 'rgba(255,152,0,0.06)' : undefined,
+        bgcolor: noAssignee
+          ? 'rgba(255,152,0,0.06)'
+          : wrongPosition
+            ? 'rgba(211,47,47,0.06)'
+            : undefined,
         cursor: 'pointer',
         '&:hover': { bgcolor: 'action.hover' },
       }}
@@ -310,13 +348,7 @@ const ItemRow = memo(function ItemRow({
           <Typography variant="caption" color="text.secondary" fontWeight={600}>
             #{t.externalId ?? t.id}
           </Typography>
-          <Chip
-            label={t.type}
-            size="small"
-            color={isTicket ? 'error' : 'primary'}
-            variant="outlined"
-            sx={{ fontWeight: 600, fontSize: '0.65rem', height: 18 }}
-          />
+          <WorkItemTypeChip type={t.type} sx={{ height: 18 }} />
           {showAreaColumn && (
             <Chip
               label={areaLabel(t.areaPath)}
@@ -381,7 +413,7 @@ const ItemRow = memo(function ItemRow({
         </Stack>
       </TableCell>
 
-      {/* SLA + Prazo empilhados */}
+      {/* SLA */}
       <TableCell sx={{ verticalAlign: 'middle', py: 1, whiteSpace: 'nowrap' }}>
         {isTicket ? (
           item.slaExcluded ? (
@@ -390,38 +422,35 @@ const ItemRow = memo(function ItemRow({
             <Stack spacing={0.3}>
               <Chip
                 icon={item.slaViolated ? <TimerOffIcon /> : <TimerIcon />}
-                label={formatSlaRemaining(item.businessHoursRemaining)}
+                label={
+                  item.slaViolated
+                    ? formatSlaDelay(item.businessHoursRemaining)
+                    : formatSlaRemaining(item.businessHoursRemaining)
+                }
                 size="small"
                 color={slaChipColor(item)}
-                variant="outlined"
+                variant={item.slaViolated ? 'filled' : 'outlined'}
               />
               {item.expirationDate && (
-                <Tooltip
-                  title={
-                    item.slaViolated
-                      ? 'SLA estourado — data limite era:'
-                      : 'Data limite do SLA'
-                  }
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: item.slaViolated
+                      ? 'error.main'
+                      : item.slaWarning
+                        ? 'warning.main'
+                        : 'text.secondary',
+                    fontWeight: item.slaViolated ? 700 : 400,
+                    fontSize: '0.7rem',
+                  }}
                 >
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      color: item.slaViolated
-                        ? 'error.main'
-                        : item.slaWarning
-                          ? 'warning.main'
-                          : 'text.secondary',
-                      fontWeight: item.slaViolated ? 700 : 400,
-                      fontSize: '0.7rem',
-                    }}
-                  >
-                    {new Date(item.expirationDate).toLocaleDateString('pt-BR')}{' '}
-                    {new Date(item.expirationDate).toLocaleTimeString('pt-BR', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </Typography>
-                </Tooltip>
+                  {item.slaViolated ? 'Limite: ' : ''}
+                  {new Date(item.expirationDate).toLocaleDateString('pt-BR')}{' '}
+                  {new Date(item.expirationDate).toLocaleTimeString('pt-BR', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </Typography>
               )}
             </Stack>
           )
@@ -434,37 +463,43 @@ const ItemRow = memo(function ItemRow({
 
       {/* Ações */}
       <TableCell sx={{ whiteSpace: 'nowrap', verticalAlign: 'middle', py: 1 }} onClick={(e) => e.stopPropagation()}>
-        {isTicket && (
-          <Tooltip title={item.slaExcluded ? 'Restaurar SLA' : 'Excluir SLA'}>
-            <IconButton
-              size="small"
-              onClick={() => onToggleSla(t.externalId!, item.slaExcluded!)}
-            >
-              {item.slaExcluded ? (
-                <TimerIcon fontSize="small" />
-              ) : (
-                <TimerOffIcon fontSize="small" />
-              )}
-            </IconButton>
-          </Tooltip>
-        )}
-        <Tooltip title={item.isHidden ? 'Mostrar item' : 'Ocultar item'}>
-          <IconButton
-            size="small"
-            onClick={() => onToggleHidden(t.externalId!, item.isHidden!)}
-          >
-            {item.isHidden ? (
-              <ShowIcon fontSize="small" />
-            ) : (
-              <HideIcon fontSize="small" />
+        {isBusy ? (
+          <CircularProgress size={20} sx={{ mx: 1 }} />
+        ) : (
+          <>
+            {isTicket && (
+              <Tooltip title={item.slaExcluded ? 'Restaurar SLA' : 'Excluir SLA'}>
+                <IconButton
+                  size="small"
+                  onClick={() => onToggleSla(t.externalId!, item.slaExcluded!)}
+                >
+                  {item.slaExcluded ? (
+                    <TimerIcon fontSize="small" />
+                  ) : (
+                    <TimerOffIcon fontSize="small" />
+                  )}
+                </IconButton>
+              </Tooltip>
             )}
-          </IconButton>
-        </Tooltip>
-        <Tooltip title="Copiar link Azure">
-          <IconButton size="small" onClick={() => onCopyLink(t.externalId!)}>
-            <CopyIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
+            <Tooltip title={item.isHidden ? 'Mostrar item' : 'Ocultar item'}>
+              <IconButton
+                size="small"
+                onClick={() => onToggleHidden(t.externalId!, item.isHidden!)}
+              >
+                {item.isHidden ? (
+                  <ShowIcon fontSize="small" />
+                ) : (
+                  <HideIcon fontSize="small" />
+                )}
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Copiar link Azure">
+              <IconButton size="small" onClick={() => onCopyLink(t.externalId!)}>
+                <CopyIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </>
+        )}
       </TableCell>
     </TableRow>
   );
@@ -481,6 +516,7 @@ interface ItemTableProps {
   onCopyLink: (externalId: string) => void;
   onRowClick: (task: Task) => void;
   positionMap: Map<string, string[]>;
+  busyItems: Set<string>;
 }
 
 const ItemTable = memo(function ItemTable({
@@ -492,6 +528,7 @@ const ItemTable = memo(function ItemTable({
   onCopyLink,
   onRowClick,
   positionMap,
+  busyItems,
 }: ItemTableProps) {
   const visible = showHidden ? items : items.filter((i) => !i.isHidden);
 
@@ -535,6 +572,7 @@ const ItemTable = memo(function ItemTable({
               onCopyLink={onCopyLink}
               onRowClick={onRowClick}
               positionMap={positionMap}
+              isBusy={busyItems.has(item.task.externalId ?? '')}
             />
           ))}
         </TableBody>
@@ -543,16 +581,105 @@ const ItemTable = memo(function ItemTable({
   );
 });
 
+// ── Metric Card ──
+
+interface MetricCardProps {
+  icon: React.ReactNode;
+  label: string;
+  value: string | number;
+  subtitle?: string;
+  color?: string;
+  bgColor?: string;
+  tooltip?: string;
+}
+
+function MetricCard({ icon, label, value, subtitle, color = '#1976d2', bgColor, tooltip }: MetricCardProps) {
+  return (
+    <Paper
+      variant="outlined"
+      sx={{
+        p: 1.5,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1.5,
+        minWidth: 0,
+        height: '100%',
+        bgcolor: bgColor,
+        position: 'relative',
+      }}
+    >
+      {tooltip && (
+        <Tooltip title={tooltip} arrow placement="top">
+          <InfoIcon
+            sx={{
+              position: 'absolute',
+              top: 6,
+              right: 6,
+              fontSize: 15,
+              color: 'text.disabled',
+              cursor: 'help',
+              '&:hover': { color: 'text.secondary' },
+            }}
+          />
+        </Tooltip>
+      )}
+      <Box
+        sx={{
+          color,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 28,
+          width: 40,
+          height: 40,
+          borderRadius: '50%',
+          bgcolor: `${color}14`,
+          flexShrink: 0,
+        }}
+      >
+        {icon}
+      </Box>
+      <Box sx={{ minWidth: 0 }}>
+        <Typography variant="h6" fontWeight={700} lineHeight={1.2} noWrap>
+          {value}
+        </Typography>
+        <Typography variant="caption" color="text.secondary" noWrap sx={{ lineHeight: 1.3 }}>
+          {label}
+        </Typography>
+        {subtitle && (
+          <Typography variant="caption" display="block" color="text.disabled" noWrap sx={{ lineHeight: 1.3 }}>
+            {subtitle}
+          </Typography>
+        )}
+      </Box>
+    </Paper>
+  );
+}
+
+function formatBusinessHours(hours: number | null): string {
+  if (hours === null) return '—';
+  if (hours < 1) return `${Math.round(hours * 60)}min`;
+  const d = Math.floor(hours / 8);
+  const h = Math.round(hours % 8);
+  if (d > 0 && h > 0) return `${d}d ${h}h`;
+  if (d > 0) return `${d}d`;
+  return `${h}h`;
+}
+
 // ── Main Component ──
 
 export function DashboardSustentacaoPage() {
   const [items, setItems] = useState<SustentacaoItemWithSLA[]>([]);
+  const [metrics, setMetrics] = useState<SustentacaoMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showHidden, setShowHidden] = useState(false);
+  const [includeAnalysis, setIncludeAnalysis] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [positionMap, setPositionMap] = useState<Map<string, string[]>>(new Map());
+  const [busyItems, setBusyItems] = useState<Set<string>>(new Set());
+  const [metricsLoading, setMetricsLoading] = useState(false);
 
   const api = (
     window as unknown as {
@@ -560,21 +687,33 @@ export function DashboardSustentacaoPage() {
     }
   ).electronAPI;
 
-  // ── fetch data ──
+  // ── fetch helpers ──
+
+  /** Build the statuses array for metrics based on current includeAnalysis */
+  const getMetricsStatuses = useCallback((withAnalysis: boolean) => [
+    ...DEV_STATUSES,
+    ...AUDIT_STATUSES,
+    ...(withAnalysis ? ANALYSIS_STATUSES : []),
+  ], []);
+
+  /** Full initial load — shows full-screen spinner */
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [res, membersRes] = await Promise.all([
+      const [res, membersRes, metricsRes] = await Promise.all([
         api.dashboard.getSustentacaoItems(),
         api.teamMember.findAll(),
+        api.dashboard.getSustentacaoMetrics(getMetricsStatuses(includeAnalysis)),
       ]);
       if (res.success && res.data) {
         setItems(res.data);
       } else {
         setError(res.error ?? 'Erro ao carregar itens');
       }
-      // Build email → allowedStatuses map
+      if (metricsRes.success && metricsRes.data) {
+        setMetrics(metricsRes.data);
+      }
       if (membersRes.success && membersRes.data) {
         const map = new Map<string, string[]>();
         for (const m of membersRes.data) {
@@ -593,43 +732,117 @@ export function DashboardSustentacaoPage() {
     } finally {
       setLoading(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** Background refresh — no full-screen spinner, silently updates data */
+  const refreshData = useCallback(async () => {
+    try {
+      const [res, metricsRes] = await Promise.all([
+        api.dashboard.getSustentacaoItems(),
+        api.dashboard.getSustentacaoMetrics(getMetricsStatuses(includeAnalysis)),
+      ]);
+      if (res.success && res.data) setItems(res.data);
+      if (metricsRes.success && metricsRes.data) setMetrics(metricsRes.data);
+    } catch {
+      /* silent */
+    }
+  }, [includeAnalysis, getMetricsStatuses]);
+
+  /** Metrics-only refresh — shows loading only on cards */
+  const refreshMetrics = useCallback(async (withAnalysis: boolean) => {
+    setMetricsLoading(true);
+    try {
+      const res = await api.dashboard.getSustentacaoMetrics(getMetricsStatuses(withAnalysis));
+      if (res.success && res.data) setMetrics(res.data);
+    } catch {
+      /* silent */
+    } finally {
+      setMetricsLoading(false);
+    }
+  }, [getMetricsStatuses]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
+  // When includeAnalysis changes, only reload metrics (not the whole page)
+  const isFirstRender = useMemo(() => ({ current: true }), []);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    refreshMetrics(includeAnalysis);
+  }, [includeAnalysis, refreshMetrics]);
+
   // ── actions ──
   const handleToggleSla = useCallback(
     async (externalId: string, excluded: boolean) => {
+      // Optimistic update
+      setItems(prev => prev.map(i =>
+        i.task.externalId === externalId
+          ? { ...i, slaExcluded: !excluded }
+          : i,
+      ));
+      setBusyItems(prev => new Set(prev).add(externalId));
       try {
         if (excluded) {
           await api.dashboard.restoreSla(externalId);
         } else {
           await api.dashboard.excludeSla(externalId);
         }
-        await fetchData();
+        await refreshData();
       } catch {
-        /* ignore */
+        // Revert on error
+        setItems(prev => prev.map(i =>
+          i.task.externalId === externalId
+            ? { ...i, slaExcluded: excluded }
+            : i,
+        ));
+      } finally {
+        setBusyItems(prev => {
+          const next = new Set(prev);
+          next.delete(externalId);
+          return next;
+        });
       }
     },
-    [fetchData],
+    [refreshData],
   );
 
   const handleToggleHidden = useCallback(
     async (externalId: string, hidden: boolean) => {
+      // Optimistic update
+      setItems(prev => prev.map(i =>
+        i.task.externalId === externalId
+          ? { ...i, isHidden: !hidden }
+          : i,
+      ));
+      setBusyItems(prev => new Set(prev).add(externalId));
       try {
         if (hidden) {
           await api.dashboard.unhideItem(externalId);
         } else {
           await api.dashboard.hideItem(externalId);
         }
-        await fetchData();
+        await refreshData();
       } catch {
-        /* ignore */
+        // Revert on error
+        setItems(prev => prev.map(i =>
+          i.task.externalId === externalId
+            ? { ...i, isHidden: hidden }
+            : i,
+        ));
+      } finally {
+        setBusyItems(prev => {
+          const next = new Set(prev);
+          next.delete(externalId);
+          return next;
+        });
       }
     },
-    [fetchData],
+    [refreshData],
   );
 
   const handleCopyLink = useCallback((externalId: string) => {
@@ -649,17 +862,20 @@ export function DashboardSustentacaoPage() {
 
   // ── derived data ──
 
-  const { devItems, auditItems } = useMemo(() => {
+  const { devItems, auditItems, analysisItems } = useMemo(() => {
     const dev: SustentacaoItemWithSLA[] = [];
     const audit: SustentacaoItemWithSLA[] = [];
+    const analysis: SustentacaoItemWithSLA[] = [];
     for (const item of items) {
       const s = item.task.status;
       if (DEV_STATUSES.has(s)) dev.push(item);
       else if (AUDIT_STATUSES.has(s)) audit.push(item);
+      else if (ANALYSIS_STATUSES.has(s)) analysis.push(item);
     }
     dev.sort(dashboardSort);
     audit.sort(dashboardSort);
-    return { devItems: dev, auditItems: audit };
+    analysis.sort(dashboardSort);
+    return { devItems: dev, auditItems: audit, analysisItems: analysis };
   }, [items]);
 
   // ── loading / error states ──
@@ -702,6 +918,21 @@ export function DashboardSustentacaoPage() {
       >
         <Typography variant="h5">Dashboard Sustentação</Typography>
         <Stack direction="row" spacing={1} alignItems="center">
+          <FormControlLabel
+            control={
+              <Switch
+                size="small"
+                checked={includeAnalysis}
+                onChange={(_, v) => setIncludeAnalysis(v)}
+              />
+            }
+            label={
+              <Typography variant="caption" color="text.secondary">
+                Incluir Análise nas métricas
+              </Typography>
+            }
+            sx={{ mr: 1 }}
+          />
           <Tooltip
             title={showHidden ? 'Ocultar desativados' : 'Mostrar desativados'}
           >
@@ -717,12 +948,96 @@ export function DashboardSustentacaoPage() {
         </Stack>
       </Stack>
 
+      {/* Metric Cards */}
+      {metrics && (
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: {
+              xs: 'repeat(2, 1fr)',
+              sm: 'repeat(3, 1fr)',
+              md: 'repeat(4, 1fr)',
+            },
+            gap: 1.5,
+            mb: 3,
+            position: 'relative',
+            opacity: metricsLoading ? 0.5 : 1,
+            transition: 'opacity 0.2s',
+            pointerEvents: metricsLoading ? 'none' : 'auto',
+          }}
+        >
+          {/* Linha 1: Visão geral + alertas */}
+          <MetricCard
+            icon={<TicketIcon fontSize="inherit" />}
+            label="Tickets abertos"
+            value={metrics.openTickets}
+            color="#4caf50"
+            tooltip="Tickets em fase de Desenvolvimento ou Auditoria na área de Sustentação."
+          />
+          <MetricCard
+            icon={<ImprovementIcon fontSize="inherit" />}
+            label="Melhorias abertas"
+            value={metrics.openImprovements}
+            color="#e91e63"
+            tooltip="Improvements em fase de Desenvolvimento ou Auditoria na área de Sustentação."
+          />
+          <MetricCard
+            icon={<ViolatedIcon fontSize="inherit" />}
+            label="SLA estourado"
+            value={metrics.slaViolatedCount}
+            subtitle={`${metrics.slaViolatedPercent}% dos tickets`}
+            color="#d32f2f"
+            bgColor={metrics.slaViolatedCount > 0 ? 'rgba(211,47,47,0.06)' : undefined}
+            tooltip="Tickets em Dev/Auditoria que ultrapassaram o limite de SLA. Limites: Crítica 4h, Alta 8h, Média 24h, Baixa 40h (horas úteis: 08h–12h e 13h30–17h30)."
+          />
+          <MetricCard
+            icon={<WarningIcon fontSize="inherit" />}
+            label="SLA em risco"
+            value={metrics.slaWarningCount}
+            color="#ed6c02"
+            bgColor={metrics.slaWarningCount > 0 ? 'rgba(237,108,2,0.06)' : undefined}
+            tooltip="Tickets em Dev/Auditoria que já consumiram ≥80% do tempo de SLA mas ainda não estouraram."
+          />
+          {/* Linha 2: Tempos + indicadores */}
+          <MetricCard
+            icon={<UnassignedIcon fontSize="inherit" />}
+            label="Sem responsável"
+            value={metrics.unassignedCount}
+            color="#9c27b0"
+            bgColor={metrics.unassignedCount > 0 ? 'rgba(156,39,176,0.06)' : undefined}
+            tooltip="Itens em Dev/Auditoria que não possuem responsável atribuído no Azure DevOps."
+          />
+          <MetricCard
+            icon={<AvgTimeIcon fontSize="inherit" />}
+            label="Idade média (Tickets)"
+            value={formatBusinessHours(metrics.avgAgeBusinessHours)}
+            color="#0288d1"
+            tooltip="Média de horas úteis desde a criação dos Tickets em Dev/Auditoria (exclui SLA removidos). 1d = 8h úteis."
+          />
+          <MetricCard
+            icon={<ClosedIcon fontSize="inherit" />}
+            label="Tempo médio p/ fechar"
+            value={formatBusinessHours(metrics.avgCloseTimeBusinessHours)}
+            subtitle={`${metrics.closedTicketsLast30Days} fechados (30d)`}
+            color="#2e7d32"
+            tooltip="Média de horas úteis entre criação e fechamento dos Tickets finalizados nos últimos 30 dias. 1d = 8h úteis."
+          />
+          <MetricCard
+            icon={<OldestIcon fontSize="inherit" />}
+            label="Ticket mais antigo"
+            value={formatBusinessHours(metrics.oldestOpenTicketHours)}
+            subtitle={metrics.oldestOpenTicketExternalId ? `#${metrics.oldestOpenTicketExternalId}` : undefined}
+            color="#f57c00"
+            tooltip="Horas úteis decorridas desde a criação do Ticket aberto mais antigo em Desenvolvimento ou Auditoria. 1d = 8h úteis."
+          />
+        </Box>
+      )}
+
       {/* Content */}
       <Stack spacing={3}>
         {/* Desenvolvimento */}
         <Box>
           <Stack direction="row" alignItems="center" spacing={1} mb={1}>
-            <FireIcon sx={{ color: '#ed6c02' }} />
             <Typography variant="h6">Desenvolvimento</Typography>
             <Chip
               label={
@@ -748,13 +1063,13 @@ export function DashboardSustentacaoPage() {
             onCopyLink={handleCopyLink}
             onRowClick={handleRowClick}
             positionMap={positionMap}
+            busyItems={busyItems}
           />
         </Box>
 
         {/* Auditoria */}
         <Box>
           <Stack direction="row" alignItems="center" spacing={1} mb={1}>
-            <DiamondIcon sx={{ color: '#7e57c2' }} />
             <Typography variant="h6">Auditoria</Typography>
             <Chip
               label={
@@ -780,8 +1095,43 @@ export function DashboardSustentacaoPage() {
             onCopyLink={handleCopyLink}
             onRowClick={handleRowClick}
             positionMap={positionMap}
+            busyItems={busyItems}
           />
         </Box>
+
+        {/* Análise */}
+        {analysisItems.length > 0 && (
+          <Box>
+            <Stack direction="row" alignItems="center" spacing={1} mb={1}>
+              <Typography variant="h6">Análise</Typography>
+              <Chip
+                label={
+                  analysisItems.filter((i) => showHidden || !i.isHidden).length
+                }
+                size="small"
+              />
+              <Tooltip title="Exportar PDF">
+                <IconButton
+                  size="small"
+                  onClick={() => exportToPdf(analysisItems, 'Análise - Sustentação', showHidden)}
+                >
+                  <PdfIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Stack>
+            <ItemTable
+              items={analysisItems}
+              showAreaColumn
+              showHidden={showHidden}
+              onToggleSla={handleToggleSla}
+              onToggleHidden={handleToggleHidden}
+              onCopyLink={handleCopyLink}
+              onRowClick={handleRowClick}
+              positionMap={positionMap}
+              busyItems={busyItems}
+            />
+          </Box>
+        )}
       </Stack>
 
       <TaskViewModal

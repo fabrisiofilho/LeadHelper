@@ -28,10 +28,14 @@ import {
   AccountTree as SprintIcon,
   Description as DescriptionIcon,
   Assignment as TaskIcon,
+  AssignmentTurnedIn as TaskTypeIcon,
   BugReport as BugIcon,
-  Star as FeatureIcon,
-  Build as ImprovementIcon,
-  Support as SupportIcon,
+  EmojiEvents as FeatureIcon,
+  Diamond as ImprovementIcon,
+  LocalFireDepartment as TicketIcon,
+  MenuBook as UserStoryIcon,
+  MilitaryTech as EpicIcon,
+  DirectionsCar as RoadmapIcon,
   OpenInNew as OpenInNewIcon,
   AccountTree as HierarchyIcon,
   NavigateNext as NavigateNextIcon,
@@ -57,13 +61,15 @@ const priorityConfig = {
 };
 
 const typeConfigMap: Record<string, { label: string; color: string; icon: typeof TaskIcon }> = {
-  'Task': { label: 'Task', color: '#4caf50', icon: TaskIcon },
-  'Bug': { label: 'Bug', color: '#f44336', icon: BugIcon },
-  'Feature': { label: 'Feature', color: '#1565c0', icon: FeatureIcon },
-  'User Story': { label: 'User Story', color: '#2196f3', icon: FeatureIcon },
-  'Epic': { label: 'Epic', color: '#9c27b0', icon: FeatureIcon },
-  'Improvement': { label: 'Improvement', color: '#ff9800', icon: ImprovementIcon },
-  'Ticket': { label: 'Ticket', color: '#d32f2f', icon: SupportIcon },
+  'Epic': { label: 'Epic', color: '#ff8c00', icon: EpicIcon },
+  'Feature': { label: 'Feature', color: '#9c27b0', icon: FeatureIcon },
+  'Improvement': { label: 'Improvement', color: '#e91e63', icon: ImprovementIcon },
+  'Rework': { label: 'Rework', color: '#d32f2f', icon: BugIcon },
+  'Bug': { label: 'Bug', color: '#d32f2f', icon: BugIcon },
+  'Roadmap': { label: 'Roadmap', color: '#424242', icon: RoadmapIcon },
+  'Task': { label: 'Task', color: '#c8a415', icon: TaskTypeIcon },
+  'Ticket': { label: 'Ticket', color: '#4caf50', icon: TicketIcon },
+  'User Story': { label: 'User Story', color: '#2196f3', icon: UserStoryIcon },
 };
 
 export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
@@ -771,21 +777,43 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
 
                   <Divider />
 
-                  {/* Metadados */}
-                  <Stack direction="row" spacing={2}>
+                  {/* Datas Azure DevOps */}
+                  {displayTask.origin === 'azure_devops' && (
+                    <Stack direction="row" spacing={2}>
+                      <Box flex={1}>
+                        <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 0.5, display: 'block' }}>
+                          CRIADO (AZURE)
+                        </Typography>
+                        <Typography variant="body2" fontWeight={600}>
+                          {formatDateTime(displayTask.azureCreatedDate)}
+                        </Typography>
+                      </Box>
+                      <Box flex={1}>
+                        <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 0.5, display: 'block' }}>
+                          ATUALIZADO (AZURE)
+                        </Typography>
+                        <Typography variant="body2" fontWeight={600}>
+                          {formatDateTime(displayTask.azureChangedDate)}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  )}
+
+                  {/* Datas locais */}
+                  <Stack direction="row" spacing={2} sx={{ opacity: displayTask.origin === 'azure_devops' ? 0.5 : 1 }}>
                     <Box flex={1}>
                       <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 0.5, display: 'block' }}>
-                        CRIADO EM
+                        CRIADO (LOCAL)
                       </Typography>
-                      <Typography variant="body2" fontWeight={500}>
+                      <Typography variant="body2">
                         {formatDateTime(displayTask.createdAt)}
                       </Typography>
                     </Box>
                     <Box flex={1}>
                       <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 0.5, display: 'block' }}>
-                        ATUALIZADO EM
+                        ATUALIZADO (LOCAL)
                       </Typography>
-                      <Typography variant="body2" fontWeight={500}>
+                      <Typography variant="body2">
                         {formatDateTime(displayTask.updatedAt)}
                       </Typography>
                     </Box>

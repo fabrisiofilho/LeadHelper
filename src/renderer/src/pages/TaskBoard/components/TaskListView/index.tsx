@@ -22,6 +22,7 @@ import type {
 import { getTaskTypeOption } from '@renderer/utils/task-type';
 import { useTableSort } from '@renderer/hooks/useTableSort';
 import { SortableTableCell } from '@renderer/components/SortableTableCell';
+import { WorkItemTypeChip } from '@renderer/components/WorkItemTypeChip';
 
 interface TaskListViewProps {
   tasks: Task[];
@@ -189,22 +190,7 @@ export function TaskListView({
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      {(() => {
-                        const typeOpt = getTaskTypeOption(task.type);
-                        return (
-                          <Chip
-                            label={typeOpt.label}
-                            size="small"
-                            sx={{
-                              height: 22,
-                              fontSize: '0.7rem',
-                              bgcolor: typeOpt.color + '18',
-                              color: typeOpt.color,
-                              fontWeight: 600,
-                            }}
-                          />
-                        );
-                      })()}
+                      <WorkItemTypeChip type={task.type || 'Task'} />
                     </TableCell>
                     <TableCell>
                       {task.team ? (

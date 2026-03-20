@@ -15,11 +15,14 @@ import {
   ChevronRight as ChevronRightIcon,
   AccountTree as HierarchyIcon,
   Assignment as TaskIcon,
+  AssignmentTurnedIn as TaskTypeIcon,
   BugReport as BugIcon,
-  Star as FeatureIcon,
-  Build as ImprovementIcon,
-  Support as SupportIcon,
-  Layers as EpicIcon,
+  EmojiEvents as FeatureIcon,
+  Diamond as ImprovementIcon,
+  LocalFireDepartment as TicketIcon,
+  MenuBook as UserStoryIcon,
+  MilitaryTech as EpicIcon,
+  DirectionsCar as RoadmapIcon,
   OpenInNew as OpenIcon,
 } from '@mui/icons-material';
 import type { Task } from '@shared/interfaces/config/index.types';
@@ -33,13 +36,15 @@ interface TaskHierarchyProps {
 }
 
 const typeConfigMap: Record<string, { label: string; color: string; icon: typeof TaskIcon }> = {
-  'Task': { label: 'Task', color: '#4caf50', icon: TaskIcon },
-  'Bug': { label: 'Bug', color: '#f44336', icon: BugIcon },
-  'Feature': { label: 'Feature', color: '#1565c0', icon: FeatureIcon },
-  'User Story': { label: 'User Story', color: '#2196f3', icon: FeatureIcon },
-  'Epic': { label: 'Epic', color: '#9c27b0', icon: EpicIcon },
-  'Improvement': { label: 'Improvement', color: '#ff9800', icon: ImprovementIcon },
-  'Ticket': { label: 'Ticket', color: '#d32f2f', icon: SupportIcon },
+  'Epic': { label: 'Epic', color: '#ff8c00', icon: EpicIcon },
+  'Feature': { label: 'Feature', color: '#9c27b0', icon: FeatureIcon },
+  'Improvement': { label: 'Improvement', color: '#e91e63', icon: ImprovementIcon },
+  'Rework': { label: 'Rework', color: '#d32f2f', icon: BugIcon },
+  'Bug': { label: 'Bug', color: '#d32f2f', icon: BugIcon },
+  'Roadmap': { label: 'Roadmap', color: '#424242', icon: RoadmapIcon },
+  'Task': { label: 'Task', color: '#c8a415', icon: TaskTypeIcon },
+  'Ticket': { label: 'Ticket', color: '#4caf50', icon: TicketIcon },
+  'User Story': { label: 'User Story', color: '#2196f3', icon: UserStoryIcon },
 };
 
 function getTypeConfig(type?: string) {

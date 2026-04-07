@@ -41,10 +41,12 @@ import {
   CheckCircleOutline as ClosedIcon,
   HourglassTop as OldestIcon,
   InfoOutlined as InfoIcon,
+  FormatListNumbered as SlaOrderIcon,
 } from '@mui/icons-material';
 import { PageLayout } from '@renderer/components/PageLayout';
 import { TaskViewModal } from '@renderer/components/TaskViewModal';
 import { WorkItemTypeChip } from '@renderer/components/WorkItemTypeChip';
+import { SlaOrderModal } from '@renderer/components/SlaOrderModal';
 import type { SustentacaoItemWithSLA, SustentacaoMetrics } from '@shared/interfaces/config/index.types';
 import type { Task } from '@shared/interfaces/config/index.types';
 
@@ -680,6 +682,11 @@ export function DashboardSustentacaoPage() {
   const [positionMap, setPositionMap] = useState<Map<string, string[]>>(new Map());
   const [busyItems, setBusyItems] = useState<Set<string>>(new Set());
   const [metricsLoading, setMetricsLoading] = useState(false);
+  const [slaOrderModal, setSlaOrderModal] = useState<{ open: boolean; title: string; items: SustentacaoItemWithSLA[] }>({
+    open: false,
+    title: '',
+    items: [],
+  });
 
   const api = (
     window as unknown as {
@@ -1045,6 +1052,14 @@ export function DashboardSustentacaoPage() {
               }
               size="small"
             />
+            <Tooltip title="Ordem de prioridade SLA">
+              <IconButton
+                size="small"
+                onClick={() => setSlaOrderModal({ open: true, title: 'Desenvolvimento', items: devItems })}
+              >
+                <SlaOrderIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
             <Tooltip title="Exportar PDF">
               <IconButton
                 size="small"
@@ -1077,6 +1092,14 @@ export function DashboardSustentacaoPage() {
               }
               size="small"
             />
+            <Tooltip title="Ordem de prioridade SLA">
+              <IconButton
+                size="small"
+                onClick={() => setSlaOrderModal({ open: true, title: 'Auditoria', items: auditItems })}
+              >
+                <SlaOrderIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
             <Tooltip title="Exportar PDF">
               <IconButton
                 size="small"
@@ -1110,6 +1133,14 @@ export function DashboardSustentacaoPage() {
                 }
                 size="small"
               />
+              <Tooltip title="Ordem de prioridade SLA">
+                <IconButton
+                  size="small"
+                  onClick={() => setSlaOrderModal({ open: true, title: 'Análise', items: analysisItems })}
+                >
+                  <SlaOrderIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
               <Tooltip title="Exportar PDF">
                 <IconButton
                   size="small"
@@ -1133,6 +1164,15 @@ export function DashboardSustentacaoPage() {
           </Box>
         )}
       </Stack>
+
+      <SlaOrderModal
+        open={slaOrderModal.open}
+        title={slaOrderModal.title}
+        items={slaOrderModal.items}
+        showHidden={showHidden}
+        onClose={() => setSlaOrderModal({ open: false, title: '', items: [] })}
+        onRowClick={handleRowClick}
+      />
 
       <TaskViewModal
         open={isTaskModalOpen}

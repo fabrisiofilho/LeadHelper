@@ -71,6 +71,8 @@ export interface SyncProgress {
   current: number;
   total: number;
   percentage: number;
+  stepErrors?: string[];
+  stepResult?: { created: number; updated: number; total: number };
 }
 
 export class SyncService {
@@ -136,7 +138,20 @@ export class SyncService {
       const msg = `Erro ao sincronizar sprints: ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
       logger.error(msg);
       errors.push(msg);
+      sprintsResult.errors.push(msg);
     }
+
+    this.emitProgress({
+      step: 'sprints',
+      message: sprintsResult.errors.length > 0
+        ? `Sprints sincronizados com ${sprintsResult.errors.length} erro(s)`
+        : `Sprints sincronizados: ${sprintsResult.total}`,
+      current: 20,
+      total: 100,
+      percentage: 20,
+      stepErrors: sprintsResult.errors.length > 0 ? sprintsResult.errors : undefined,
+      stepResult: { created: sprintsResult.created, updated: sprintsResult.updated, total: sprintsResult.total },
+    });
 
     // Step 2: Sync teams
     this.emitProgress({
@@ -160,7 +175,20 @@ export class SyncService {
       const msg = `Erro ao sincronizar equipes: ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
       logger.error(msg);
       errors.push(msg);
+      teamsResult.errors.push(msg);
     }
+
+    this.emitProgress({
+      step: 'teams',
+      message: teamsResult.errors.length > 0
+        ? `Equipes sincronizadas com ${teamsResult.errors.length} erro(s)`
+        : `Equipes sincronizadas: ${teamsResult.total}`,
+      current: 40,
+      total: 100,
+      percentage: 40,
+      stepErrors: teamsResult.errors.length > 0 ? teamsResult.errors : undefined,
+      stepResult: { created: teamsResult.created, updated: teamsResult.updated, total: teamsResult.total },
+    });
 
     // Step 3: Fetch all work items
     this.emitProgress({
@@ -172,6 +200,7 @@ export class SyncService {
     });
 
     let workItems: AzureWorkItem[] = [];
+    let workItemErrors: string[] = [];
     try {
       workItems = await this.azureDevOpsService.fetchAllWorkItems();
       logger.info(
@@ -182,7 +211,19 @@ export class SyncService {
       logger.error(msg);
       logger.error('[fullSync] Error details:', error);
       errors.push(msg);
+      workItemErrors.push(msg);
     }
+
+    this.emitProgress({
+      step: 'work_items',
+      message: workItemErrors.length > 0
+        ? `Erro ao buscar work items`
+        : `${workItems.length} work items encontrados`,
+      current: 60,
+      total: 100,
+      percentage: 60,
+      stepErrors: workItemErrors.length > 0 ? workItemErrors : undefined,
+    });
 
     // Step 4: Sync members from work items
     this.emitProgress({
@@ -206,7 +247,20 @@ export class SyncService {
       const msg = `Erro ao sincronizar membros: ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
       logger.error(msg);
       errors.push(msg);
+      membersResult.errors.push(msg);
     }
+
+    this.emitProgress({
+      step: 'members',
+      message: membersResult.errors.length > 0
+        ? `Membros sincronizados com ${membersResult.errors.length} erro(s)`
+        : `Membros sincronizados: ${membersResult.total}`,
+      current: 80,
+      total: 100,
+      percentage: 80,
+      stepErrors: membersResult.errors.length > 0 ? membersResult.errors : undefined,
+      stepResult: { created: membersResult.created, updated: membersResult.updated, total: membersResult.total },
+    });
 
     // Step 5: Sync tasks from work items (needs sprints and teams for relationship resolution)
     this.emitProgress({
@@ -232,6 +286,7 @@ export class SyncService {
       const msg = `Erro ao sincronizar tarefas: ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
       logger.error(msg);
       errors.push(msg);
+      tasksResult.errors.push(msg);
     }
 
     const failureCount = errors.length;
@@ -258,6 +313,8 @@ export class SyncService {
       current: 100,
       total: 100,
       percentage: 100,
+      stepErrors: tasksResult.errors.length > 0 ? tasksResult.errors : undefined,
+      stepResult: { created: tasksResult.created, updated: tasksResult.updated, total: tasksResult.total },
     });
 
     return {

@@ -6,13 +6,28 @@ import {
   Stack,
   Paper,
   Chip,
+  Collapse,
+  Alert,
+  AlertTitle,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
 import {
   CheckCircle as CheckCircleIcon,
   Sync as SyncIcon,
+  ErrorOutline as ErrorIcon,
+  WarningAmber as WarningIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
 } from '@mui/icons-material';
 
-type SyncStep = 'sprints' | 'teams' | 'work_items' | 'members' | 'tasks' | 'complete';
+type SyncStep =
+  | 'sprints'
+  | 'teams'
+  | 'work_items'
+  | 'members'
+  | 'tasks'
+  | 'complete';
 
 interface SyncProgress {
   step: SyncStep;
@@ -20,6 +35,13 @@ interface SyncProgress {
   current: number;
   total: number;
   percentage: number;
+  stepErrors?: string[];
+  stepResult?: { created: number; updated: number; total: number };
+}
+
+interface StepInfo {
+  errors: string[];
+  result?: { created: number; updated: number; total: number };
 }
 
 interface SyncProgressModalProps {
@@ -27,7 +49,13 @@ interface SyncProgressModalProps {
   onClose: () => void;
 }
 
-const STEPS: SyncStep[] = ['sprints', 'teams', 'work_items', 'members', 'tasks'];
+const STEPS: SyncStep[] = [
+  'sprints',
+  'teams',
+  'work_items',
+  'members',
+  'tasks',
+];
 
 const stepLabels: Record<SyncStep, string> = {
   sprints: 'Sprints',
@@ -50,21 +78,48 @@ export function SyncProgressModal({ open, onClose }: SyncProgressModalProps) {
   const [progress, setProgress] = useState<SyncProgress>(initialProgress);
   const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set());
   const [isComplete, setIsComplete] = useState(false);
+  const [stepInfoMap, setStepInfoMap] = useState<Map<string, StepInfo>>(
+    new Map(),
+  );
+  const [expandedErrors, setExpandedErrors] = useState(false);
+  const [hasErrors, setHasErrors] = useState(false);
 
   useEffect(() => {
     if (!open) {
       setProgress(initialProgress);
       setCompletedSteps(new Set());
       setIsComplete(false);
+      setStepInfoMap(new Map());
+      setExpandedErrors(false);
+      setHasErrors(false);
       return;
     }
 
     const handleProgress = (_event: unknown, data: SyncProgress) => {
       setProgress(data);
 
+      // Track step errors and results
+      if (data.stepErrors || data.stepResult) {
+        setStepInfoMap((prev) => {
+          const next = new Map(prev);
+          const currentStep = data.step === 'complete' ? 'tasks' : data.step;
+          next.set(currentStep, {
+            errors: data.stepErrors ?? [],
+            result: data.stepResult,
+          });
+          return next;
+        });
+        if (data.stepErrors && data.stepErrors.length > 0) {
+          setHasErrors(true);
+        }
+      }
+
       if (data.step === 'complete') {
         setIsComplete(true);
-        setTimeout(onClose, 2000);
+        // If there are errors, don't auto-close — let user review
+        if (!data.stepErrors?.length && !data.message.includes('falha')) {
+          setTimeout(onClose, 2000);
+        }
       } else {
         setCompletedSteps((prev) => {
           const newSet = new Set(prev);
@@ -86,6 +141,30 @@ export function SyncProgressModal({ open, onClose }: SyncProgressModalProps) {
 
   if (!open) return null;
 
+  const allErrors = Array.from(stepInfoMap.entries()).flatMap(([step, info]) =>
+    info.errors.map((err) => ({ step, error: err })),
+  );
+
+  const getStepChipColor = (
+    step: SyncStep,
+  ): 'success' | 'primary' | 'error' | 'warning' | 'default' => {
+    const done = completedSteps.has(step) || isComplete;
+    const current = progress.step === step && !isComplete;
+    const info = stepInfoMap.get(step);
+    if (done && info?.errors?.length) return 'warning';
+    if (done) return 'success';
+    if (current) return 'primary';
+    return 'default';
+  };
+
+  const getStepIcon = (step: SyncStep) => {
+    const done = completedSteps.has(step) || isComplete;
+    const info = stepInfoMap.get(step);
+    if (done && info?.errors?.length) return <WarningIcon />;
+    if (done) return <CheckCircleIcon />;
+    return undefined;
+  };
+
   return (
     <Box
       sx={{
@@ -105,12 +184,20 @@ export function SyncProgressModal({ open, onClose }: SyncProgressModalProps) {
           borderRadius: 4,
           p: '2rem 3rem',
           minWidth: 420,
-          maxWidth: 520,
+          maxWidth: 560,
+          maxHeight: '80vh',
+          overflow: 'auto',
           textAlign: 'center',
         }}
       >
         {isComplete ? (
-          <CheckCircleIcon sx={{ fontSize: 48, color: 'success.main', mb: 2 }} />
+          hasErrors ? (
+            <WarningIcon sx={{ fontSize: 48, color: 'warning.main', mb: 2 }} />
+          ) : (
+            <CheckCircleIcon
+              sx={{ fontSize: 48, color: 'success.main', mb: 2 }}
+            />
+          )
         ) : (
           <SyncIcon
             className="sync-rotate"
@@ -119,7 +206,11 @@ export function SyncProgressModal({ open, onClose }: SyncProgressModalProps) {
         )}
 
         <Typography variant="h6" gutterBottom>
-          {isComplete ? 'Sincronização Concluída!' : 'Sincronizando com Azure DevOps'}
+          {isComplete
+            ? hasErrors
+              ? 'Sincronização Concluída com Alertas'
+              : 'Sincronização Concluída!'
+            : 'Sincronizando com Azure DevOps'}
         </Typography>
 
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -129,29 +220,110 @@ export function SyncProgressModal({ open, onClose }: SyncProgressModalProps) {
         <LinearProgress
           variant="determinate"
           value={progress.percentage}
-          color={isComplete ? 'success' : 'primary'}
+          color={isComplete ? (hasErrors ? 'warning' : 'success') : 'primary'}
           sx={{ height: 8, borderRadius: 1, mb: 0.5 }}
         />
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{ display: 'block', mb: 2 }}
+        >
           {progress.percentage}%
         </Typography>
 
-        <Stack direction="row" spacing={1} justifyContent="center" flexWrap="wrap" useFlexGap>
+        <Stack
+          direction="row"
+          spacing={1}
+          justifyContent="center"
+          flexWrap="wrap"
+          useFlexGap
+          sx={{ mb: 2 }}
+        >
           {STEPS.map((step) => {
-            const done = completedSteps.has(step) || isComplete;
             const current = progress.step === step && !isComplete;
+            const info = stepInfoMap.get(step);
+            const resultLabel = info?.result ? ` (${info.result.total})` : '';
             return (
-              <Chip
+              <Tooltip
                 key={step}
-                label={stepLabels[step]}
-                size="small"
-                color={done ? 'success' : current ? 'primary' : 'default'}
-                variant={current ? 'filled' : 'outlined'}
-                icon={done ? <CheckCircleIcon /> : undefined}
-              />
+                title={
+                  info?.errors?.length
+                    ? `${info.errors.length} erro(s) nesta etapa`
+                    : info?.result
+                      ? `Criados: ${info.result.created}, Atualizados: ${info.result.updated}`
+                      : ''
+                }
+              >
+                <Chip
+                  label={`${stepLabels[step]}${resultLabel}`}
+                  size="small"
+                  color={getStepChipColor(step)}
+                  variant={current ? 'filled' : 'outlined'}
+                  icon={getStepIcon(step)}
+                />
+              </Tooltip>
             );
           })}
         </Stack>
+
+        {/* Error details section */}
+        {allErrors.length > 0 && (
+          <Box sx={{ textAlign: 'left' }}>
+            <Stack
+              direction="row"
+              alignItems="center"
+              justifyContent="center"
+              spacing={0.5}
+              sx={{ cursor: 'pointer', mb: 1 }}
+              onClick={() => setExpandedErrors((v) => !v)}
+            >
+              <ErrorIcon sx={{ fontSize: 18, color: 'warning.main' }} />
+              <Typography variant="body2" color="warning.main" fontWeight={600}>
+                {allErrors.length} erro(s) durante a sincronização
+              </Typography>
+              <IconButton size="small">
+                {expandedErrors ? (
+                  <ExpandLessIcon fontSize="small" />
+                ) : (
+                  <ExpandMoreIcon fontSize="small" />
+                )}
+              </IconButton>
+            </Stack>
+            <Collapse in={expandedErrors}>
+              <Stack spacing={1} sx={{ maxHeight: 200, overflow: 'auto' }}>
+                {allErrors.map((e, i) => (
+                  <Alert
+                    key={i}
+                    severity="warning"
+                    variant="outlined"
+                    sx={{
+                      py: 0.5,
+                      '& .MuiAlert-message': { fontSize: '0.75rem' },
+                    }}
+                  >
+                    <AlertTitle sx={{ fontSize: '0.8rem', mb: 0 }}>
+                      {stepLabels[e.step as SyncStep] ?? e.step}
+                    </AlertTitle>
+                    {e.error}
+                  </Alert>
+                ))}
+              </Stack>
+            </Collapse>
+          </Box>
+        )}
+
+        {/* Close button when complete with errors */}
+        {isComplete && hasErrors && (
+          <Box sx={{ mt: 2 }}>
+            <Chip
+              label="Fechar"
+              onClick={onClose}
+              color="primary"
+              variant="outlined"
+              sx={{ cursor: 'pointer' }}
+            />
+          </Box>
+        )}
       </Paper>
 
       <style>

@@ -76,6 +76,7 @@ describe('DashboardService - getSustentacaoMembersWithCards', () => {
   let mockTaskRepository: {
     findAllWithRelations: ReturnType<typeof vi.fn>;
     findByParentId: ReturnType<typeof vi.fn>;
+    findOpenByAreaAndTypes: ReturnType<typeof vi.fn>;
   };
   let mockTaskLocalPriorityRepository: {
     findByExternalIds: ReturnType<typeof vi.fn>;
@@ -94,6 +95,7 @@ describe('DashboardService - getSustentacaoMembersWithCards', () => {
     mockTaskRepository = {
       findAllWithRelations: vi.fn().mockResolvedValue([]),
       findByParentId: vi.fn().mockResolvedValue([]),
+      findOpenByAreaAndTypes: vi.fn().mockResolvedValue([]),
     };
     mockTaskLocalPriorityRepository = {
       findByExternalIds: vi.fn().mockResolvedValue(new Map()),
@@ -120,9 +122,8 @@ describe('DashboardService - getSustentacaoMembersWithCards', () => {
   });
 
   it('should return empty array when no Sustentação tasks exist', async () => {
-    mockTaskRepository.findAllWithRelations.mockResolvedValue([
-      createMockTask({ areaPath: 'Tribo SEIF\\Projetos\\Team1' }),
-    ]);
+    // DB query returns no results when no matching tasks exist
+    mockTaskRepository.findOpenByAreaAndTypes.mockResolvedValue([]);
 
     const result = await service.getSustentacaoMembersWithCards();
 
@@ -136,7 +137,7 @@ describe('DashboardService - getSustentacaoMembersWithCards', () => {
       assignedToName: 'John Doe',
     });
 
-    mockTaskRepository.findAllWithRelations.mockResolvedValue([task]);
+    mockTaskRepository.findOpenByAreaAndTypes.mockResolvedValue([task]);
 
     const result = await service.getSustentacaoMembersWithCards();
 
@@ -151,7 +152,7 @@ describe('DashboardService - getSustentacaoMembersWithCards', () => {
     const task1 = createMockTask({ id: 1, externalId: 'WI-100' });
     const task2 = createMockTask({ id: 2, externalId: 'WI-101' });
 
-    mockTaskRepository.findAllWithRelations.mockResolvedValue([task1, task2]);
+    mockTaskRepository.findOpenByAreaAndTypes.mockResolvedValue([task1, task2]);
 
     const result = await service.getSustentacaoMembersWithCards();
 
@@ -173,7 +174,7 @@ describe('DashboardService - getSustentacaoMembersWithCards', () => {
       assignedToName: 'Bob',
     });
 
-    mockTaskRepository.findAllWithRelations.mockResolvedValue([task1, task2]);
+    mockTaskRepository.findOpenByAreaAndTypes.mockResolvedValue([task1, task2]);
 
     const result = await service.getSustentacaoMembersWithCards();
 
@@ -194,7 +195,7 @@ describe('DashboardService - getSustentacaoMembersWithCards', () => {
       assignedToName: 'Alice',
     });
 
-    mockTaskRepository.findAllWithRelations.mockResolvedValue([taskZ, taskA]);
+    mockTaskRepository.findOpenByAreaAndTypes.mockResolvedValue([taskZ, taskA]);
 
     const result = await service.getSustentacaoMembersWithCards();
 
@@ -203,20 +204,15 @@ describe('DashboardService - getSustentacaoMembersWithCards', () => {
     expect(result[1].member.name).toBe('Zara');
   });
 
-  it('should not include closed/completed tasks', async () => {
-    const completedTask = createMockTask({
-      id: 1,
-      externalId: 'WI-300',
-      status: 'completed',
-    });
+  it('should not include closed/completed tasks (filtered at DB level)', async () => {
     const openTask = createMockTask({
       id: 2,
       externalId: 'WI-301',
       status: 'in_progress',
     });
 
-    mockTaskRepository.findAllWithRelations.mockResolvedValue([
-      completedTask,
+    // DB query already filters out closed tasks, so mock only returns open ones
+    mockTaskRepository.findOpenByAreaAndTypes.mockResolvedValue([
       openTask,
     ]);
 
@@ -239,7 +235,7 @@ describe('DashboardService - getSustentacaoMembersWithCards', () => {
       status: 'in_progress',
     });
 
-    mockTaskRepository.findAllWithRelations.mockResolvedValue([
+    mockTaskRepository.findOpenByAreaAndTypes.mockResolvedValue([
       pendingTask,
       inProgressTask,
     ]);
@@ -263,7 +259,7 @@ describe('DashboardService - getSustentacaoMembersWithCards', () => {
       priority: 'critical',
     });
 
-    mockTaskRepository.findAllWithRelations.mockResolvedValue([
+    mockTaskRepository.findOpenByAreaAndTypes.mockResolvedValue([
       lowPrioTask,
       criticalTask,
     ]);
@@ -285,7 +281,7 @@ describe('DashboardService - getSustentacaoMembersWithCards', () => {
     } as TeamMemberEntity;
 
     mockTeamMemberRepository.findByEmail.mockResolvedValue(realMember);
-    mockTaskRepository.findAllWithRelations.mockResolvedValue([
+    mockTaskRepository.findOpenByAreaAndTypes.mockResolvedValue([
       createMockTask({ externalId: 'WI-600' }),
     ]);
 

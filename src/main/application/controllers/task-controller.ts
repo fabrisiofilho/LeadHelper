@@ -135,4 +135,22 @@ export class TaskController extends BaseHandler {
       return { success: false, error: message };
     }
   }
+
+  @IpcMethod('task:search')
+  async search(
+    query: string,
+    limit?: number,
+  ): Promise<ApiResponse<taskService.Task[]>> {
+    try {
+      const result = await this.service.searchByText(query, limit);
+      return { success: true, data: result };
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Erro ao buscar tarefas';
+      logger.error('TaskController.search error:', error);
+      return { success: false, error: message };
+    }
+  }
 }

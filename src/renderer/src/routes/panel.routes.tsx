@@ -8,6 +8,7 @@ import GroupWorkOutlinedIcon from '@mui/icons-material/GroupWorkOutlined';
 import TaskAltOutlinedIcon from '@mui/icons-material/TaskAltOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import AssignmentIndOutlinedIcon from '@mui/icons-material/AssignmentIndOutlined';
+import StickyNote2OutlinedIcon from '@mui/icons-material/StickyNote2Outlined';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { DrawerNavigator } from './components/DrawerNavigator';
 import { IDrawerItem } from '@renderer/types/drawer/drawerItem';
@@ -24,6 +25,7 @@ import { TeamAllocationPage } from '@renderer/pages/TeamAllocation';
 import { TaskAllocationPage } from '@renderer/pages/TaskAllocation';
 import { TaskManagementPage } from '@renderer/pages/TaskManagement';
 import { SystemSettingsPage } from '@renderer/pages/SystemSettings';
+import { NotesBoardPage } from '@renderer/pages/NotesBoard';
 
 type WithRouteProps<T> = T & {
   routePath: string;
@@ -63,6 +65,12 @@ const GENERAL_SECTION: IDrawerSection = {
       label: 'Gestão de Tarefas',
       path: '/panel/task-management',
       icon: <TaskAltOutlinedIcon />,
+      canAccess: true,
+    },
+    {
+      label: 'Quadro de Notas',
+      path: '/panel/notes-board',
+      icon: <StickyNote2OutlinedIcon />,
       canAccess: true,
     },
     {
@@ -125,6 +133,14 @@ const ROUTES_ITEMS: WithRouteProps<IDrawerItem>[] = [
     canAccess: true,
     routeElement: <TaskManagementPage />,
     routePath: '/task-management',
+  },
+  {
+    label: 'Quadro de Notas',
+    path: '/panel/notes-board',
+    icon: <StickyNote2OutlinedIcon />,
+    canAccess: true,
+    routeElement: <NotesBoardPage />,
+    routePath: '/notes-board',
   },
   {
     label: 'Cargos',

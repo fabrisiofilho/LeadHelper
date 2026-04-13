@@ -236,6 +236,11 @@ export class TaskService {
     }
   }
 
+  async searchByText(query: string, limit = 50): Promise<Task[]> {
+    const entities = await this.repository.searchByText(query, limit);
+    return entities.map((e) => this.mapToDto(e));
+  }
+
   private mapToDto(entity: TaskEntity): Task {
     return {
       id: entity.id,

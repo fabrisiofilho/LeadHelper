@@ -560,6 +560,43 @@ export interface ExportResult {
 }
 
 // ============================================================================
+// Note Card Types
+// ============================================================================
+
+export interface NoteCard {
+  id: number;
+  title: string;
+  body: string; // Conteúdo HTML gerado pelo TipTap (rich text)
+  deadline?: string | null;
+  completedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  links: NoteLink[];
+}
+
+export interface NoteLink {
+  id: number;
+  noteCardId: number;
+  entityType: 'team_member' | 'team' | 'position' | 'task';
+  entityId: number;
+  entityName?: string; // Resolvido no service ao carregar
+}
+
+export interface CreateNoteCardInput {
+  title: string;
+  body: string; // HTML string do TipTap
+  deadline?: string | null;
+  links?: { entityType: string; entityId: number }[];
+}
+
+export interface UpdateNoteCardInput {
+  title?: string;
+  body?: string; // HTML string do TipTap
+  deadline?: string | null;
+  links?: { entityType: string; entityId: number }[];
+}
+
+// ============================================================================
 // Controller Interfaces
 // ============================================================================
 
@@ -623,6 +660,7 @@ export interface ITaskController {
   findByStatus(status: TaskStatus): Promise<ApiResponse<Task[]>>;
   findByPeriod(startDate: Date, endDate: Date): Promise<ApiResponse<Task[]>>;
   findBySprint(sprintId: number): Promise<ApiResponse<Task[]>>;
+  search(query: string, limit?: number): Promise<ApiResponse<Task[]>>;
 }
 
 export interface IDashboardController {
@@ -1068,6 +1106,17 @@ export interface ISyncController {
   getStatus(): Promise<ApiResponse<SyncStatus>>;
 }
 
+export interface INoteCardController {
+  create(input: CreateNoteCardInput): Promise<ApiResponse<NoteCard>>;
+  update(id: number, input: UpdateNoteCardInput): Promise<ApiResponse<NoteCard>>;
+  delete(id: number): Promise<ApiResponse<void>>;
+  complete(id: number): Promise<ApiResponse<NoteCard>>;
+  reactivate(id: number): Promise<ApiResponse<NoteCard>>;
+  findById(id: number): Promise<ApiResponse<NoteCard>>;
+  findAllActive(): Promise<ApiResponse<NoteCard[]>>;
+  findAllCompleted(): Promise<ApiResponse<NoteCard[]>>;
+}
+
 // ============================================================================
 // Custom Electron API
 // ============================================================================
@@ -1090,6 +1139,7 @@ export interface CustomElectronAPI {
   hierarchy: IHierarchyController;
   taskLocalKanban: ITaskLocalKanbanController;
   sync: ISyncController;
+  noteCard: INoteCardController;
 
   // Utility methods
   openExternalUrl: (url: string) => void;

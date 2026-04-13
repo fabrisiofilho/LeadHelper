@@ -14,6 +14,7 @@ import { SyncController } from '../sync-controller';
 import { TaskLocalPriorityController } from '../task-local-priority-controller';
 import { TaskLocalKanbanController } from '../task-local-kanban-controller';
 import { HierarchyController } from '../hierarchy-controller';
+import { registerNoteCardController } from '../note-card-controller';
 
 // Controllers:
 // - TeamMemberController ✓
@@ -30,6 +31,7 @@ import { HierarchyController } from '../hierarchy-controller';
 // - TaskLocalPriorityController ✓
 // - TaskLocalKanbanController ✓
 // - HierarchyController ✓
+// - NoteCardController ✓
 
 export function loadIpcControllers() {
   logger.info('Loading IPC controllers...');
@@ -51,6 +53,7 @@ export function loadIpcControllers() {
   new TaskLocalPriorityController();
   new TaskLocalKanbanController();
   new HierarchyController();
+  registerNoteCardController();
 
   logger.info('All IPC controllers loaded successfully');
 }

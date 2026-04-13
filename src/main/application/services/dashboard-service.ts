@@ -446,6 +446,10 @@ export class DashboardService {
   private slaExclusionRepository: TaskSlaExclusionRepository;
   private hiddenRepository: TaskHiddenRepository;
 
+  // Short-lived cache for getSustentacaoItems (avoids double calculation when metrics are fetched right after items)
+  private _sustentacaoCache: { data: SustentacaoItemWithSLA[]; ts: number } | null = null;
+  private static readonly CACHE_TTL_MS = 5_000; // 5 seconds
+
   constructor(
     teamMemberRepository?: TeamMemberRepository,
     taskRepository?: TaskRepository,
@@ -753,20 +757,20 @@ export class DashboardService {
       ): Promise<SustentacaoItemWithSLA[]> {
         const { staleDays = 7 } = options;
 
+        // Return cached result if fresh (avoids double calculation when metrics call this right after items)
+        if (this._sustentacaoCache && (Date.now() - this._sustentacaoCache.ts) < DashboardService.CACHE_TTL_MS) {
+          logger.debug('[DashboardService.getSustentacaoItems] returning cached result');
+          return this._sustentacaoCache.data;
+        }
+
         logger.debug('[DashboardService.getSustentacaoItems]', { options });
 
-        // Get all tasks with relations
-        const allTasks = await this.taskRepository.findAllWithRelations();
-
-        // Filter: type IN ('Ticket', 'Improvement'), area_path Sustentação, not closed
-        const filteredTasks = allTasks.filter((task) => {
-          const isValidType = SUSTENTACAO_WORK_ITEM_TYPES.includes(task.type ?? '');
-          const isValidAreaPath =
-            task.areaPath?.startsWith(SUSTENTACAO_AREA_PATH_PATTERN) ?? false;
-          const isOpen = !CLOSED_STATUSES.includes(task.status);
-
-          return isValidType && isValidAreaPath && isOpen;
-        });
+        // Get filtered tasks directly from DB (avoids loading all tasks)
+        const filteredTasks = await this.taskRepository.findOpenByAreaAndTypes(
+          SUSTENTACAO_AREA_PATH_PATTERN,
+          SUSTENTACAO_WORK_ITEM_TYPES,
+          CLOSED_STATUSES,
+        );
 
         // Get external IDs for priority lookup
         const externalIds = filteredTasks
@@ -788,8 +792,7 @@ export class DashboardService {
         const now = new Date();
         const HOURS_PER_DAY = 8;
 
-        const items: SustentacaoItemWithSLA[] = await Promise.all(
-          filteredTasks.map(async (task) => {
+        const items: SustentacaoItemWithSLA[] = filteredTasks.map((task) => {
             const localPriority = task.externalId
               ? (priorityMap.get(task.externalId) ?? 0)
               : 0;
@@ -799,7 +802,7 @@ export class DashboardService {
               now,
             );
             const isStale = daysSinceUpdate > staleDays;
-            const childrenCount = await this.countChildrenForTask(task.id);
+            const childrenCount = task.children?.length ?? 0;
 
             // SLA applies only to Ticket, not Improvement, and not excluded
             const isTicket = task.type === 'Ticket';
@@ -862,8 +865,7 @@ export class DashboardService {
               slaExcluded: isSlaExcluded,
               isHidden,
             };
-          }),
-        );
+          });
 
         // Sort: priority (critical first), then hours remaining ASC
         const priorityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
@@ -874,6 +876,7 @@ export class DashboardService {
           return a.businessHoursRemaining - b.businessHoursRemaining;
         });
 
+        this._sustentacaoCache = { data: items, ts: Date.now() };
         return items;
       }
 

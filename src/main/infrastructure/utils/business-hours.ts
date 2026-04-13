@@ -175,6 +175,23 @@ export function calculateBusinessHours(start: Date, end: Date): number {
   let current = new Date(start);
   const endTime = end.getTime();
 
+  // Fast-path: skip full weeks (5 business days × 8h = 40h per week)
+  while (true) {
+    // Find how many full days remain
+    const daysRemaining = Math.floor((endTime - current.getTime()) / (24 * 3_600_000));
+    if (daysRemaining < 7) break;
+
+    // Skip full weeks
+    const fullWeeks = Math.floor(daysRemaining / 7);
+    if (fullWeeks > 0) {
+      totalHours += fullWeeks * 5 * HOURS_PER_DAY;
+      current.setDate(current.getDate() + fullWeeks * 7);
+    } else {
+      break;
+    }
+  }
+
+  // Day-by-day for remaining days
   while (current.getTime() < endTime) {
     if (isBusinessDay(current)) {
       const startMin = minutesOfDay(current);

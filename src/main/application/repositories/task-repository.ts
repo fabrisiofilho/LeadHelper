@@ -76,4 +76,38 @@ export class TaskRepository extends BaseRepository<TaskEntity> {
       .orderBy('task.created_at', 'DESC')
       .getMany();
   }
+
+  async findOpenByAreaAndTypes(
+    areaPathPrefix: string,
+    validTypes: string[],
+    closedStatuses: string[],
+  ): Promise<TaskEntity[]> {
+    const qb = this.repository
+      .createQueryBuilder('task')
+      .leftJoinAndSelect('task.sprint', 'sprint')
+      .leftJoinAndSelect('task.team', 'team')
+      .leftJoinAndSelect('task.children', 'children')
+      .where('task.area_path LIKE :area', { area: `${areaPathPrefix}%` })
+      .andWhere('task.type IN (:...types)', { types: validTypes });
+
+    if (closedStatuses.length > 0) {
+      qb.andWhere('task.status NOT IN (:...closed)', { closed: closedStatuses });
+    }
+
+    return qb.getMany();
+  }
+
+  async searchByText(query: string, limit = 50): Promise<TaskEntity[]> {
+    return await this.repository
+      .createQueryBuilder('task')
+      .leftJoinAndSelect('task.sprint', 'sprint')
+      .leftJoinAndSelect('task.team', 'team')
+      .where(
+        '(task.title LIKE :q OR task.external_id LIKE :q)',
+        { q: `%${query}%` },
+      )
+      .orderBy('task.createdAt', 'DESC')
+      .limit(limit)
+      .getMany();
+  }
 }

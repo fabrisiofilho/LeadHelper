@@ -19,6 +19,8 @@ import { TaskLocalKanbanEntity } from '@main/application/entities/task-local-kan
 import { TaskUpdateEntity } from '@main/application/entities/task-update.entity';
 import { TaskSlaExclusionEntity } from '@main/application/entities/task-sla-exclusion.entity';
 import { TaskHiddenEntity } from '@main/application/entities/task-hidden.entity';
+import { NoteCardEntity } from '@main/application/entities/note-card.entity';
+import { NoteLinkEntity } from '@main/application/entities/note-link.entity';
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -72,6 +74,8 @@ function createDataSource(): DataSource {
       TaskUpdateEntity,
       TaskSlaExclusionEntity,
       TaskHiddenEntity,
+      NoteCardEntity,
+      NoteLinkEntity,
     ],
     migrations: [],
     subscribers: [],

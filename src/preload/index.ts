@@ -17,6 +17,7 @@ import {
   IHierarchyController,
   ITaskLocalKanbanController,
   ISyncController,
+  INoteCardController,
   SyncStatus,
 } from '@shared/interfaces/config/index.types';
 import {
@@ -134,6 +135,9 @@ const taskLocalKanbanController = createControllerFromConfig(
 const syncController = createControllerFromConfig(
   'sync',
 ) as unknown as ISyncController;
+const noteCardController = createControllerFromConfig(
+  'noteCard',
+) as unknown as INoteCardController;
 
 const api: CustomElectronAPI = {
   // Team Management Controllers
@@ -153,6 +157,7 @@ const api: CustomElectronAPI = {
   hierarchy: hierarchyController,
   taskLocalKanban: taskLocalKanbanController,
   sync: syncController,
+  noteCard: noteCardController,
 
   // Utility methods
   openExternalUrl: (url: string) => {

@@ -338,6 +338,14 @@ const ItemRow = memo(function ItemRow({
   const isTicket = t.type === 'Ticket';
   const noAssignee = !t.assignedToName;
 
+  // Check if item was created in the last 24 hours
+  const isNew = useMemo(() => {
+    const created = t.azureCreatedDate ?? t.createdAt;
+    if (!created) return false;
+    const createdMs = new Date(created).getTime();
+    return Date.now() - createdMs < 24 * 60 * 60 * 1000;
+  }, [t.azureCreatedDate, t.createdAt]);
+
   // Check if assignee's position allows this status
   const wrongPosition = useMemo(() => {
     if (noAssignee || !t.assignedToEmail || !t.status) return false;
@@ -363,9 +371,24 @@ const ItemRow = memo(function ItemRow({
       {/* Item: ID + Tipo + Área + Prio empilhados verticalmente */}
       <TableCell sx={{ verticalAlign: 'middle', py: 1 }}>
         <Stack spacing={0.4} alignItems="flex-start">
-          <Typography variant="caption" color="text.secondary" fontWeight={600}>
-            #{t.externalId ?? t.id}
-          </Typography>
+          <Stack direction="row" alignItems="center" spacing={0.5}>
+            <Typography variant="caption" color="text.secondary" fontWeight={600}>
+              #{t.externalId ?? t.id}
+            </Typography>
+            {isNew && (
+              <Typography
+                variant="caption"
+                sx={{
+                  fontWeight: 700,
+                  fontSize: '0.65rem',
+                  color: 'primary.main',
+                  lineHeight: 1,
+                }}
+              >
+                NOVO
+              </Typography>
+            )}
+          </Stack>
           <WorkItemTypeChip type={t.type} sx={{ height: 18 }} />
           {showAreaColumn && (
             <Chip
@@ -634,11 +657,12 @@ function MetricCard({ icon, label, value, subtitle, color = '#1976d2', bgColor, 
         p: 1.5,
         display: 'flex',
         alignItems: 'center',
-        gap: 1.5,
+        gap: 1.25,
         minWidth: 0,
         height: '100%',
         bgcolor: bgColor,
         position: 'relative',
+        borderRadius: 2,
       }}
     >
       {tooltip && (
@@ -662,9 +686,9 @@ function MetricCard({ icon, label, value, subtitle, color = '#1976d2', bgColor, 
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: 28,
-          width: 40,
-          height: 40,
+          fontSize: 24,
+          width: 38,
+          height: 38,
           borderRadius: '50%',
           bgcolor: `${color}14`,
           flexShrink: 0,
@@ -672,15 +696,15 @@ function MetricCard({ icon, label, value, subtitle, color = '#1976d2', bgColor, 
       >
         {icon}
       </Box>
-      <Box sx={{ minWidth: 0 }}>
+      <Box sx={{ minWidth: 0, flex: 1, pr: 2 }}>
         <Typography variant="h6" fontWeight={700} lineHeight={1.2} noWrap>
           {value}
         </Typography>
-        <Typography variant="caption" color="text.secondary" noWrap sx={{ lineHeight: 1.3 }}>
+        <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.3, display: 'block', wordBreak: 'break-word' }}>
           {label}
         </Typography>
         {subtitle && (
-          <Typography variant="caption" display="block" color="text.disabled" noWrap sx={{ lineHeight: 1.3 }}>
+          <Typography variant="caption" display="block" color="text.disabled" sx={{ lineHeight: 1.3, wordBreak: 'break-word', fontSize: '0.68rem' }}>
             {subtitle}
           </Typography>
         )}
@@ -927,6 +951,20 @@ export function DashboardSustentacaoPage() {
     return { devItems: dev, auditItems: audit, analysisItems: analysis };
   }, [filteredItems]);
 
+  // Count items with wrong position (assignee's cargo doesn't match the status lane)
+  const wrongPositionCount = useMemo(() => {
+    let count = 0;
+    for (const item of items) {
+      if (item.isHidden) continue;
+      const t = item.task;
+      if (!t.assignedToName || !t.assignedToEmail || !t.status) continue;
+      const allowed = positionMap.get(t.assignedToEmail.toLowerCase());
+      if (!allowed || allowed.length === 0) continue;
+      if (!allowed.includes(t.status.toLowerCase())) count++;
+    }
+    return count;
+  }, [items, positionMap]);
+
   // ── loading / error states ──
   if (loading) {
     return (
@@ -1023,9 +1061,10 @@ export function DashboardSustentacaoPage() {
           sx={{
             display: 'grid',
             gridTemplateColumns: {
-              xs: 'repeat(2, 1fr)',
-              sm: 'repeat(3, 1fr)',
-              md: 'repeat(4, 1fr)',
+              xs: '1fr',
+              sm: 'repeat(2, 1fr)',
+              md: 'repeat(3, 1fr)',
+              lg: 'repeat(4, 1fr)',
             },
             gap: 1.5,
             mb: 3,
@@ -1070,11 +1109,16 @@ export function DashboardSustentacaoPage() {
           {/* Linha 2: Indicadores operacionais */}
           <MetricCard
             icon={<UnassignedIcon fontSize="inherit" />}
-            label="Sem responsável"
-            value={metrics.unassignedCount}
+            label="Sem responsável / cargo incorreto"
+            value={metrics.unassignedCount + wrongPositionCount}
+            subtitle={
+              wrongPositionCount > 0
+                ? `${metrics.unassignedCount} sem resp. · ${wrongPositionCount} cargo incorreto`
+                : undefined
+            }
             color="#9c27b0"
-            bgColor={metrics.unassignedCount > 0 ? 'rgba(156,39,176,0.06)' : undefined}
-            tooltip="Itens em Dev/Auditoria sem responsável atribuído no Azure DevOps."
+            bgColor={(metrics.unassignedCount + wrongPositionCount) > 0 ? 'rgba(156,39,176,0.06)' : undefined}
+            tooltip="Itens sem responsável atribuído ou com responsável cujo cargo não corresponde ao status atual (ex: tarefa em Auditoria sem auditor alocado). Baseado nos cargos configurados em Cargos > Status Permitidos."
           />
           <MetricCard
             icon={<ClosedIcon fontSize="inherit" />}
@@ -1093,11 +1137,12 @@ export function DashboardSustentacaoPage() {
           />
           <MetricCard
             icon={<OldestIcon fontSize="inherit" />}
-            label="Ticket mais antigo"
+            label="Ticket mais antigo (SLA)"
             value={formatBusinessHours(metrics.oldestOpenTicketHours)}
             subtitle={metrics.oldestOpenTicketExternalId ? `#${metrics.oldestOpenTicketExternalId}` : undefined}
             color="#f57c00"
-            tooltip="Horas úteis desde a criação do Ticket aberto mais antigo com SLA ativo."
+            bgColor={metrics.oldestOpenTicketHours !== null && metrics.oldestOpenTicketHours > 40 ? 'rgba(245,124,0,0.06)' : undefined}
+            tooltip="Horas úteis de SLA acumuladas desde a criação do Ticket aberto mais antigo com SLA ativo. Considera apenas horário útil (08:00–12:00, 13:30–17:30). Limites: Crítica 4h, Alta 8h (1d), Média 24h (3d), Baixa 40h (5d)."
           />
         </Box>
       )}

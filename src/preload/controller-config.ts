@@ -69,6 +69,7 @@ export const CONTROLLER_CONFIG = {
       'findByStatus',
       'findByPeriod',
       'findBySprint',
+      'search',
     ] as const,
   },
   allocation: {
@@ -183,6 +184,19 @@ export const CONTROLLER_CONFIG = {
   sync: {
     prefix: 'sync',
     methods: ['getStatus'] as const,
+  },
+  noteCard: {
+    prefix: 'note-card',
+    methods: [
+      'create',
+      'update',
+      'delete',
+      'complete',
+      'reactivate',
+      'findById',
+      'findAllActive',
+      'findAllCompleted',
+    ] as const,
   },
 } as const;
 

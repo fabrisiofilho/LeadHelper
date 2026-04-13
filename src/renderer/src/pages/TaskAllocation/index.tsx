@@ -12,7 +12,6 @@ import {
   TextField,
   InputAdornment,
   Alert,
-  Divider,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
@@ -191,9 +190,15 @@ export function TaskAllocationPage() {
 
   return (
     <PageLayout>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        alignItems={{ xs: 'flex-start', sm: 'center' }}
+        justifyContent="space-between"
+        spacing={1}
+        mb={2}
+      >
         <Typography variant="h5">Alocação de Tarefas</Typography>
-        <Stack direction="row" spacing={1} alignItems="center">
+        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
           <Chip icon={<OkIcon />} label={`${okCount} ok`} size="small" color="success" variant="outlined" />
           {alertCount > 0 && (
             <Chip icon={<NoTaskIcon />} label={`${alertCount} sem tarefas`} size="small" color="warning" variant="outlined" />
@@ -220,7 +225,7 @@ export function TaskAllocationPage() {
             ),
           },
         }}
-        sx={{ mb: 2 }}
+        sx={{ mb: 2, maxWidth: { sm: 500 } }}
       />
 
       {/* Position filter */}
@@ -271,7 +276,7 @@ export function TaskAllocationPage() {
         </Stack>
       )}
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 2 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, gap: 2 }}>
         {filteredWithTypes.map((item) => (
           <MemberCard
             key={item.member.id}
@@ -311,116 +316,197 @@ function MemberCard({ item, onTaskClick }: { item: TaskAllocationMember; onTaskC
   const state = getCardState(item);
   const isOk = state === 'ok';
   const roleColor = ROLE_COLORS[member.role] ?? '#455a64';
+  const borderColor = isOk ? '#4caf50' : '#ff9800';
 
   return (
     <Paper
       variant="outlined"
       sx={{
-        p: 2,
-        borderRadius: 2,
-        borderColor: isOk ? 'success.main' : 'warning.main',
+        borderRadius: 2.5,
+        borderColor,
         borderWidth: 2,
-        bgcolor: isOk ? 'rgba(46,125,50,0.04)' : 'rgba(255,152,0,0.04)',
+        overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
-        gap: 1.5,
+        transition: 'box-shadow 0.2s',
+        '&:hover': { boxShadow: 4 },
       }}
     >
-      {/* Header */}
-      <Stack direction="row" alignItems="center" spacing={1.5}>
-        <Avatar sx={{ bgcolor: roleColor, width: 40, height: 40, fontSize: '0.85rem' }}>
-          {getInitials(member.name)}
-        </Avatar>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography variant="subtitle2" fontWeight={600} noWrap>{member.name}</Typography>
-          <Stack direction="row" alignItems="center" spacing={0.5} flexWrap="wrap">
-            {positionName ? (
-              <Chip label={positionName} size="small" sx={{ height: 18, fontSize: '0.65rem', fontWeight: 600, bgcolor: roleColor + '18', color: roleColor }} />
-            ) : (
-              <Chip label={ROLE_LABELS[member.role] ?? member.role} size="small" sx={{ height: 18, fontSize: '0.65rem', fontWeight: 600, bgcolor: roleColor + '18', color: roleColor }} />
-            )}
-          </Stack>
-        </Box>
-        {isOk ? (
-          <Stack alignItems="center">
-            <OkIcon sx={{ color: 'success.main', fontSize: 22 }} />
-            {totalTasks > 0 && (
-              <Typography variant="caption" color="success.dark" fontWeight={700} sx={{ fontSize: '0.65rem' }}>
-                {totalTasks}
-              </Typography>
-            )}
-          </Stack>
-        ) : (
-          <WarningIcon sx={{ color: 'warning.main', fontSize: 22 }} />
-        )}
-      </Stack>
-
-      {/* Status line */}
-      {!isOk && (
-        <Typography variant="caption" color="warning.dark" fontWeight={600} sx={{ px: 0.5 }}>
-          Sem tarefas ativas — necessita alocação
-        </Typography>
-      )}
-      {isOk && !item.hasCards && (
-        <Typography variant="caption" color="success.dark" fontWeight={600} sx={{ px: 0.5 }}>
-          Cargo sem etapas configuradas
-        </Typography>
-      )}
-
-      {/* Task groups by area */}
-      {taskGroups.map((group, idx) => (
-        <Box key={group.area}>
-          {idx > 0 && <Divider sx={{ mb: 1 }} />}
-          <Stack direction="row" alignItems="center" spacing={0.5} mb={0.75}>
-            <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: getAreaColor(group.area), flexShrink: 0 }} />
-            <Typography variant="caption" fontWeight={700} color={getAreaColor(group.area)}>
-              {group.area}
+      {/* Colored header band */}
+      <Box
+        sx={{
+          px: 2,
+          py: 1.5,
+          background: isOk
+            ? 'linear-gradient(135deg, rgba(46,125,50,0.08) 0%, rgba(76,175,80,0.04) 100%)'
+            : 'linear-gradient(135deg, rgba(255,152,0,0.10) 0%, rgba(255,193,7,0.04) 100%)',
+        }}
+      >
+        <Stack direction="row" alignItems="center" spacing={1.5}>
+          <Avatar
+            sx={{
+              bgcolor: roleColor,
+              width: 44,
+              height: 44,
+              fontSize: '0.9rem',
+              fontWeight: 700,
+              boxShadow: `0 0 0 2px #fff, 0 0 0 4px ${roleColor}40`,
+            }}
+          >
+            {getInitials(member.name)}
+          </Avatar>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography
+              variant="subtitle2"
+              fontWeight={700}
+              sx={{ lineHeight: 1.3, wordBreak: 'break-word' }}
+            >
+              {member.name}
             </Typography>
-            <Chip label={group.tasks.length} size="small" sx={{ height: 16, fontSize: '0.6rem', fontWeight: 700, bgcolor: getAreaColor(group.area) + '18', color: getAreaColor(group.area) }} />
-          </Stack>
-          <Stack spacing={0.5}>
-            {group.tasks.map((task) => (
-              <TaskRow key={task.externalId ?? task.id} task={task} onClick={() => onTaskClick(task)} />
-            ))}
-          </Stack>
-        </Box>
-      ))}
+            <Stack direction="row" alignItems="center" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 0.25 }}>
+              <Chip
+                label={positionName || ROLE_LABELS[member.role] || member.role}
+                size="small"
+                sx={{
+                  height: 20,
+                  fontSize: '0.65rem',
+                  fontWeight: 700,
+                  bgcolor: roleColor + '1A',
+                  color: roleColor,
+                  borderRadius: 1,
+                }}
+              />
+            </Stack>
+          </Box>
+          {/* Status badge */}
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: 44,
+              height: 44,
+              borderRadius: 2,
+              bgcolor: isOk ? '#4caf5014' : '#ff980014',
+            }}
+          >
+            {isOk ? (
+              <>
+                <Typography variant="h6" fontWeight={800} lineHeight={1} color="success.main" sx={{ fontSize: '1.1rem' }}>
+                  {totalTasks}
+                </Typography>
+                <Typography variant="caption" color="success.main" sx={{ fontSize: '0.55rem', lineHeight: 1 }}>
+                  {totalTasks === 1 ? 'tarefa' : 'tarefas'}
+                </Typography>
+              </>
+            ) : (
+              <WarningIcon sx={{ color: 'warning.main', fontSize: 26 }} />
+            )}
+          </Box>
+        </Stack>
+      </Box>
+
+      {/* Body */}
+      <Box sx={{ px: 2, py: 1.5, flex: 1 }}>
+        {/* Status alert */}
+        {!isOk && (
+          <Alert severity="warning" variant="standard" sx={{ py: 0, px: 1, mb: 1.5, '& .MuiAlert-message': { fontSize: '0.75rem', py: 0.5 } }}>
+            Sem tarefas ativas — necessita alocação
+          </Alert>
+        )}
+        {isOk && !item.hasCards && (
+          <Alert severity="info" variant="standard" sx={{ py: 0, px: 1, mb: 1.5, '& .MuiAlert-message': { fontSize: '0.75rem', py: 0.5 } }}>
+            Cargo sem etapas configuradas
+          </Alert>
+        )}
+
+        {/* Task groups by area */}
+        <Stack spacing={1.5}>
+          {taskGroups.map((group) => (
+            <Box key={group.area}>
+              <Stack direction="row" alignItems="center" spacing={0.75} mb={0.75}>
+                <Box
+                  sx={{
+                    width: 4,
+                    height: 16,
+                    borderRadius: 1,
+                    bgcolor: getAreaColor(group.area),
+                    flexShrink: 0,
+                  }}
+                />
+                <Typography variant="caption" fontWeight={700} color={getAreaColor(group.area)} sx={{ flex: 1 }}>
+                  {group.area}
+                </Typography>
+                <Chip
+                  label={group.tasks.length}
+                  size="small"
+                  sx={{
+                    height: 18,
+                    minWidth: 24,
+                    fontSize: '0.65rem',
+                    fontWeight: 700,
+                    bgcolor: getAreaColor(group.area),
+                    color: '#fff',
+                  }}
+                />
+              </Stack>
+              <Stack spacing={0.5}>
+                {group.tasks.map((task) => (
+                  <TaskRow key={task.externalId ?? task.id} task={task} onClick={() => onTaskClick(task)} />
+                ))}
+              </Stack>
+            </Box>
+          ))}
+        </Stack>
+      </Box>
     </Paper>
   );
 }
 
 function TaskRow({ task, onClick }: { task: Task; onClick: () => void }) {
-  const context = task.areaPath?.includes('Sustentação') ? 'Sustentação'
-    : task.areaPath?.includes('Projetos') ? 'Projeto'
-    : null;
-  const contextColor = context === 'Sustentação' ? '#e65100' : context === 'Projeto' ? '#2e7d32' : undefined;
+  const prioColor = PRIO_COLOR[task.priority] ?? '#757575';
 
   return (
-    <Paper
-      variant="outlined"
-      sx={{ p: 0.75, borderRadius: 1, cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
+    <Box
       onClick={onClick}
+      sx={{
+        px: 1,
+        py: 0.75,
+        borderRadius: 1.5,
+        cursor: 'pointer',
+        bgcolor: 'action.hover',
+        borderLeft: `3px solid ${prioColor}`,
+        transition: 'background-color 0.15s',
+        '&:hover': { bgcolor: 'action.selected' },
+      }}
     >
-      <Stack direction="row" alignItems="center" spacing={0.5} mb={0.25} flexWrap="wrap">
-        <Typography variant="caption" color="text.secondary" fontWeight={600}>
+      <Stack direction="row" alignItems="center" spacing={0.5} mb={0.25}>
+        <Typography variant="caption" color="text.disabled" fontWeight={700} sx={{ fontSize: '0.7rem' }}>
           #{task.externalId ?? task.id}
         </Typography>
         <WorkItemTypeChip type={task.type} sx={{ height: 16 }} />
+        <Box sx={{ flex: 1 }} />
         <Chip
-          label={PRIO_LABEL[task.priority] ?? task.priority}
+          label={task.status}
           size="small"
-          sx={{ height: 14, fontSize: '0.55rem', fontWeight: 700, bgcolor: PRIO_COLOR[task.priority] ?? '#757575', color: '#fff' }}
+          variant="outlined"
+          sx={{ height: 16, fontSize: '0.55rem', borderRadius: 1 }}
         />
-        {context && (
-          <Chip
-            label={context}
-            size="small"
-            sx={{ height: 14, fontSize: '0.55rem', fontWeight: 700, bgcolor: contextColor + '18', color: contextColor, border: '1px solid', borderColor: contextColor + '40' }}
-          />
-        )}
       </Stack>
-      <Typography variant="caption" sx={{ lineHeight: 1.3, display: 'block' }}>{task.title}</Typography>
-      <Chip label={task.status} size="small" variant="outlined" sx={{ height: 16, fontSize: '0.55rem', mt: 0.25 }} />
-    </Paper>
+      <Typography
+        variant="caption"
+        sx={{
+          lineHeight: 1.35,
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+          wordBreak: 'break-word',
+        }}
+      >
+        {task.title}
+      </Typography>
+    </Box>
   );
 }

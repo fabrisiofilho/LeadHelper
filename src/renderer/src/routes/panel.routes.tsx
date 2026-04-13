@@ -7,6 +7,7 @@ import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 import GroupWorkOutlinedIcon from '@mui/icons-material/GroupWorkOutlined';
 import TaskAltOutlinedIcon from '@mui/icons-material/TaskAltOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
+import AssignmentIndOutlinedIcon from '@mui/icons-material/AssignmentIndOutlined';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { DrawerNavigator } from './components/DrawerNavigator';
 import { IDrawerItem } from '@renderer/types/drawer/drawerItem';
@@ -20,6 +21,7 @@ import { AzureDevOpsConfigPage } from '@renderer/pages/AzureDevOpsConfig';
 import { PositionsPage } from '@renderer/pages/Positions';
 import { TeamsPage } from '@renderer/pages/Teams';
 import { TeamAllocationPage } from '@renderer/pages/TeamAllocation';
+import { TaskAllocationPage } from '@renderer/pages/TaskAllocation';
 import { TaskManagementPage } from '@renderer/pages/TaskManagement';
 import { SystemSettingsPage } from '@renderer/pages/SystemSettings';
 
@@ -49,6 +51,12 @@ const GENERAL_SECTION: IDrawerSection = {
       label: 'Alocação de Equipes',
       path: '/panel/team-allocation',
       icon: <GroupWorkOutlinedIcon />,
+      canAccess: true,
+    },
+    {
+      label: 'Alocação de Tarefas',
+      path: '/panel/task-allocation',
+      icon: <AssignmentIndOutlinedIcon />,
       canAccess: true,
     },
     {
@@ -101,6 +109,14 @@ const ROUTES_ITEMS: WithRouteProps<IDrawerItem>[] = [
     canAccess: true,
     routeElement: <TeamAllocationPage />,
     routePath: '/team-allocation',
+  },
+  {
+    label: 'Alocação de Tarefas',
+    path: '/panel/task-allocation',
+    icon: <AssignmentIndOutlinedIcon />,
+    canAccess: true,
+    routeElement: <TaskAllocationPage />,
+    routePath: '/task-allocation',
   },
   {
     label: 'Gestão de Tarefas',
@@ -156,10 +172,22 @@ export function PanelRoutes() {
           />
         ))}
 
-        <Route path="/reports" element={<Navigate to="/panel/dashboard-sustentacao" replace />} />
-        <Route path="/dashboard" element={<Navigate to="/panel/dashboard-sustentacao" replace />} />
-        <Route path="/" element={<Navigate to="/panel/dashboard-sustentacao" replace />} />
-        <Route path="*" element={<Navigate to="/panel/dashboard-sustentacao" replace />} />
+        <Route
+          path="/reports"
+          element={<Navigate to="/panel/dashboard-sustentacao" replace />}
+        />
+        <Route
+          path="/dashboard"
+          element={<Navigate to="/panel/dashboard-sustentacao" replace />}
+        />
+        <Route
+          path="/"
+          element={<Navigate to="/panel/dashboard-sustentacao" replace />}
+        />
+        <Route
+          path="*"
+          element={<Navigate to="/panel/dashboard-sustentacao" replace />}
+        />
       </Routes>
     </DrawerNavigator>
   );

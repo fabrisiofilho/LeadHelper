@@ -644,6 +644,7 @@ export interface IDashboardController {
   ): Promise<ApiResponse<SustentacaoItemWithSLA[]>>;
   getSustentacaoMetrics(statuses?: string[]): Promise<ApiResponse<SustentacaoMetrics>>;
   getSustentacaoMembersWithCards(): Promise<ApiResponse<SustentacaoMemberWithCards[]>>;
+  getTaskAllocationData(): Promise<ApiResponse<TaskAllocationMember[]>>;
   getProjetosItems(sprintId: number): Promise<ApiResponse<ProjetosResult>>;
   getTaskUpdateHistory(taskId: number): Promise<ApiResponse<TaskUpdateRecord[]>>;
   getBurndownData(sprintId: number): Promise<ApiResponse<BurndownPoint[]>>;
@@ -916,6 +917,7 @@ export interface SustentacaoMetrics {
   slaViolatedCount: number;
   slaViolatedPercent: number;
   slaWarningCount: number;
+  slaUrgentCount: number;
   unassignedCount: number;
   avgAgeBusinessHours: number;
   avgCloseTimeBusinessHours: number | null; // null if no closed tickets in period
@@ -935,6 +937,26 @@ export interface SustentacaoMemberWithCards {
   member: TeamMember;
   inProgressCards: SustentacaoItemWithSLA[];
   hasNoCards: boolean;
+}
+
+/**
+ * Represents a team member with their tasks filtered by position's allowed statuses.
+ * Used by the Task Allocation page.
+ */
+export interface TaskAllocationMember {
+  member: TeamMember;
+  /** Tasks grouped by area context */
+  taskGroups: TaskAllocationGroup[];
+  positionName?: string;
+  totalTasks: number;
+  hasCards: boolean;
+  /** Whether the member's position has allowedStatuses configured */
+  hasAllowedStatuses: boolean;
+}
+
+export interface TaskAllocationGroup {
+  area: string; // e.g. 'Gestão de Terceiros', 'Chamada Tecnológica', 'Projetos', 'Outros'
+  tasks: Task[];
 }
 
 /**

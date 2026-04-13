@@ -28,7 +28,7 @@ export interface TeamMember {
   role: TeamMemberRole;
   isActive: boolean;
   positionId?: number;
-  position?: { id: number; name: string; description?: string };
+  position?: { id: number; name: string; description?: string; allowedStatuses?: string };
   teams?: { id: number; name: string; isActive: boolean }[];
   createdAt?: Date;
   updatedAt?: Date;

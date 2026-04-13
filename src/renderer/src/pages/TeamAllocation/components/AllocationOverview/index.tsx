@@ -119,15 +119,10 @@ function UnallocatedMembersByRole({
         <Box
           sx={{
             display: 'flex',
+            flexDirection: 'column',
             gap: 1.5,
-            overflowX: 'auto',
             pt: 1.5,
             pb: 0.5,
-            '&::-webkit-scrollbar': { height: 4 },
-            '&::-webkit-scrollbar-thumb': {
-              borderRadius: 2,
-              bgcolor: 'rgba(128,128,128,0.3)',
-            },
           }}
         >
           {grouped.map(([role, roleMembers]) => (
@@ -136,11 +131,8 @@ function UnallocatedMembersByRole({
               variant="outlined"
               sx={{
                 p: 1.5,
-                minWidth: 180,
-                maxWidth: 260,
                 borderColor: colors[role] + '60',
                 borderRadius: 2,
-                flexShrink: 0,
               }}
             >
               <Stack direction="row" alignItems="center" spacing={1} mb={1}>

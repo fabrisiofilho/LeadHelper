@@ -227,6 +227,21 @@ export class DashboardController extends BaseHandler {
     }
   }
 
+  @IpcMethod('dashboard:getTaskAllocationData')
+  async getTaskAllocationData(): Promise<ApiResponse<import('@shared/interfaces/config/index.types').TaskAllocationMember[]>> {
+    try {
+      const result = await this.service.getTaskAllocationData();
+      return { success: true, data: result };
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Erro ao obter dados de alocação de tarefas';
+      logger.error('DashboardController.getTaskAllocationData error:', error);
+      return { success: false, error: message };
+    }
+  }
+
   // ============================================================================
   // Task Update History Handlers
   // ============================================================================

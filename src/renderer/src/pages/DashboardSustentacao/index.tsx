@@ -23,7 +23,10 @@ import {
   Paper,
   Switch,
   FormControlLabel,
+  TextField,
+  InputAdornment,
 } from '@mui/material';
+import { Search as SearchIcon } from '@mui/icons-material';
 import {
   Refresh as RefreshIcon,
   TimerOff as TimerOffIcon,
@@ -143,16 +146,28 @@ function dashboardSort(
   a: SustentacaoItemWithSLA,
   b: SustentacaoItemWithSLA,
 ): number {
-  // 1. type+area weight
+  const aIsTicket = a.task.type === 'Ticket';
+  const bIsTicket = b.task.type === 'Ticket';
+  const aHasActiveSla = aIsTicket && !a.slaExcluded;
+  const bHasActiveSla = bIsTicket && !b.slaExcluded;
+
+  // 1. Tickets with active SLA go to the very top, sorted by remaining hours ASC
+  if (aHasActiveSla && !bHasActiveSla) return -1;
+  if (!aHasActiveSla && bHasActiveSla) return 1;
+  if (aHasActiveSla && bHasActiveSla) {
+    return a.businessHoursRemaining - b.businessHoursRemaining;
+  }
+
+  // 2. For items without active SLA: original rule
+  //    GT Ticket(0) > GT Improvement(1) > CT Ticket(2) > CT Improvement(3)
+  //    then by priority, then by remaining hours
   const wa = typeAreaWeight(a);
   const wb = typeAreaWeight(b);
   if (wa !== wb) return wa - wb;
-  // 2. priority (critical first)
   const pa = PRIO_ORDER[a.task.priority] ?? 99;
   const pb = PRIO_ORDER[b.task.priority] ?? 99;
   if (pa !== pb) return pa - pb;
-  // 3. SLA remaining ASC
-  return a.businessHoursRemaining - b.businessHoursRemaining;
+  return 0;
 }
 
 function formatSlaRemaining(hours: number): string {
@@ -179,6 +194,7 @@ function slaChipColor(
   if (item.slaExcluded) return 'default';
   if (item.slaViolated) return 'error';
   if (item.slaWarning) return 'warning';
+  if (!item.slaViolated && item.businessHoursRemaining <= 8 && item.businessHoursRemaining > 0) return 'warning';
   return 'info';
 }
 
@@ -422,17 +438,32 @@ const ItemRow = memo(function ItemRow({
             <Chip label="Excluído" size="small" variant="outlined" />
           ) : (
             <Stack spacing={0.3}>
-              <Chip
-                icon={item.slaViolated ? <TimerOffIcon /> : <TimerIcon />}
-                label={
-                  item.slaViolated
-                    ? formatSlaDelay(item.businessHoursRemaining)
-                    : formatSlaRemaining(item.businessHoursRemaining)
-                }
-                size="small"
-                color={slaChipColor(item)}
-                variant={item.slaViolated ? 'filled' : 'outlined'}
-              />
+              <Stack direction="row" alignItems="center" spacing={0.5}>
+                <Chip
+                  icon={item.slaViolated ? <TimerOffIcon /> : <TimerIcon />}
+                  label={
+                    item.slaViolated
+                      ? formatSlaDelay(item.businessHoursRemaining)
+                      : formatSlaRemaining(item.businessHoursRemaining)
+                  }
+                  size="small"
+                  color={slaChipColor(item)}
+                  variant={item.slaViolated ? 'filled' : 'outlined'}
+                />
+                {!item.slaViolated && item.businessHoursRemaining > 0 && item.businessHoursRemaining <= 8 && (
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: 'warning.dark',
+                      fontWeight: 700,
+                      fontSize: '0.65rem',
+                      lineHeight: 1,
+                    }}
+                  >
+                    ⚠ Urgente
+                  </Typography>
+                )}
+              </Stack>
               {item.expirationDate && (
                 <Typography
                   variant="caption"
@@ -682,6 +713,7 @@ export function DashboardSustentacaoPage() {
   const [positionMap, setPositionMap] = useState<Map<string, string[]>>(new Map());
   const [busyItems, setBusyItems] = useState<Set<string>>(new Set());
   const [metricsLoading, setMetricsLoading] = useState(false);
+  const [searchText, setSearchText] = useState('');
   const [slaOrderModal, setSlaOrderModal] = useState<{ open: boolean; title: string; items: SustentacaoItemWithSLA[] }>({
     open: false,
     title: '',
@@ -869,11 +901,21 @@ export function DashboardSustentacaoPage() {
 
   // ── derived data ──
 
+  const filteredItems = useMemo(() => {
+    if (!searchText.trim()) return items;
+    const term = searchText.trim().toLowerCase();
+    return items.filter((item) => {
+      const id = (item.task.externalId ?? String(item.task.id)).toLowerCase();
+      const title = (item.task.title ?? '').toLowerCase();
+      return id.includes(term) || title.includes(term);
+    });
+  }, [items, searchText]);
+
   const { devItems, auditItems, analysisItems } = useMemo(() => {
     const dev: SustentacaoItemWithSLA[] = [];
     const audit: SustentacaoItemWithSLA[] = [];
     const analysis: SustentacaoItemWithSLA[] = [];
-    for (const item of items) {
+    for (const item of filteredItems) {
       const s = item.task.status;
       if (DEV_STATUSES.has(s)) dev.push(item);
       else if (AUDIT_STATUSES.has(s)) audit.push(item);
@@ -883,7 +925,7 @@ export function DashboardSustentacaoPage() {
     audit.sort(dashboardSort);
     analysis.sort(dashboardSort);
     return { devItems: dev, auditItems: audit, analysisItems: analysis };
-  }, [items]);
+  }, [filteredItems]);
 
   // ── loading / error states ──
   if (loading) {
@@ -955,6 +997,26 @@ export function DashboardSustentacaoPage() {
         </Stack>
       </Stack>
 
+      {/* Search Filter */}
+      <TextField
+        fullWidth
+        size="small"
+        placeholder="Buscar por código ou descrição da tarefa..."
+        value={searchText}
+        onChange={(e) => setSearchText(e.target.value)}
+        onKeyDown={(e) => e.stopPropagation()}
+        slotProps={{
+          input: {
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
+              </InputAdornment>
+            ),
+          },
+        }}
+        sx={{ mb: 2 }}
+      />
+
       {/* Metric Cards */}
       {metrics && (
         <Box
@@ -979,14 +1041,14 @@ export function DashboardSustentacaoPage() {
             label="Tickets abertos"
             value={metrics.openTickets}
             color="#4caf50"
-            tooltip="Tickets em fase de Desenvolvimento ou Auditoria na área de Sustentação."
+            tooltip="Tickets em Desenvolvimento ou Auditoria na área de Sustentação (exclui ocultos)."
           />
           <MetricCard
             icon={<ImprovementIcon fontSize="inherit" />}
             label="Melhorias abertas"
             value={metrics.openImprovements}
             color="#e91e63"
-            tooltip="Improvements em fase de Desenvolvimento ou Auditoria na área de Sustentação."
+            tooltip="Improvements em Desenvolvimento ou Auditoria na área de Sustentação (exclui ocultos)."
           />
           <MetricCard
             icon={<ViolatedIcon fontSize="inherit" />}
@@ -995,39 +1057,39 @@ export function DashboardSustentacaoPage() {
             subtitle={`${metrics.slaViolatedPercent}% dos tickets`}
             color="#d32f2f"
             bgColor={metrics.slaViolatedCount > 0 ? 'rgba(211,47,47,0.06)' : undefined}
-            tooltip="Tickets em Dev/Auditoria que ultrapassaram o limite de SLA. Limites: Crítica 4h, Alta 8h, Média 24h, Baixa 40h (horas úteis: 08h–12h e 13h30–17h30)."
+            tooltip="Tickets cujo tempo de SLA já foi ultrapassado. Limites por prioridade: Crítica 4h, Alta 8h, Média 24h, Baixa 40h úteis."
           />
           <MetricCard
             icon={<WarningIcon fontSize="inherit" />}
-            label="SLA em risco"
-            value={metrics.slaWarningCount}
+            label="SLA urgente (≤8h)"
+            value={metrics.slaUrgentCount}
             color="#ed6c02"
-            bgColor={metrics.slaWarningCount > 0 ? 'rgba(237,108,2,0.06)' : undefined}
-            tooltip="Tickets em Dev/Auditoria que já consumiram ≥80% do tempo de SLA mas ainda não estouraram."
+            bgColor={metrics.slaUrgentCount > 0 ? 'rgba(237,108,2,0.06)' : undefined}
+            tooltip="Tickets com 8 horas úteis ou menos para estourar o SLA (1 dia útil). Requer atenção imediata."
           />
-          {/* Linha 2: Tempos + indicadores */}
+          {/* Linha 2: Indicadores operacionais */}
           <MetricCard
             icon={<UnassignedIcon fontSize="inherit" />}
             label="Sem responsável"
             value={metrics.unassignedCount}
             color="#9c27b0"
             bgColor={metrics.unassignedCount > 0 ? 'rgba(156,39,176,0.06)' : undefined}
-            tooltip="Itens em Dev/Auditoria que não possuem responsável atribuído no Azure DevOps."
+            tooltip="Itens em Dev/Auditoria sem responsável atribuído no Azure DevOps."
+          />
+          <MetricCard
+            icon={<ClosedIcon fontSize="inherit" />}
+            label="Fechados (30 dias)"
+            value={metrics.closedTicketsLast30Days}
+            subtitle={metrics.avgCloseTimeBusinessHours !== null ? `Média: ${formatBusinessHours(metrics.avgCloseTimeBusinessHours)}` : undefined}
+            color="#2e7d32"
+            tooltip="Tickets de Sustentação fechados nos últimos 30 dias e tempo médio entre criação e fechamento."
           />
           <MetricCard
             icon={<AvgTimeIcon fontSize="inherit" />}
             label="Idade média (Tickets)"
             value={formatBusinessHours(metrics.avgAgeBusinessHours)}
             color="#0288d1"
-            tooltip="Média de horas úteis desde a criação dos Tickets em Dev/Auditoria (exclui SLA removidos). 1d = 8h úteis."
-          />
-          <MetricCard
-            icon={<ClosedIcon fontSize="inherit" />}
-            label="Tempo médio p/ fechar"
-            value={formatBusinessHours(metrics.avgCloseTimeBusinessHours)}
-            subtitle={`${metrics.closedTicketsLast30Days} fechados (30d)`}
-            color="#2e7d32"
-            tooltip="Média de horas úteis entre criação e fechamento dos Tickets finalizados nos últimos 30 dias. 1d = 8h úteis."
+            tooltip="Média de horas úteis desde a criação dos Tickets abertos com SLA ativo. 1d = 8h úteis."
           />
           <MetricCard
             icon={<OldestIcon fontSize="inherit" />}
@@ -1035,7 +1097,7 @@ export function DashboardSustentacaoPage() {
             value={formatBusinessHours(metrics.oldestOpenTicketHours)}
             subtitle={metrics.oldestOpenTicketExternalId ? `#${metrics.oldestOpenTicketExternalId}` : undefined}
             color="#f57c00"
-            tooltip="Horas úteis decorridas desde a criação do Ticket aberto mais antigo em Desenvolvimento ou Auditoria. 1d = 8h úteis."
+            tooltip="Horas úteis desde a criação do Ticket aberto mais antigo com SLA ativo."
           />
         </Box>
       )}

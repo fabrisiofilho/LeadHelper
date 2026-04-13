@@ -234,9 +234,15 @@ export function AllocationDashboardTab() {
           </SectionTitle>
 
           {data.membersWithoutAllocation.length > 0 ? (
-            <Stack spacing={1}>
+            <Box
+              sx={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 1,
+              }}
+            >
               {data.membersWithoutAllocation.map((member) => (
-                <MemberItem key={member.id}>
+                <MemberItem key={member.id} sx={{ flex: '0 0 auto', minWidth: 240, maxWidth: 320 }}>
                   <Avatar
                     sx={{
                       bgcolor:
@@ -264,7 +270,7 @@ export function AllocationDashboardTab() {
                   />
                 </MemberItem>
               ))}
-            </Stack>
+            </Box>
           ) : (
             <EmptyState>
               <Typography variant="body2" color="text.secondary">

@@ -46,6 +46,22 @@ export function MemberDetails({
   onEditAllocation,
   onRemoveAllocation,
 }: MemberDetailsProps) {
+  const now = new Date();
+
+  const isFuture = (allocation: TeamMemberAllocation): boolean => {
+    if (!allocation.startDate) return false;
+    return new Date(allocation.startDate) > now;
+  };
+
+  const isPast = (allocation: TeamMemberAllocation): boolean => {
+    if (!allocation.endDate) return false;
+    return new Date(allocation.endDate) < now;
+  };
+
+  const formatDate = (date?: Date): string => {
+    if (!date) return '—';
+    return new Date(date).toLocaleDateString('pt-BR');
+  };
   if (loading) {
     return (
       <MemberDetailsContainer>
@@ -157,9 +173,30 @@ export function MemberDetails({
                         color={allocation.isActive ? 'success' : 'default'}
                         sx={{ height: 20, fontSize: '0.7rem' }}
                       />
+                      {isFuture(allocation) && (
+                        <Chip
+                          label="Futuro"
+                          size="small"
+                          color="info"
+                          variant="outlined"
+                          sx={{ height: 20, fontSize: '0.7rem' }}
+                        />
+                      )}
+                      {isPast(allocation) && (
+                        <Chip
+                          label="Encerrado"
+                          size="small"
+                          color="default"
+                          variant="outlined"
+                          sx={{ height: 20, fontSize: '0.7rem' }}
+                        />
+                      )}
                     </Stack>
 
                     <Stack spacing={0.5}>
+                      <Typography variant="caption" color="text.secondary">
+                        Período: {formatDate(allocation.startDate)} → {allocation.endDate ? formatDate(allocation.endDate) : 'Indeterminado'}
+                      </Typography>
                       {allocation.notes && (
                         <Typography variant="body2" color="text.secondary">
                           Motivo: {allocation.notes}

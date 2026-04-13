@@ -32,8 +32,16 @@ export interface TeamMember {
   id: number;
   name: string;
   email: string;
-  role: string;
+  role: import('@shared/interfaces/config/index.types').TeamMemberRole;
   isActive: boolean;
+  positionId?: number;
+  position?: {
+    id: number;
+    name: string;
+    description?: string;
+    allowedStatuses?: string;
+    isActive: boolean;
+  };
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -109,13 +117,17 @@ export interface SustentacaoItem {
  * Used by the Sustentação dashboard to display SLA status indicators.
  */
 export interface SustentacaoItemWithSLA extends SustentacaoItem {
-  businessHoursElapsed: number;  // business hours elapsed
-  slaLimit: number;              // SLA limit in business hours
-  slaPercentage: number;         // % of SLA consumed
-  slaViolated: boolean;          // SLA exceeded
-  slaWarning: boolean;           // ≥80% of SLA
-  slaExcluded?: boolean;         // SLA manually excluded by user
-  isHidden?: boolean;            // Item hidden/deactivated by user
+  businessHoursElapsed: number;
+  slaLimit: number;
+  slaPercentage: number;
+  slaViolated: boolean;
+  slaWarning: boolean;
+  expirationDate: string | null;
+  businessHoursRemaining: number;
+  daysUntilExpiration: number;
+  expirationAlert: 'expired' | 'critical' | 'warning' | 'attention' | null;
+  slaExcluded?: boolean;
+  isHidden?: boolean;
 }
 
 /**
@@ -698,6 +710,16 @@ export class DashboardService {
       email: entity.email,
       role: entity.role,
       isActive: entity.isActive,
+      positionId: entity.positionId,
+      position: entity.position
+        ? {
+            id: entity.position.id,
+            name: entity.position.name,
+            description: entity.position.description,
+            allowedStatuses: entity.position.allowedStatuses,
+            isActive: entity.position.isActive,
+          }
+        : undefined,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
     };
@@ -942,6 +964,134 @@ export class DashboardService {
     }
 
   /**
+   * Get task allocation data: all active members with ALL their open tasks
+   * filtered by each member's position allowedStatuses, grouped by area.
+   */
+  async getTaskAllocationData(): Promise<import('@shared/interfaces/config/index.types').TaskAllocationMember[]> {
+    logger.debug('[DashboardService.getTaskAllocationData]');
+
+    // 1. Get all active members (with position relation)
+    const activeMembers = await this.teamMemberRepository.findActive();
+
+    // 2. Get ALL tasks (not just sustentação)
+    const allTasks = await this.taskRepository.findAllWithRelations();
+
+    // 3. Filter: only open tasks
+    const openTasks = allTasks.filter((t) => !CLOSED_STATUSES.includes(t.status));
+
+    // 4. Index by assignedToEmail (lowercase)
+    const tasksByEmail = new Map<string, import('../entities/task.entity').TaskEntity[]>();
+    for (const task of openTasks) {
+      const email = task.assignedToEmail?.toLowerCase();
+      if (!email) continue;
+      if (!tasksByEmail.has(email)) tasksByEmail.set(email, []);
+      tasksByEmail.get(email)!.push(task);
+    }
+
+    // 5. For each member, filter by position's allowedStatuses and group by area
+    const result: import('@shared/interfaces/config/index.types').TaskAllocationMember[] = [];
+
+    for (const entity of activeMembers) {
+      const email = entity.email?.toLowerCase();
+      const assignedTasks = email ? tasksByEmail.get(email) ?? [] : [];
+
+      // Parse allowed statuses from position
+      const allowedStatuses = entity.position?.allowedStatuses
+        ? entity.position.allowedStatuses.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
+        : [];
+
+      // Filter by position's allowed statuses
+      const filteredTasks = allowedStatuses.length > 0
+        ? assignedTasks.filter((task) => {
+            const status = task.status?.toLowerCase() ?? '';
+            return allowedStatuses.some((allowed) => status.includes(allowed));
+          })
+        : assignedTasks;
+
+      // Group by area context
+      const groupMap = new Map<string, import('@shared/interfaces/config/index.types').Task[]>();
+      for (const task of filteredTasks) {
+        const area = this.classifyArea(task.areaPath);
+        if (!groupMap.has(area)) groupMap.set(area, []);
+        groupMap.get(area)!.push(this.mapTaskToDto(task));
+      }
+
+      const taskGroups = Array.from(groupMap.entries())
+        .map(([area, tasks]) => ({ area, tasks }))
+        .sort((a, b) => a.area.localeCompare(b.area));
+
+      const member = this.mapTeamMemberToDto(entity);
+      const totalTasks = filteredTasks.length;
+
+      result.push({
+        member,
+        taskGroups,
+        positionName: entity.position?.name,
+        totalTasks,
+        hasCards: totalTasks > 0,
+        hasAllowedStatuses: allowedStatuses.length > 0,
+      });
+    }
+
+    // Sort: alert members first (hasAllowedStatuses && !hasCards), then by name
+    result.sort((a, b) => {
+      const aAlert = a.hasAllowedStatuses && !a.hasCards;
+      const bAlert = b.hasAllowedStatuses && !b.hasCards;
+      if (aAlert && !bAlert) return -1;
+      if (!aAlert && bAlert) return 1;
+      return a.member.name.localeCompare(b.member.name);
+    });
+
+    return result;
+  }
+
+  /** Classify a task's areaPath into a display-friendly group name */
+  private classifyArea(areaPath?: string): string {
+    if (!areaPath) return 'Outros';
+    if (areaPath.startsWith(SUSTENTACAO_AREA_PATH_PATTERN)) {
+      if (areaPath.includes('Gestão de Terceiros')) return 'Gestão de Terceiros';
+      if (areaPath.includes('Chamada Tecnológica')) return 'Chamada Tecnológica';
+      return 'Sustentação';
+    }
+    if (areaPath.startsWith(PROJETOS_AREA_PATH_PATTERN)) {
+      // Extract project name: "Tribo SEIF\Projetos\ProjectName\..." → "ProjectName"
+      const parts = areaPath.split('\\');
+      return parts.length > 2 ? `Projetos - ${parts[2]}` : 'Projetos';
+    }
+    return 'Outros';
+  }
+
+  /** Map a TaskEntity to the shared Task DTO */
+  private mapTaskToDto(entity: import('../entities/task.entity').TaskEntity): import('@shared/interfaces/config/index.types').Task {
+    return {
+      id: entity.id,
+      title: entity.title,
+      description: entity.description,
+      startDate: entity.startDate,
+      endDate: entity.endDate,
+      status: entity.status,
+      priority: entity.priority as import('@shared/interfaces/config/index.types').TaskPriority,
+      type: entity.type,
+      origin: entity.origin as import('@shared/interfaces/config/index.types').TaskOrigin,
+      externalId: entity.externalId,
+      sprintId: entity.sprintId,
+      teamId: entity.teamId,
+      assignedToName: entity.assignedToName,
+      assignedToEmail: entity.assignedToEmail,
+      areaPath: entity.areaPath,
+      iterationPath: entity.iterationPath,
+      tags: entity.tags,
+      storyPoints: entity.storyPoints,
+      azureCreatedDate: entity.azureCreatedDate,
+      azureChangedDate: entity.azureChangedDate,
+      azurePriority: entity.azurePriority,
+      parentId: entity.parentId,
+      createdAt: entity.createdAt,
+      updatedAt: entity.updatedAt,
+    };
+  }
+
+  /**
    * Get count of stale items in Sustentação dashboard.
    *
    * Property 4: An item is stale if (current_date - updatedAt) > staleDays
@@ -984,6 +1134,7 @@ export class DashboardService {
     const ticketsWithSla = openTickets.filter(i => !i.slaExcluded);
     const slaViolated = ticketsWithSla.filter(i => i.slaViolated);
     const slaWarning = ticketsWithSla.filter(i => i.slaWarning);
+    const slaUrgent = ticketsWithSla.filter(i => !i.slaViolated && i.businessHoursRemaining > 0 && i.businessHoursRemaining <= 8);
     const unassigned = visibleItems.filter(i => !i.task.assignedToName);
 
     // Average age of open Tickets (business hours) — only SLA-active
@@ -1053,6 +1204,7 @@ export class DashboardService {
         ? Math.round((slaViolated.length / activeTickets.length) * 100)
         : 0,
       slaWarningCount: slaWarning.length,
+      slaUrgentCount: slaUrgent.length,
       unassignedCount: unassigned.length,
       avgAgeBusinessHours: Math.round(avgAge * 10) / 10,
       avgCloseTimeBusinessHours: avgCloseTime !== null ? Math.round(avgCloseTime * 10) / 10 : null,

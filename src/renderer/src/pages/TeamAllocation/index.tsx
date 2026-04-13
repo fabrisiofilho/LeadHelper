@@ -77,7 +77,7 @@ export function TeamAllocationPage() {
     allocations,
     loading: allocationsLoading,
     error: allocationsError,
-    findActiveByTeam,
+    findByTeam,
     create: createAllocation,
     update: updateAllocation,
     delete: deleteAllocation,
@@ -128,9 +128,9 @@ export function TeamAllocationPage() {
 
   useEffect(() => {
     if (selectedTeam) {
-      findActiveByTeam(selectedTeam.id);
+      findByTeam(selectedTeam.id);
     }
-  }, [selectedTeam, findActiveByTeam]);
+  }, [selectedTeam, findByTeam]);
 
   // Handlers
   const handleSelectTeam = (team: Team | null) => {
@@ -228,7 +228,7 @@ export function TeamAllocationPage() {
         if (result) {
           handleCloseAllocationModal();
           if (selectedTeam) {
-            await findActiveByTeam(selectedTeam.id);
+            await findByTeam(selectedTeam.id);
           }
           await findAllAllocations({ isActive: true });
           await loadConflicts();
@@ -240,7 +240,7 @@ export function TeamAllocationPage() {
         if (result) {
           handleCloseAllocationModal();
           if (selectedTeam) {
-            await findActiveByTeam(selectedTeam.id);
+            await findByTeam(selectedTeam.id);
           }
           await findAllAllocations({ isActive: true });
           await loadConflicts();
@@ -265,7 +265,7 @@ export function TeamAllocationPage() {
         setIsRemoveAllocationModalOpen(false);
         setAllocationToRemove(null);
         if (selectedTeam) {
-          await findActiveByTeam(selectedTeam.id);
+          await findByTeam(selectedTeam.id);
         }
         await findAllAllocations({ isActive: true });
         await loadConflicts();
@@ -281,7 +281,7 @@ export function TeamAllocationPage() {
     await findAllAllocations({ isActive: true });
     await loadConflicts();
     if (selectedTeam) {
-      await findActiveByTeam(selectedTeam.id);
+      await findByTeam(selectedTeam.id);
     }
   };
 

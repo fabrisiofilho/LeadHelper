@@ -106,6 +106,7 @@ export const CONTROLLER_CONFIG = {
       'getSustentacaoItems',
       'getSustentacaoMetrics',
       'getSustentacaoMembersWithCards',
+      'getTaskAllocationData',
       'getProjetosItems',
       'getTaskUpdateHistory',
       'getBurndownData',

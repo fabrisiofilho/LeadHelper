@@ -2,7 +2,11 @@ import { BrowserWindow, app } from 'electron';
 import { setDatabasePath, initializeDatabase } from '../database/data-source';
 import { resolveAndSetupDbPath } from './db-path-resolver';
 import { createMainWindow } from './window';
-import { loadIpcControllers } from '../../application/controllers/config/index';
+import {
+  loadIpcControllers,
+  setSyncControllerWindow,
+  startAutoSync,
+} from '../../application/controllers/config/index';
 import {
   logger,
   configureLogger,
@@ -46,9 +50,6 @@ export class AppInitializer {
       this.mainWindow = createMainWindow();
 
       // Set main window for sync progress and start auto-sync
-      const { setSyncControllerWindow, startAutoSync } = await import(
-        '../../application/controllers/config/index'
-      );
       setSyncControllerWindow(this.mainWindow);
       startAutoSync();
 

@@ -25,7 +25,12 @@ interface ToolbarButtonProps {
   children: React.ReactNode;
 }
 
-function ToolbarButton({ title, active, onClick, children }: ToolbarButtonProps) {
+function ToolbarButton({
+  title,
+  active,
+  onClick,
+  children,
+}: ToolbarButtonProps) {
   return (
     <Tooltip title={title}>
       <IconButton
@@ -43,7 +48,11 @@ function ToolbarButton({ title, active, onClick, children }: ToolbarButtonProps)
   );
 }
 
-export function RichTextEditor({ content, onChange, editable = true }: RichTextEditorProps) {
+export function RichTextEditor({
+  content,
+  onChange,
+  editable = true,
+}: RichTextEditorProps) {
   const editor = useEditor({
     extensions: [StarterKit, Underline],
     content,
@@ -92,23 +101,44 @@ export function RichTextEditor({ content, onChange, editable = true }: RichTextE
           <ToolbarButton
             title="Título 1"
             active={editor.isActive('heading', { level: 1 })}
-            onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+            onClick={() =>
+              editor.chain().focus().toggleHeading({ level: 1 }).run()
+            }
           >
-            <Box component="span" sx={{ fontSize: 14, fontWeight: 700, lineHeight: 1 }}>H1</Box>
+            <Box
+              component="span"
+              sx={{ fontSize: 14, fontWeight: 700, lineHeight: 1 }}
+            >
+              H1
+            </Box>
           </ToolbarButton>
           <ToolbarButton
             title="Título 2"
             active={editor.isActive('heading', { level: 2 })}
-            onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+            onClick={() =>
+              editor.chain().focus().toggleHeading({ level: 2 }).run()
+            }
           >
-            <Box component="span" sx={{ fontSize: 14, fontWeight: 700, lineHeight: 1 }}>H2</Box>
+            <Box
+              component="span"
+              sx={{ fontSize: 14, fontWeight: 700, lineHeight: 1 }}
+            >
+              H2
+            </Box>
           </ToolbarButton>
           <ToolbarButton
             title="Título 3"
             active={editor.isActive('heading', { level: 3 })}
-            onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+            onClick={() =>
+              editor.chain().focus().toggleHeading({ level: 3 }).run()
+            }
           >
-            <Box component="span" sx={{ fontSize: 14, fontWeight: 700, lineHeight: 1 }}>H3</Box>
+            <Box
+              component="span"
+              sx={{ fontSize: 14, fontWeight: 700, lineHeight: 1 }}
+            >
+              H3
+            </Box>
           </ToolbarButton>
 
           <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
@@ -180,9 +210,24 @@ export function RichTextEditor({ content, onChange, editable = true }: RichTextE
             lineHeight: 1.6,
             color: 'text.primary',
           },
-          '& .tiptap h1': { fontSize: '1.5rem', fontWeight: 700, mt: 1, mb: 0.5 },
-          '& .tiptap h2': { fontSize: '1.25rem', fontWeight: 600, mt: 1, mb: 0.5 },
-          '& .tiptap h3': { fontSize: '1.1rem', fontWeight: 600, mt: 1, mb: 0.5 },
+          '& .tiptap h1': {
+            fontSize: '1.5rem',
+            fontWeight: 700,
+            mt: 1,
+            mb: 0.5,
+          },
+          '& .tiptap h2': {
+            fontSize: '1.25rem',
+            fontWeight: 600,
+            mt: 1,
+            mb: 0.5,
+          },
+          '& .tiptap h3': {
+            fontSize: '1.1rem',
+            fontWeight: 600,
+            mt: 1,
+            mb: 0.5,
+          },
           '& .tiptap p': { my: 0.5 },
           '& .tiptap ul, & .tiptap ol': { pl: 3, my: 0.5 },
           '& .tiptap pre': {

@@ -26,7 +26,10 @@ import { useForm, Controller } from 'react-hook-form';
 import { Modal } from '@renderer/components/Modal';
 import { useTeams } from '@renderer/hooks/useTeams';
 import { useTableSort } from '@renderer/hooks/useTableSort';
-import { StandardTable, type StandardColumn } from '@renderer/components/StandardTable';
+import {
+  StandardTable,
+  type StandardColumn,
+} from '@renderer/components/StandardTable';
 import {
   PageContainer,
   PlaceholderContent,
@@ -347,11 +350,18 @@ export function TeamsPage() {
                     .map((p) => p.trim())
                     .filter(Boolean)
                     .map((path) => (
-                      <Chip key={path} label={path} size="small" variant="outlined" />
+                      <Chip
+                        key={path}
+                        label={path}
+                        size="small"
+                        variant="outlined"
+                      />
                     ))}
                 </Box>
               ) : (
-                <Typography variant="body2" color="text.secondary">-</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  -
+                </Typography>
               ),
               isActive: (
                 <Chip
@@ -364,7 +374,10 @@ export function TeamsPage() {
               actions: (
                 <>
                   <Tooltip title="Editar">
-                    <IconButton size="small" onClick={() => handleEditTeam(team)}>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleEditTeam(team)}
+                    >
                       <EditIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
@@ -374,11 +387,19 @@ export function TeamsPage() {
                       onClick={() => handleToggleStatus(team)}
                       color={team.isActive ? 'warning' : 'success'}
                     >
-                      {team.isActive ? <ToggleOffIcon fontSize="small" /> : <ToggleOnIcon fontSize="small" />}
+                      {team.isActive ? (
+                        <ToggleOffIcon fontSize="small" />
+                      ) : (
+                        <ToggleOnIcon fontSize="small" />
+                      )}
                     </IconButton>
                   </Tooltip>
                   <Tooltip title="Excluir">
-                    <IconButton size="small" onClick={() => handleDeleteClick(team)} color="error">
+                    <IconButton
+                      size="small"
+                      onClick={() => handleDeleteClick(team)}
+                      color="error"
+                    >
                       <DeleteIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
@@ -393,9 +414,19 @@ export function TeamsPage() {
           totalCount={filteredTeams.length}
           onPageChange={setPage}
           onRowsPerPageChange={setRowsPerPage}
-          emptyIcon={<GroupsIcon sx={{ fontSize: 64, color: 'text.secondary' }} />}
-          emptyTitle={searchTerm ? 'Nenhuma equipe encontrada' : 'Nenhuma equipe cadastrada'}
-          emptyDescription={searchTerm ? 'Tente ajustar os filtros de busca' : 'Clique em "Nova Equipe" para adicionar a primeira equipe'}
+          emptyIcon={
+            <GroupsIcon sx={{ fontSize: 64, color: 'text.secondary' }} />
+          }
+          emptyTitle={
+            searchTerm
+              ? 'Nenhuma equipe encontrada'
+              : 'Nenhuma equipe cadastrada'
+          }
+          emptyDescription={
+            searchTerm
+              ? 'Tente ajustar os filtros de busca'
+              : 'Clique em "Nova Equipe" para adicionar a primeira equipe'
+          }
         />
       ) : (
         <PlaceholderContent>
@@ -550,7 +581,8 @@ export function TeamsPage() {
         </Typography>
         {teamToToggle?.isActive && (
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            A equipe será marcada como inativa, mas os membros e histórico serão preservados.
+            A equipe será marcada como inativa, mas os membros e histórico serão
+            preservados.
           </Typography>
         )}
       </Modal>

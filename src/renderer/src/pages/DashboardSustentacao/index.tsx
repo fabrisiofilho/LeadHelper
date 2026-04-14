@@ -1,10 +1,4 @@
-import {
-  useState,
-  useEffect,
-  useCallback,
-  useMemo,
-  memo,
-} from 'react';
+import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import {
   Box,
   Typography,
@@ -50,7 +44,10 @@ import { PageLayout } from '@renderer/components/PageLayout';
 import { TaskViewModal } from '@renderer/components/TaskViewModal';
 import { WorkItemTypeChip } from '@renderer/components/WorkItemTypeChip';
 import { SlaOrderModal } from '@renderer/components/SlaOrderModal';
-import type { SustentacaoItemWithSLA, SustentacaoMetrics } from '@shared/interfaces/config/index.types';
+import type {
+  SustentacaoItemWithSLA,
+  SustentacaoMetrics,
+} from '@shared/interfaces/config/index.types';
 import type { Task } from '@shared/interfaces/config/index.types';
 
 // ── constants ──
@@ -194,7 +191,12 @@ function slaChipColor(
   if (item.slaExcluded) return 'default';
   if (item.slaViolated) return 'error';
   if (item.slaWarning) return 'warning';
-  if (!item.slaViolated && item.businessHoursRemaining <= 8 && item.businessHoursRemaining > 0) return 'warning';
+  if (
+    !item.slaViolated &&
+    item.businessHoursRemaining <= 8 &&
+    item.businessHoursRemaining > 0
+  )
+    return 'warning';
   return 'info';
 }
 
@@ -245,7 +247,11 @@ async function exportToPdf(
               if (item.slaExcluded) {
                 slaHtml = '<span style="color:#999;">Excluído</span>';
               } else {
-                const color = item.slaViolated ? '#d32f2f' : item.slaWarning ? '#ed6c02' : '#333';
+                const color = item.slaViolated
+                  ? '#d32f2f'
+                  : item.slaWarning
+                    ? '#ed6c02'
+                    : '#333';
                 const weight = item.slaViolated ? 'bold' : 'normal';
                 slaHtml = `<span style="color:${color};font-weight:${weight};">${formatSlaRemaining(item.businessHoursRemaining)}</span>`;
                 if (item.expirationDate) {
@@ -286,23 +292,49 @@ async function exportToPdf(
     const imgWidth = 277; // A4 landscape width in mm minus margins
     const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const doc = new jsPDF({
+      orientation: 'landscape',
+      unit: 'mm',
+      format: 'a4',
+    });
     const pageHeight = 190; // usable height in mm
     let yOffset = 0;
 
     while (yOffset < imgHeight) {
       if (yOffset > 0) doc.addPage();
-      doc.addImage(imgData, 'PNG', 10, 5, imgWidth, imgHeight, undefined, 'FAST', 0);
+      doc.addImage(
+        imgData,
+        'PNG',
+        10,
+        5,
+        imgWidth,
+        imgHeight,
+        undefined,
+        'FAST',
+        0,
+      );
       // Shift the image up for next page
       if (yOffset + pageHeight < imgHeight) {
         doc.addPage();
         yOffset += pageHeight;
-        doc.addImage(imgData, 'PNG', 10, 5 - yOffset, imgWidth, imgHeight, undefined, 'FAST', 0);
+        doc.addImage(
+          imgData,
+          'PNG',
+          10,
+          5 - yOffset,
+          imgWidth,
+          imgHeight,
+          undefined,
+          'FAST',
+          0,
+        );
       }
       break;
     }
 
-    doc.save(`${title.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`);
+    doc.save(
+      `${title.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`,
+    );
   } finally {
     document.body.removeChild(container);
   }
@@ -372,7 +404,11 @@ const ItemRow = memo(function ItemRow({
       <TableCell sx={{ verticalAlign: 'middle', py: 1 }}>
         <Stack spacing={0.4} alignItems="flex-start">
           <Stack direction="row" alignItems="center" spacing={0.5}>
-            <Typography variant="caption" color="text.secondary" fontWeight={600}>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              fontWeight={600}
+            >
               #{t.externalId ?? t.id}
             </Typography>
             {isNew && (
@@ -473,19 +509,21 @@ const ItemRow = memo(function ItemRow({
                   color={slaChipColor(item)}
                   variant={item.slaViolated ? 'filled' : 'outlined'}
                 />
-                {!item.slaViolated && item.businessHoursRemaining > 0 && item.businessHoursRemaining <= 8 && (
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      color: 'warning.dark',
-                      fontWeight: 700,
-                      fontSize: '0.65rem',
-                      lineHeight: 1,
-                    }}
-                  >
-                    ⚠ Urgente
-                  </Typography>
-                )}
+                {!item.slaViolated &&
+                  item.businessHoursRemaining > 0 &&
+                  item.businessHoursRemaining <= 8 && (
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: 'warning.dark',
+                        fontWeight: 700,
+                        fontSize: '0.65rem',
+                        lineHeight: 1,
+                      }}
+                    >
+                      ⚠ Urgente
+                    </Typography>
+                  )}
               </Stack>
               {item.expirationDate && (
                 <Typography
@@ -501,7 +539,9 @@ const ItemRow = memo(function ItemRow({
                   }}
                 >
                   {item.slaViolated ? 'Limite: ' : ''}
-                  {new Date(item.expirationDate).toLocaleDateString('pt-BR')}{' '}
+                  {new Date(item.expirationDate).toLocaleDateString(
+                    'pt-BR',
+                  )}{' '}
                   {new Date(item.expirationDate).toLocaleTimeString('pt-BR', {
                     hour: '2-digit',
                     minute: '2-digit',
@@ -518,13 +558,18 @@ const ItemRow = memo(function ItemRow({
       </TableCell>
 
       {/* Ações */}
-      <TableCell sx={{ whiteSpace: 'nowrap', verticalAlign: 'middle', py: 1 }} onClick={(e) => e.stopPropagation()}>
+      <TableCell
+        sx={{ whiteSpace: 'nowrap', verticalAlign: 'middle', py: 1 }}
+        onClick={(e) => e.stopPropagation()}
+      >
         {isBusy ? (
           <CircularProgress size={20} sx={{ mx: 1 }} />
         ) : (
           <>
             {isTicket && (
-              <Tooltip title={item.slaExcluded ? 'Restaurar SLA' : 'Excluir SLA'}>
+              <Tooltip
+                title={item.slaExcluded ? 'Restaurar SLA' : 'Excluir SLA'}
+              >
                 <IconButton
                   size="small"
                   onClick={() => onToggleSla(t.externalId!, item.slaExcluded!)}
@@ -550,7 +595,10 @@ const ItemRow = memo(function ItemRow({
               </IconButton>
             </Tooltip>
             <Tooltip title="Copiar link Azure">
-              <IconButton size="small" onClick={() => onCopyLink(t.externalId!)}>
+              <IconButton
+                size="small"
+                onClick={() => onCopyLink(t.externalId!)}
+              >
                 <CopyIcon fontSize="small" />
               </IconButton>
             </Tooltip>
@@ -649,7 +697,15 @@ interface MetricCardProps {
   tooltip?: string;
 }
 
-function MetricCard({ icon, label, value, subtitle, color = '#1976d2', bgColor, tooltip }: MetricCardProps) {
+function MetricCard({
+  icon,
+  label,
+  value,
+  subtitle,
+  color = '#1976d2',
+  bgColor,
+  tooltip,
+}: MetricCardProps) {
   return (
     <Paper
       variant="outlined"
@@ -700,11 +756,24 @@ function MetricCard({ icon, label, value, subtitle, color = '#1976d2', bgColor, 
         <Typography variant="h6" fontWeight={700} lineHeight={1.2} noWrap>
           {value}
         </Typography>
-        <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.3, display: 'block', wordBreak: 'break-word' }}>
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{ lineHeight: 1.3, display: 'block', wordBreak: 'break-word' }}
+        >
           {label}
         </Typography>
         {subtitle && (
-          <Typography variant="caption" display="block" color="text.disabled" sx={{ lineHeight: 1.3, wordBreak: 'break-word', fontSize: '0.68rem' }}>
+          <Typography
+            variant="caption"
+            display="block"
+            color="text.disabled"
+            sx={{
+              lineHeight: 1.3,
+              wordBreak: 'break-word',
+              fontSize: '0.68rem',
+            }}
+          >
             {subtitle}
           </Typography>
         )}
@@ -734,11 +803,17 @@ export function DashboardSustentacaoPage() {
   const [includeAnalysis, setIncludeAnalysis] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
-  const [positionMap, setPositionMap] = useState<Map<string, string[]>>(new Map());
+  const [positionMap, setPositionMap] = useState<Map<string, string[]>>(
+    new Map(),
+  );
   const [busyItems, setBusyItems] = useState<Set<string>>(new Set());
   const [metricsLoading, setMetricsLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
-  const [slaOrderModal, setSlaOrderModal] = useState<{ open: boolean; title: string; items: SustentacaoItemWithSLA[] }>({
+  const [slaOrderModal, setSlaOrderModal] = useState<{
+    open: boolean;
+    title: string;
+    items: SustentacaoItemWithSLA[];
+  }>({
     open: false,
     title: '',
     items: [],
@@ -753,11 +828,14 @@ export function DashboardSustentacaoPage() {
   // ── fetch helpers ──
 
   /** Build the statuses array for metrics based on current includeAnalysis */
-  const getMetricsStatuses = useCallback((withAnalysis: boolean) => [
-    ...DEV_STATUSES,
-    ...AUDIT_STATUSES,
-    ...(withAnalysis ? ANALYSIS_STATUSES : []),
-  ], []);
+  const getMetricsStatuses = useCallback(
+    (withAnalysis: boolean) => [
+      ...DEV_STATUSES,
+      ...AUDIT_STATUSES,
+      ...(withAnalysis ? ANALYSIS_STATUSES : []),
+    ],
+    [],
+  );
 
   /** Full initial load — shows full-screen spinner */
   const fetchData = useCallback(async () => {
@@ -767,7 +845,9 @@ export function DashboardSustentacaoPage() {
       const [res, membersRes, metricsRes] = await Promise.all([
         api.dashboard.getSustentacaoItems(),
         api.teamMember.findAll(),
-        api.dashboard.getSustentacaoMetrics(getMetricsStatuses(includeAnalysis)),
+        api.dashboard.getSustentacaoMetrics(
+          getMetricsStatuses(includeAnalysis),
+        ),
       ]);
       if (res.success && res.data) {
         setItems(res.data);
@@ -795,7 +875,7 @@ export function DashboardSustentacaoPage() {
     } finally {
       setLoading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /** Background refresh — no full-screen spinner, silently updates data */
@@ -803,7 +883,9 @@ export function DashboardSustentacaoPage() {
     try {
       const [res, metricsRes] = await Promise.all([
         api.dashboard.getSustentacaoItems(),
-        api.dashboard.getSustentacaoMetrics(getMetricsStatuses(includeAnalysis)),
+        api.dashboard.getSustentacaoMetrics(
+          getMetricsStatuses(includeAnalysis),
+        ),
       ]);
       if (res.success && res.data) setItems(res.data);
       if (metricsRes.success && metricsRes.data) setMetrics(metricsRes.data);
@@ -813,17 +895,22 @@ export function DashboardSustentacaoPage() {
   }, [includeAnalysis, getMetricsStatuses]);
 
   /** Metrics-only refresh — shows loading only on cards */
-  const refreshMetrics = useCallback(async (withAnalysis: boolean) => {
-    setMetricsLoading(true);
-    try {
-      const res = await api.dashboard.getSustentacaoMetrics(getMetricsStatuses(withAnalysis));
-      if (res.success && res.data) setMetrics(res.data);
-    } catch {
-      /* silent */
-    } finally {
-      setMetricsLoading(false);
-    }
-  }, [getMetricsStatuses]);
+  const refreshMetrics = useCallback(
+    async (withAnalysis: boolean) => {
+      setMetricsLoading(true);
+      try {
+        const res = await api.dashboard.getSustentacaoMetrics(
+          getMetricsStatuses(withAnalysis),
+        );
+        if (res.success && res.data) setMetrics(res.data);
+      } catch {
+        /* silent */
+      } finally {
+        setMetricsLoading(false);
+      }
+    },
+    [getMetricsStatuses],
+  );
 
   useEffect(() => {
     fetchData();
@@ -843,12 +930,14 @@ export function DashboardSustentacaoPage() {
   const handleToggleSla = useCallback(
     async (externalId: string, excluded: boolean) => {
       // Optimistic update
-      setItems(prev => prev.map(i =>
-        i.task.externalId === externalId
-          ? { ...i, slaExcluded: !excluded }
-          : i,
-      ));
-      setBusyItems(prev => new Set(prev).add(externalId));
+      setItems((prev) =>
+        prev.map((i) =>
+          i.task.externalId === externalId
+            ? { ...i, slaExcluded: !excluded }
+            : i,
+        ),
+      );
+      setBusyItems((prev) => new Set(prev).add(externalId));
       try {
         if (excluded) {
           await api.dashboard.restoreSla(externalId);
@@ -858,13 +947,15 @@ export function DashboardSustentacaoPage() {
         await refreshData();
       } catch {
         // Revert on error
-        setItems(prev => prev.map(i =>
-          i.task.externalId === externalId
-            ? { ...i, slaExcluded: excluded }
-            : i,
-        ));
+        setItems((prev) =>
+          prev.map((i) =>
+            i.task.externalId === externalId
+              ? { ...i, slaExcluded: excluded }
+              : i,
+          ),
+        );
       } finally {
-        setBusyItems(prev => {
+        setBusyItems((prev) => {
           const next = new Set(prev);
           next.delete(externalId);
           return next;
@@ -877,12 +968,12 @@ export function DashboardSustentacaoPage() {
   const handleToggleHidden = useCallback(
     async (externalId: string, hidden: boolean) => {
       // Optimistic update
-      setItems(prev => prev.map(i =>
-        i.task.externalId === externalId
-          ? { ...i, isHidden: !hidden }
-          : i,
-      ));
-      setBusyItems(prev => new Set(prev).add(externalId));
+      setItems((prev) =>
+        prev.map((i) =>
+          i.task.externalId === externalId ? { ...i, isHidden: !hidden } : i,
+        ),
+      );
+      setBusyItems((prev) => new Set(prev).add(externalId));
       try {
         if (hidden) {
           await api.dashboard.unhideItem(externalId);
@@ -892,13 +983,13 @@ export function DashboardSustentacaoPage() {
         await refreshData();
       } catch {
         // Revert on error
-        setItems(prev => prev.map(i =>
-          i.task.externalId === externalId
-            ? { ...i, isHidden: hidden }
-            : i,
-        ));
+        setItems((prev) =>
+          prev.map((i) =>
+            i.task.externalId === externalId ? { ...i, isHidden: hidden } : i,
+          ),
+        );
       } finally {
-        setBusyItems(prev => {
+        setBusyItems((prev) => {
           const next = new Set(prev);
           next.delete(externalId);
           return next;
@@ -1095,7 +1186,9 @@ export function DashboardSustentacaoPage() {
             value={metrics.slaViolatedCount}
             subtitle={`${metrics.slaViolatedPercent}% dos tickets`}
             color="#d32f2f"
-            bgColor={metrics.slaViolatedCount > 0 ? 'rgba(211,47,47,0.06)' : undefined}
+            bgColor={
+              metrics.slaViolatedCount > 0 ? 'rgba(211,47,47,0.06)' : undefined
+            }
             tooltip="Tickets cujo tempo de SLA já foi ultrapassado. Limites por prioridade: Crítica 4h, Alta 8h, Média 24h, Baixa 40h úteis."
           />
           <MetricCard
@@ -1103,7 +1196,9 @@ export function DashboardSustentacaoPage() {
             label="SLA urgente (≤8h)"
             value={metrics.slaUrgentCount}
             color="#ed6c02"
-            bgColor={metrics.slaUrgentCount > 0 ? 'rgba(237,108,2,0.06)' : undefined}
+            bgColor={
+              metrics.slaUrgentCount > 0 ? 'rgba(237,108,2,0.06)' : undefined
+            }
             tooltip="Tickets com 8 horas úteis ou menos para estourar o SLA (1 dia útil). Requer atenção imediata."
           />
           {/* Linha 2: Indicadores operacionais */}
@@ -1117,14 +1212,22 @@ export function DashboardSustentacaoPage() {
                 : undefined
             }
             color="#9c27b0"
-            bgColor={(metrics.unassignedCount + wrongPositionCount) > 0 ? 'rgba(156,39,176,0.06)' : undefined}
+            bgColor={
+              metrics.unassignedCount + wrongPositionCount > 0
+                ? 'rgba(156,39,176,0.06)'
+                : undefined
+            }
             tooltip="Itens sem responsável atribuído ou com responsável cujo cargo não corresponde ao status atual (ex: tarefa em Auditoria sem auditor alocado). Baseado nos cargos configurados em Cargos > Status Permitidos."
           />
           <MetricCard
             icon={<ClosedIcon fontSize="inherit" />}
             label="Fechados (30 dias)"
             value={metrics.closedTicketsLast30Days}
-            subtitle={metrics.avgCloseTimeBusinessHours !== null ? `Média: ${formatBusinessHours(metrics.avgCloseTimeBusinessHours)}` : undefined}
+            subtitle={
+              metrics.avgCloseTimeBusinessHours !== null
+                ? `Média: ${formatBusinessHours(metrics.avgCloseTimeBusinessHours)}`
+                : undefined
+            }
             color="#2e7d32"
             tooltip="Tickets de Sustentação fechados nos últimos 30 dias e tempo médio entre criação e fechamento."
           />
@@ -1139,9 +1242,18 @@ export function DashboardSustentacaoPage() {
             icon={<OldestIcon fontSize="inherit" />}
             label="Ticket mais antigo (SLA)"
             value={formatBusinessHours(metrics.oldestOpenTicketHours)}
-            subtitle={metrics.oldestOpenTicketExternalId ? `#${metrics.oldestOpenTicketExternalId}` : undefined}
+            subtitle={
+              metrics.oldestOpenTicketExternalId
+                ? `#${metrics.oldestOpenTicketExternalId}`
+                : undefined
+            }
             color="#f57c00"
-            bgColor={metrics.oldestOpenTicketHours !== null && metrics.oldestOpenTicketHours > 40 ? 'rgba(245,124,0,0.06)' : undefined}
+            bgColor={
+              metrics.oldestOpenTicketHours !== null &&
+              metrics.oldestOpenTicketHours > 40
+                ? 'rgba(245,124,0,0.06)'
+                : undefined
+            }
             tooltip="Horas úteis de SLA acumuladas desde a criação do Ticket aberto mais antigo com SLA ativo. Considera apenas horário útil (08:00–12:00, 13:30–17:30). Limites: Crítica 4h, Alta 8h (1d), Média 24h (3d), Baixa 40h (5d)."
           />
         </Box>
@@ -1154,15 +1266,19 @@ export function DashboardSustentacaoPage() {
           <Stack direction="row" alignItems="center" spacing={1} mb={1}>
             <Typography variant="h6">Desenvolvimento</Typography>
             <Chip
-              label={
-                devItems.filter((i) => showHidden || !i.isHidden).length
-              }
+              label={devItems.filter((i) => showHidden || !i.isHidden).length}
               size="small"
             />
             <Tooltip title="Ordem de prioridade SLA">
               <IconButton
                 size="small"
-                onClick={() => setSlaOrderModal({ open: true, title: 'Desenvolvimento', items: devItems })}
+                onClick={() =>
+                  setSlaOrderModal({
+                    open: true,
+                    title: 'Desenvolvimento',
+                    items: devItems,
+                  })
+                }
               >
                 <SlaOrderIcon fontSize="small" />
               </IconButton>
@@ -1170,7 +1286,13 @@ export function DashboardSustentacaoPage() {
             <Tooltip title="Exportar PDF">
               <IconButton
                 size="small"
-                onClick={() => exportToPdf(devItems, 'Desenvolvimento - Sustentação', showHidden)}
+                onClick={() =>
+                  exportToPdf(
+                    devItems,
+                    'Desenvolvimento - Sustentação',
+                    showHidden,
+                  )
+                }
               >
                 <PdfIcon fontSize="small" />
               </IconButton>
@@ -1194,15 +1316,19 @@ export function DashboardSustentacaoPage() {
           <Stack direction="row" alignItems="center" spacing={1} mb={1}>
             <Typography variant="h6">Auditoria</Typography>
             <Chip
-              label={
-                auditItems.filter((i) => showHidden || !i.isHidden).length
-              }
+              label={auditItems.filter((i) => showHidden || !i.isHidden).length}
               size="small"
             />
             <Tooltip title="Ordem de prioridade SLA">
               <IconButton
                 size="small"
-                onClick={() => setSlaOrderModal({ open: true, title: 'Auditoria', items: auditItems })}
+                onClick={() =>
+                  setSlaOrderModal({
+                    open: true,
+                    title: 'Auditoria',
+                    items: auditItems,
+                  })
+                }
               >
                 <SlaOrderIcon fontSize="small" />
               </IconButton>
@@ -1210,7 +1336,9 @@ export function DashboardSustentacaoPage() {
             <Tooltip title="Exportar PDF">
               <IconButton
                 size="small"
-                onClick={() => exportToPdf(auditItems, 'Auditoria - Sustentação', showHidden)}
+                onClick={() =>
+                  exportToPdf(auditItems, 'Auditoria - Sustentação', showHidden)
+                }
               >
                 <PdfIcon fontSize="small" />
               </IconButton>
@@ -1243,7 +1371,13 @@ export function DashboardSustentacaoPage() {
               <Tooltip title="Ordem de prioridade SLA">
                 <IconButton
                   size="small"
-                  onClick={() => setSlaOrderModal({ open: true, title: 'Análise', items: analysisItems })}
+                  onClick={() =>
+                    setSlaOrderModal({
+                      open: true,
+                      title: 'Análise',
+                      items: analysisItems,
+                    })
+                  }
                 >
                   <SlaOrderIcon fontSize="small" />
                 </IconButton>
@@ -1251,7 +1385,13 @@ export function DashboardSustentacaoPage() {
               <Tooltip title="Exportar PDF">
                 <IconButton
                   size="small"
-                  onClick={() => exportToPdf(analysisItems, 'Análise - Sustentação', showHidden)}
+                  onClick={() =>
+                    exportToPdf(
+                      analysisItems,
+                      'Análise - Sustentação',
+                      showHidden,
+                    )
+                  }
                 >
                   <PdfIcon fontSize="small" />
                 </IconButton>
@@ -1289,5 +1429,3 @@ export function DashboardSustentacaoPage() {
     </PageLayout>
   );
 }
-
-

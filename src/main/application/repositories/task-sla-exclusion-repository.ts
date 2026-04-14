@@ -7,17 +7,24 @@ export class TaskSlaExclusionRepository extends BaseRepository<TaskSlaExclusionE
     super(TaskSlaExclusionEntity);
   }
 
-  async findByExternalId(externalId: string): Promise<TaskSlaExclusionEntity | null> {
+  async findByExternalId(
+    externalId: string,
+  ): Promise<TaskSlaExclusionEntity | null> {
     return await this.findOneBy({ externalId });
   }
 
   async findByExternalIds(externalIds: string[]): Promise<Set<string>> {
     if (externalIds.length === 0) return new Set();
-    const entities = await this.find({ where: { externalId: In(externalIds) } });
+    const entities = await this.find({
+      where: { externalId: In(externalIds) },
+    });
     return new Set(entities.map((e) => e.externalId));
   }
 
-  async exclude(externalId: string, reason?: string): Promise<TaskSlaExclusionEntity> {
+  async exclude(
+    externalId: string,
+    reason?: string,
+  ): Promise<TaskSlaExclusionEntity> {
     const existing = await this.findByExternalId(externalId);
     if (existing) {
       await this.update({ externalId }, { reason });

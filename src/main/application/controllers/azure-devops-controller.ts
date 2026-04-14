@@ -1,17 +1,22 @@
 import { IpcMethod } from '@main/infrastructure/decorators/ipc.decorator';
 import { BaseHandler } from './config/base-handler';
-import * as azureDevopsService from '../services/azure-devops-service';
+import { AzureDevOpsService } from '../services/azure-devops-service';
+import type {
+  AzureDevOpsConfig,
+  WorkItemFilters,
+  WorkItem,
+} from '../services/azure-devops-service';
 import { ApiResponse } from '@shared/interfaces/types/common.types';
 import { logger } from '@main/infrastructure/log/logger';
 import type { AzureDevOpsConfigInput } from '@shared/interfaces';
 import type { IterationNode } from '@shared/interfaces/config/index.types';
 
 export class AzureDevOpsController extends BaseHandler {
-  private service: azureDevopsService.AzureDevOpsService;
+  private service: AzureDevOpsService;
 
   constructor() {
     super();
-    this.service = new azureDevopsService.AzureDevOpsService();
+    this.service = new AzureDevOpsService();
   }
 
   @IpcMethod('azure-devops:saveConfig')
@@ -32,7 +37,7 @@ export class AzureDevOpsController extends BaseHandler {
   @IpcMethod('azure-devops:getConfig')
   async getConfig(
     includePat = false,
-  ): Promise<ApiResponse<azureDevopsService.AzureDevOpsConfig | null>> {
+  ): Promise<ApiResponse<AzureDevOpsConfig | null>> {
     try {
       const result = await this.service.getConfig(includePat);
       return { success: true, data: result };
@@ -63,8 +68,8 @@ export class AzureDevOpsController extends BaseHandler {
 
   @IpcMethod('azure-devops:fetchWorkItems')
   async fetchWorkItems(
-    filters?: azureDevopsService.WorkItemFilters,
-  ): Promise<ApiResponse<azureDevopsService.WorkItem[]>> {
+    filters?: WorkItemFilters,
+  ): Promise<ApiResponse<WorkItem[]>> {
     try {
       const result = await this.service.fetchWorkItems(filters);
       return { success: true, data: result };
@@ -100,9 +105,7 @@ export class AzureDevOpsController extends BaseHandler {
       return { success: true, data: dataUri };
     } catch (error) {
       const message =
-        error instanceof Error
-          ? error.message
-          : 'Erro ao buscar imagem';
+        error instanceof Error ? error.message : 'Erro ao buscar imagem';
       logger.error('AzureDevOpsController.proxyImage error:', error);
       return { success: false, error: message };
     }

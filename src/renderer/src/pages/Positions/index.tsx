@@ -27,7 +27,10 @@ import { useForm, Controller } from 'react-hook-form';
 import { Modal } from '@renderer/components/Modal';
 import { usePositions } from '@renderer/hooks/usePositions';
 import { useTableSort } from '@renderer/hooks/useTableSort';
-import { StandardTable, type StandardColumn } from '@renderer/components/StandardTable';
+import {
+  StandardTable,
+  type StandardColumn,
+} from '@renderer/components/StandardTable';
 import {
   PageContainer,
   PlaceholderContent,
@@ -99,7 +102,9 @@ export function PositionsPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
-  const [positionToToggle, setPositionToToggle] = useState<Position | null>(null);
+  const [positionToToggle, setPositionToToggle] = useState<Position | null>(
+    null,
+  );
   const [statusLoading, setStatusLoading] = useState(false);
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [page, setPage] = useState(0);
@@ -157,7 +162,12 @@ export function PositionsPage() {
       description: position.description ?? '',
     });
     setSelectedStatuses(
-      position.allowedStatuses ? position.allowedStatuses.split(',').map((s) => s.trim()).filter(Boolean) : [],
+      position.allowedStatuses
+        ? position.allowedStatuses
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : [],
     );
     setIsFormOpen(true);
   };
@@ -172,7 +182,8 @@ export function PositionsPage() {
 
   const handleSavePosition = async (data: PositionFormData) => {
     setFormLoading(true);
-    const allowedStatuses = selectedStatuses.length > 0 ? selectedStatuses.join(',') : undefined;
+    const allowedStatuses =
+      selectedStatuses.length > 0 ? selectedStatuses.join(',') : undefined;
     try {
       if (selectedPosition) {
         const updateData: UpdatePositionInput = {
@@ -339,12 +350,24 @@ export function PositionsPage() {
               ),
               allowedStatuses: position.allowedStatuses ? (
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                  {position.allowedStatuses.split(',').map((s) => s.trim()).filter(Boolean).map((status) => (
-                    <Chip key={status} label={status} size="small" variant="outlined" sx={{ fontSize: '0.7rem', height: 20 }} />
-                  ))}
+                  {position.allowedStatuses
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                    .map((status) => (
+                      <Chip
+                        key={status}
+                        label={status}
+                        size="small"
+                        variant="outlined"
+                        sx={{ fontSize: '0.7rem', height: 20 }}
+                      />
+                    ))}
                 </Box>
               ) : (
-                <Typography variant="body2" color="text.secondary">—</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  —
+                </Typography>
               ),
               isActive: (
                 <Chip
@@ -357,7 +380,10 @@ export function PositionsPage() {
               actions: (
                 <>
                   <Tooltip title="Editar">
-                    <IconButton size="small" onClick={() => handleEditPosition(position)}>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleEditPosition(position)}
+                    >
                       <EditIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
@@ -367,11 +393,19 @@ export function PositionsPage() {
                       onClick={() => handleToggleStatus(position)}
                       color={position.isActive ? 'warning' : 'success'}
                     >
-                      {position.isActive ? <ToggleOffIcon fontSize="small" /> : <ToggleOnIcon fontSize="small" />}
+                      {position.isActive ? (
+                        <ToggleOffIcon fontSize="small" />
+                      ) : (
+                        <ToggleOnIcon fontSize="small" />
+                      )}
                     </IconButton>
                   </Tooltip>
                   <Tooltip title="Excluir">
-                    <IconButton size="small" onClick={() => handleDeleteClick(position)} color="error">
+                    <IconButton
+                      size="small"
+                      onClick={() => handleDeleteClick(position)}
+                      color="error"
+                    >
                       <DeleteIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
@@ -386,9 +420,17 @@ export function PositionsPage() {
           totalCount={filteredPositions.length}
           onPageChange={setPage}
           onRowsPerPageChange={setRowsPerPage}
-          emptyIcon={<WorkIcon sx={{ fontSize: 64, color: 'text.secondary' }} />}
-          emptyTitle={searchTerm ? 'Nenhum cargo encontrado' : 'Nenhum cargo cadastrado'}
-          emptyDescription={searchTerm ? 'Tente ajustar os filtros de busca' : 'Clique em "Novo Cargo" para adicionar o primeiro cargo'}
+          emptyIcon={
+            <WorkIcon sx={{ fontSize: 64, color: 'text.secondary' }} />
+          }
+          emptyTitle={
+            searchTerm ? 'Nenhum cargo encontrado' : 'Nenhum cargo cadastrado'
+          }
+          emptyDescription={
+            searchTerm
+              ? 'Tente ajustar os filtros de busca'
+              : 'Clique em "Novo Cargo" para adicionar o primeiro cargo'
+          }
         />
       ) : (
         <PlaceholderContent>
@@ -467,7 +509,12 @@ export function PositionsPage() {
             onChange={(_e, val) => setSelectedStatuses(val)}
             renderTags={(value, getTagProps) =>
               value.map((option, index) => (
-                <Chip {...getTagProps({ index })} key={option} label={option} size="small" />
+                <Chip
+                  {...getTagProps({ index })}
+                  key={option}
+                  label={option}
+                  size="small"
+                />
               ))
             }
             renderInput={(params) => (
@@ -524,7 +571,8 @@ export function PositionsPage() {
         </Typography>
         {positionToToggle?.isActive && (
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            O cargo será marcado como inativo, mas os membros associados serão preservados.
+            O cargo será marcado como inativo, mas os membros associados serão
+            preservados.
           </Typography>
         )}
       </Modal>

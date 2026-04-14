@@ -38,12 +38,18 @@ function formatDateTime(dateStr: string): string {
   return `${d.toLocaleDateString('pt-BR')} ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
 }
 
-function isDeadlinePast(deadline: string | null | undefined, completedAt: string | null | undefined): boolean {
+function isDeadlinePast(
+  deadline: string | null | undefined,
+  completedAt: string | null | undefined,
+): boolean {
   if (!deadline || completedAt) return false;
   return new Date() > new Date(deadline);
 }
 
-const ENTITY_TYPE_COLORS: Record<string, 'primary' | 'secondary' | 'success' | 'warning'> = {
+const ENTITY_TYPE_COLORS: Record<
+  string,
+  'primary' | 'secondary' | 'success' | 'warning'
+> = {
   team_member: 'primary',
   team: 'secondary',
   position: 'success',
@@ -57,7 +63,14 @@ const ENTITY_TYPE_LABELS: Record<string, string> = {
   task: 'Task',
 };
 
-export function NoteCardItem({ noteCard, onComplete, onEdit, onViewDetails, onReactivate, onDelete }: NoteCardItemProps) {
+export function NoteCardItem({
+  noteCard,
+  onComplete,
+  onEdit,
+  onViewDetails,
+  onReactivate,
+  onDelete,
+}: NoteCardItemProps) {
   const sanitizedBody = DOMPurify.sanitize(noteCard.body);
   const deadlinePast = isDeadlinePast(noteCard.deadline, noteCard.completedAt);
   const isCompleted = !!noteCard.completedAt;
@@ -81,7 +94,11 @@ export function NoteCardItem({ noteCard, onComplete, onEdit, onViewDetails, onRe
       <Box
         sx={{
           height: 4,
-          bgcolor: deadlinePast ? 'error.main' : isCompleted ? 'success.main' : 'primary.main',
+          bgcolor: deadlinePast
+            ? 'error.main'
+            : isCompleted
+              ? 'success.main'
+              : 'primary.main',
         }}
       />
 
@@ -117,7 +134,11 @@ export function NoteCardItem({ noteCard, onComplete, onEdit, onViewDetails, onRe
           color: 'text.secondary',
           mb: 1,
           '& p': { margin: 0 },
-          '& h1, & h2, & h3': { margin: 0, fontSize: '0.82rem', fontWeight: 600 },
+          '& h1, & h2, & h3': {
+            margin: 0,
+            fontSize: '0.82rem',
+            fontWeight: 600,
+          },
           '& ul, & ol': { margin: 0, paddingLeft: '1.2rem' },
         }}
         dangerouslySetInnerHTML={{ __html: sanitizedBody }}
@@ -128,14 +149,23 @@ export function NoteCardItem({ noteCard, onComplete, onEdit, onViewDetails, onRe
         <Stack spacing={0.5}>
           <Stack direction="row" alignItems="center" spacing={0.5}>
             <CalendarIcon sx={{ fontSize: 13, color: 'text.disabled' }} />
-            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.7rem' }}>
+            <Typography
+              variant="caption"
+              color="text.disabled"
+              sx={{ fontSize: '0.7rem' }}
+            >
               {formatDate(noteCard.createdAt)}
             </Typography>
           </Stack>
 
           {noteCard.deadline && (
             <Stack direction="row" alignItems="center" spacing={0.5}>
-              <ScheduleIcon sx={{ fontSize: 13, color: deadlinePast ? 'error.main' : 'text.disabled' }} />
+              <ScheduleIcon
+                sx={{
+                  fontSize: 13,
+                  color: deadlinePast ? 'error.main' : 'text.disabled',
+                }}
+              />
               {deadlinePast ? (
                 <Chip
                   icon={<WarningIcon sx={{ fontSize: '14px !important' }} />}
@@ -145,7 +175,11 @@ export function NoteCardItem({ noteCard, onComplete, onEdit, onViewDetails, onRe
                   sx={{ height: 20, fontSize: '0.65rem', fontWeight: 600 }}
                 />
               ) : (
-                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ fontSize: '0.7rem' }}
+                >
                   Prazo: {formatDateTime(noteCard.deadline)}
                 </Typography>
               )}
@@ -161,7 +195,10 @@ export function NoteCardItem({ noteCard, onComplete, onEdit, onViewDetails, onRe
             {noteCard.links.slice(0, 4).map((link) => (
               <Chip
                 key={link.id}
-                label={link.entityName || `${ENTITY_TYPE_LABELS[link.entityType]} #${link.entityId}`}
+                label={
+                  link.entityName ||
+                  `${ENTITY_TYPE_LABELS[link.entityType]} #${link.entityId}`
+                }
                 size="small"
                 variant="outlined"
                 color={ENTITY_TYPE_COLORS[link.entityType] || 'primary'}
@@ -195,14 +232,22 @@ export function NoteCardItem({ noteCard, onComplete, onEdit, onViewDetails, onRe
       >
         {!isCompleted && (
           <Tooltip title="Concluir">
-            <IconButton size="small" color="success" onClick={() => onComplete(noteCard.id)}>
+            <IconButton
+              size="small"
+              color="success"
+              onClick={() => onComplete(noteCard.id)}
+            >
               <CheckCircleIcon sx={{ fontSize: 18 }} />
             </IconButton>
           </Tooltip>
         )}
         {isCompleted && onReactivate && (
           <Tooltip title="Reativar">
-            <IconButton size="small" color="info" onClick={() => onReactivate(noteCard.id)}>
+            <IconButton
+              size="small"
+              color="info"
+              onClick={() => onReactivate(noteCard.id)}
+            >
               <ReplayIcon sx={{ fontSize: 18 }} />
             </IconButton>
           </Tooltip>
@@ -221,7 +266,11 @@ export function NoteCardItem({ noteCard, onComplete, onEdit, onViewDetails, onRe
         </Tooltip>
         {onDelete && (
           <Tooltip title="Excluir">
-            <IconButton size="small" color="error" onClick={() => onDelete(noteCard.id)}>
+            <IconButton
+              size="small"
+              color="error"
+              onClick={() => onDelete(noteCard.id)}
+            >
               <DeleteIcon sx={{ fontSize: 18 }} />
             </IconButton>
           </Tooltip>

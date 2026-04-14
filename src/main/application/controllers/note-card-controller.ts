@@ -13,7 +13,10 @@ const noteCardService = new NoteCardService();
 export function registerNoteCardController(): void {
   ipcMain.handle(
     'note-card:create',
-    async (_event, data: CreateNoteCardInput): Promise<ApiResponse<unknown>> => {
+    async (
+      _event,
+      data: CreateNoteCardInput,
+    ): Promise<ApiResponse<unknown>> => {
       return tryCatch(async () => {
         const noteCard = await noteCardService.create(data);
         return noteCard;

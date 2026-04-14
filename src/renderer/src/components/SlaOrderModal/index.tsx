@@ -73,8 +73,9 @@ export function SlaOrderModal({
   if (!open) return null;
 
   // Only Tickets with active SLA, sorted by most consumed SLA first (highest elapsed → lowest remaining)
-  const visible = (showHidden ? items : items.filter((i) => !i.isHidden))
-    .filter((i) => i.task.type === 'Ticket' && !i.slaExcluded);
+  const visible = (
+    showHidden ? items : items.filter((i) => !i.isHidden)
+  ).filter((i) => i.task.type === 'Ticket' && !i.slaExcluded);
 
   const sorted = [...visible].sort((a, b) => {
     // Most consumed SLA first (highest businessHoursElapsed = most urgent)
@@ -109,7 +110,12 @@ export function SlaOrderModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
+        <Stack
+          direction="row"
+          alignItems="center"
+          justifyContent="space-between"
+          mb={2}
+        >
           <Stack direction="row" alignItems="center" spacing={1}>
             <TimerIcon color="primary" />
             <Typography variant="h6">
@@ -123,7 +129,8 @@ export function SlaOrderModal({
         </Stack>
 
         <Typography variant="body2" color="text.secondary" mb={2}>
-          Tickets ordenados pelo consumo de SLA — do maior tempo decorrido para o menor.
+          Tickets ordenados pelo consumo de SLA — do maior tempo decorrido para
+          o menor.
         </Typography>
 
         {/* Table */}
@@ -151,23 +158,39 @@ export function SlaOrderModal({
                     sx={{
                       cursor: 'pointer',
                       opacity: item.isHidden ? 0.45 : 1,
-                      bgcolor: item.slaViolated ? 'rgba(211,47,47,0.04)' : undefined,
+                      bgcolor: item.slaViolated
+                        ? 'rgba(211,47,47,0.04)'
+                        : undefined,
                       '&:hover': { bgcolor: 'action.hover' },
                     }}
-                    onClick={() => { onClose(); onRowClick(t); }}
+                    onClick={() => {
+                      onClose();
+                      onRowClick(t);
+                    }}
                   >
                     <TableCell>
-                      <Typography variant="body2" fontWeight={700} color="text.secondary">
+                      <Typography
+                        variant="body2"
+                        fontWeight={700}
+                        color="text.secondary"
+                      >
                         {idx + 1}
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        fontWeight={600}
+                      >
                         #{t.externalId ?? t.id}
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2" sx={{ wordBreak: 'break-word', lineHeight: 1.4 }}>
+                      <Typography
+                        variant="body2"
+                        sx={{ wordBreak: 'break-word', lineHeight: 1.4 }}
+                      >
                         {t.title}
                       </Typography>
                     </TableCell>
@@ -175,7 +198,9 @@ export function SlaOrderModal({
                       <Stack direction="row" alignItems="center" spacing={0.5}>
                         {noAssignee && (
                           <Tooltip title="Sem responsável">
-                            <WarningIcon sx={{ fontSize: 16, color: 'warning.main' }} />
+                            <WarningIcon
+                              sx={{ fontSize: 16, color: 'warning.main' }}
+                            />
                           </Tooltip>
                         )}
                         <Typography variant="body2">
@@ -199,29 +224,44 @@ export function SlaOrderModal({
                     <TableCell sx={{ whiteSpace: 'nowrap' }}>
                       <Stack spacing={0.3}>
                         <Chip
-                          icon={item.slaViolated ? <TimerOffIcon /> : <TimerIcon />}
+                          icon={
+                            item.slaViolated ? <TimerOffIcon /> : <TimerIcon />
+                          }
                           label={
                             item.slaViolated
                               ? formatSlaDelay(item.businessHoursRemaining)
                               : formatSlaRemaining(item.businessHoursRemaining)
                           }
                           size="small"
-                          color={item.slaViolated ? 'error' : item.slaWarning ? 'warning' : 'info'}
+                          color={
+                            item.slaViolated
+                              ? 'error'
+                              : item.slaWarning
+                                ? 'warning'
+                                : 'info'
+                          }
                           variant={item.slaViolated ? 'filled' : 'outlined'}
                         />
                         {item.expirationDate && (
                           <Typography
                             variant="caption"
                             sx={{
-                              color: item.slaViolated ? 'error.main' : 'text.secondary',
+                              color: item.slaViolated
+                                ? 'error.main'
+                                : 'text.secondary',
                               fontSize: '0.7rem',
                             }}
                           >
-                            {new Date(item.expirationDate).toLocaleDateString('pt-BR')}{' '}
-                            {new Date(item.expirationDate).toLocaleTimeString('pt-BR', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
+                            {new Date(item.expirationDate).toLocaleDateString(
+                              'pt-BR',
+                            )}{' '}
+                            {new Date(item.expirationDate).toLocaleTimeString(
+                              'pt-BR',
+                              {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              },
+                            )}
                           </Typography>
                         )}
                       </Stack>

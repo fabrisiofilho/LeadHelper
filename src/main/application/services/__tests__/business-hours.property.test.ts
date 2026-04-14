@@ -210,7 +210,6 @@ describe('Feature: leadhelper-restructure, Property 4: cálculo de horas úteis'
   });
 });
 
-
 // ============================================================
 // Property 5 Tests
 // ============================================================

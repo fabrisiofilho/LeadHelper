@@ -42,7 +42,10 @@ import {
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import type { Task, BreadcrumbItem } from '@shared/interfaces/config/index.types';
+import type {
+  Task,
+  BreadcrumbItem,
+} from '@shared/interfaces/config/index.types';
 import { useAzureDevOps } from '@renderer/hooks/useAzureDevOps';
 import { TaskHierarchy } from '@renderer/components/TaskHierarchy';
 import { getStatusColor } from '@shared/constants/status-colors';
@@ -60,15 +63,22 @@ const priorityConfig = {
   critical: { label: 'Crítica', color: '#d32f2f' },
 };
 
-const typeConfigMap: Record<string, { label: string; color: string; icon: typeof TaskIcon }> = {
-  'Epic': { label: 'Epic', color: '#ff8c00', icon: EpicIcon },
-  'Feature': { label: 'Feature', color: '#9c27b0', icon: FeatureIcon },
-  'Improvement': { label: 'Improvement', color: '#e91e63', icon: ImprovementIcon },
-  'Rework': { label: 'Rework', color: '#d32f2f', icon: BugIcon },
-  'Bug': { label: 'Bug', color: '#d32f2f', icon: BugIcon },
-  'Roadmap': { label: 'Roadmap', color: '#424242', icon: RoadmapIcon },
-  'Task': { label: 'Task', color: '#c8a415', icon: TaskTypeIcon },
-  'Ticket': { label: 'Ticket', color: '#4caf50', icon: TicketIcon },
+const typeConfigMap: Record<
+  string,
+  { label: string; color: string; icon: typeof TaskIcon }
+> = {
+  Epic: { label: 'Epic', color: '#ff8c00', icon: EpicIcon },
+  Feature: { label: 'Feature', color: '#9c27b0', icon: FeatureIcon },
+  Improvement: {
+    label: 'Improvement',
+    color: '#e91e63',
+    icon: ImprovementIcon,
+  },
+  Rework: { label: 'Rework', color: '#d32f2f', icon: BugIcon },
+  Bug: { label: 'Bug', color: '#d32f2f', icon: BugIcon },
+  Roadmap: { label: 'Roadmap', color: '#424242', icon: RoadmapIcon },
+  Task: { label: 'Task', color: '#c8a415', icon: TaskTypeIcon },
+  Ticket: { label: 'Ticket', color: '#4caf50', icon: TicketIcon },
   'User Story': { label: 'User Story', color: '#2196f3', icon: UserStoryIcon },
 };
 
@@ -93,9 +103,10 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
           const response = await window.electronAPI.task.findById(task.id);
           if (response.success && response.data) {
             setTaskWithHierarchy(response.data);
-            
+
             // Load breadcrumb for navigation
-            const breadcrumbResponse = await window.electronAPI.hierarchy.buildBreadcrumb(task.id);
+            const breadcrumbResponse =
+              await window.electronAPI.hierarchy.buildBreadcrumb(task.id);
             if (breadcrumbResponse.success && breadcrumbResponse.data) {
               setBreadcrumbItems(breadcrumbResponse.data);
             }
@@ -134,9 +145,10 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
       if (response.success && response.data) {
         setTaskWithHierarchy(response.data);
         setActiveTab(0); // Switch back to details tab
-        
+
         // Update breadcrumb for the new task
-        const breadcrumbResponse = await window.electronAPI.hierarchy.buildBreadcrumb(clickedTask.id);
+        const breadcrumbResponse =
+          await window.electronAPI.hierarchy.buildBreadcrumb(clickedTask.id);
         if (breadcrumbResponse.success && breadcrumbResponse.data) {
           setBreadcrumbItems(breadcrumbResponse.data);
         }
@@ -151,9 +163,10 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
       const response = await window.electronAPI.task.findById(taskId);
       if (response.success && response.data) {
         setTaskWithHierarchy(response.data);
-        
+
         // Update breadcrumb for the new task
-        const breadcrumbResponse = await window.electronAPI.hierarchy.buildBreadcrumb(taskId);
+        const breadcrumbResponse =
+          await window.electronAPI.hierarchy.buildBreadcrumb(taskId);
         if (breadcrumbResponse.success && breadcrumbResponse.data) {
           setBreadcrumbItems(breadcrumbResponse.data);
         }
@@ -237,7 +250,9 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
     const container = descriptionRef.current;
     if (!container || !open) return;
 
-    const imgs = container.querySelectorAll<HTMLImageElement>('img[src^="https://"]');
+    const imgs = container.querySelectorAll<HTMLImageElement>(
+      'img[src^="https://"]',
+    );
     imgs.forEach((img) => {
       const originalSrc = img.getAttribute('src');
       if (!originalSrc) return;
@@ -378,9 +393,17 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
 
       {/* Breadcrumb Navigation */}
       {breadcrumbItems.length > 1 && (
-        <Box sx={{ px: 2, py: 1, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.default' }}>
-          <Breadcrumbs 
-            separator={<NavigateNextIcon fontSize="small" />} 
+        <Box
+          sx={{
+            px: 2,
+            py: 1,
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+            bgcolor: 'background.default',
+          }}
+        >
+          <Breadcrumbs
+            separator={<NavigateNextIcon fontSize="small" />}
             aria-label="navegação hierárquica"
             sx={{ '& .MuiBreadcrumbs-separator': { mx: 0.5 } }}
           >
@@ -390,10 +413,10 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
                 component="button"
                 variant="body2"
                 onClick={() => handleBreadcrumbClick(item.id)}
-                sx={{ 
+                sx={{
                   cursor: 'pointer',
                   textDecoration: 'none',
-                  '&:hover': { textDecoration: 'underline' }
+                  '&:hover': { textDecoration: 'underline' },
                 }}
                 title={item.title}
               >
@@ -568,38 +591,85 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
                   )}
 
                   {/* Azure DevOps Info */}
-                  {displayTask.origin === 'azure_devops' && (displayTask.areaPath || displayTask.iterationPath) && (
-                    <>
-                      <Box>
-                        <Stack direction="row" spacing={1} alignItems="center" mb={1}>
-                          <CloudIcon fontSize="small" color="action" />
-                          <Typography variant="subtitle2" fontWeight={600}>
-                            Azure DevOps
-                          </Typography>
-                        </Stack>
-                        <Stack direction="row" spacing={2}>
-                          {displayTask.areaPath && (
-                            <Paper variant="outlined" sx={{ p: 1.5, bgcolor: 'background.default', flex: 1 }}>
-                              <Typography variant="caption" color="text.secondary" display="block">Area Path</Typography>
-                              <Typography variant="body2" fontWeight={500} sx={{ mt: 0.5, fontFamily: 'monospace', fontSize: '0.8rem' }}>
-                                {displayTask.areaPath}
-                              </Typography>
-                            </Paper>
-                          )}
-                          {displayTask.iterationPath && (
-                            <Paper variant="outlined" sx={{ p: 1.5, bgcolor: 'background.default', flex: 1 }}>
-                              <Typography variant="caption" color="text.secondary" display="block">Iteration Path</Typography>
-                              <Typography variant="body2" fontWeight={500} sx={{ mt: 0.5, fontFamily: 'monospace', fontSize: '0.8rem' }}>
-                                {displayTask.iterationPath}
-                              </Typography>
-                            </Paper>
-                          )}
-                        </Stack>
-                      </Box>
-                      <Divider />
-                    </>
-                  )}
-
+                  {displayTask.origin === 'azure_devops' &&
+                    (displayTask.areaPath || displayTask.iterationPath) && (
+                      <>
+                        <Box>
+                          <Stack
+                            direction="row"
+                            spacing={1}
+                            alignItems="center"
+                            mb={1}
+                          >
+                            <CloudIcon fontSize="small" color="action" />
+                            <Typography variant="subtitle2" fontWeight={600}>
+                              Azure DevOps
+                            </Typography>
+                          </Stack>
+                          <Stack direction="row" spacing={2}>
+                            {displayTask.areaPath && (
+                              <Paper
+                                variant="outlined"
+                                sx={{
+                                  p: 1.5,
+                                  bgcolor: 'background.default',
+                                  flex: 1,
+                                }}
+                              >
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                  display="block"
+                                >
+                                  Area Path
+                                </Typography>
+                                <Typography
+                                  variant="body2"
+                                  fontWeight={500}
+                                  sx={{
+                                    mt: 0.5,
+                                    fontFamily: 'monospace',
+                                    fontSize: '0.8rem',
+                                  }}
+                                >
+                                  {displayTask.areaPath}
+                                </Typography>
+                              </Paper>
+                            )}
+                            {displayTask.iterationPath && (
+                              <Paper
+                                variant="outlined"
+                                sx={{
+                                  p: 1.5,
+                                  bgcolor: 'background.default',
+                                  flex: 1,
+                                }}
+                              >
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                  display="block"
+                                >
+                                  Iteration Path
+                                </Typography>
+                                <Typography
+                                  variant="body2"
+                                  fontWeight={500}
+                                  sx={{
+                                    mt: 0.5,
+                                    fontFamily: 'monospace',
+                                    fontSize: '0.8rem',
+                                  }}
+                                >
+                                  {displayTask.iterationPath}
+                                </Typography>
+                              </Paper>
+                            )}
+                          </Stack>
+                        </Box>
+                        <Divider />
+                      </>
+                    )}
                 </Stack>
               </Box>
 
@@ -616,7 +686,12 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
                   {/* Status + Priority + Type row */}
                   <Stack spacing={1.5}>
                     <Box>
-                      <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 0.5, display: 'block' }}>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        fontWeight={600}
+                        sx={{ mb: 0.5, display: 'block' }}
+                      >
                         STATUS
                       </Typography>
                       <Chip
@@ -632,7 +707,12 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
                     </Box>
                     <Stack direction="row" spacing={1}>
                       <Box flex={1}>
-                        <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 0.5, display: 'block' }}>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          fontWeight={600}
+                          sx={{ mb: 0.5, display: 'block' }}
+                        >
                           TIPO
                         </Typography>
                         <Chip
@@ -648,7 +728,12 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
                         />
                       </Box>
                       <Box flex={1}>
-                        <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 0.5, display: 'block' }}>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          fontWeight={600}
+                          sx={{ mb: 0.5, display: 'block' }}
+                        >
                           PRIORIDADE
                         </Typography>
                         <Chip
@@ -669,7 +754,12 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
 
                   {/* Assignee */}
                   <Box>
-                    <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 0.5, display: 'block' }}>
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      fontWeight={600}
+                      sx={{ mb: 0.5, display: 'block' }}
+                    >
                       RESPONSÁVEL
                     </Typography>
                     {displayTask.assignedToName ? (
@@ -689,14 +779,21 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
                             {displayTask.assignedToName}
                           </Typography>
                           {displayTask.assignedToEmail && (
-                            <Typography variant="caption" color="text.secondary">
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                            >
                               {displayTask.assignedToEmail}
                             </Typography>
                           )}
                         </Box>
                       </Stack>
                     ) : (
-                      <Typography variant="body2" color="text.secondary" fontStyle="italic">
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        fontStyle="italic"
+                      >
                         Não atribuído
                       </Typography>
                     )}
@@ -707,58 +804,107 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
                   {/* Sprint + Team row */}
                   <Stack direction="row" spacing={2}>
                     <Box flex={1}>
-                      <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 0.5, display: 'block' }}>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        fontWeight={600}
+                        sx={{ mb: 0.5, display: 'block' }}
+                      >
                         SPRINT
                       </Typography>
                       {displayTask.sprint ? (
-                        <Tooltip title={`${formatDate(displayTask.sprint.startDate)} - ${formatDate(displayTask.sprint.endDate)}`}>
-                          <Paper variant="outlined" sx={{ p: 1, bgcolor: 'background.paper', cursor: 'help' }}>
+                        <Tooltip
+                          title={`${formatDate(displayTask.sprint.startDate)} - ${formatDate(displayTask.sprint.endDate)}`}
+                        >
+                          <Paper
+                            variant="outlined"
+                            sx={{
+                              p: 1,
+                              bgcolor: 'background.paper',
+                              cursor: 'help',
+                            }}
+                          >
                             <Typography variant="body2" fontWeight={500} noWrap>
                               {displayTask.sprint.name}
                             </Typography>
                           </Paper>
                         </Tooltip>
                       ) : (
-                        <Typography variant="body2" color="text.secondary" fontStyle="italic">Sem sprint</Typography>
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          fontStyle="italic"
+                        >
+                          Sem sprint
+                        </Typography>
                       )}
                     </Box>
                     <Box flex={1}>
-                      <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 0.5, display: 'block' }}>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        fontWeight={600}
+                        sx={{ mb: 0.5, display: 'block' }}
+                      >
                         EQUIPE
                       </Typography>
                       {displayTask.team ? (
-                        <Paper variant="outlined" sx={{ p: 1, bgcolor: 'background.paper' }}>
+                        <Paper
+                          variant="outlined"
+                          sx={{ p: 1, bgcolor: 'background.paper' }}
+                        >
                           <Typography variant="body2" fontWeight={500} noWrap>
                             {displayTask.team.name}
                           </Typography>
                         </Paper>
                       ) : (
-                        <Typography variant="body2" color="text.secondary" fontStyle="italic">Sem equipe</Typography>
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          fontStyle="italic"
+                        >
+                          Sem equipe
+                        </Typography>
                       )}
                     </Box>
                   </Stack>
 
                   {/* Story Points */}
-                  {displayTask.storyPoints !== undefined && displayTask.storyPoints !== null && (
-                    <>
-                      <Divider />
-                      <Box>
-                        <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 0.5, display: 'block' }}>
-                          STORY POINTS
-                        </Typography>
-                        <Typography variant="h5" fontWeight={700} color="primary">
-                          {displayTask.storyPoints}
-                        </Typography>
-                      </Box>
-                    </>
-                  )}
+                  {displayTask.storyPoints !== undefined &&
+                    displayTask.storyPoints !== null && (
+                      <>
+                        <Divider />
+                        <Box>
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            fontWeight={600}
+                            sx={{ mb: 0.5, display: 'block' }}
+                          >
+                            STORY POINTS
+                          </Typography>
+                          <Typography
+                            variant="h5"
+                            fontWeight={700}
+                            color="primary"
+                          >
+                            {displayTask.storyPoints}
+                          </Typography>
+                        </Box>
+                      </>
+                    )}
 
                   <Divider />
 
                   {/* Período */}
                   <Stack direction="row" spacing={2}>
                     <Box flex={1}>
-                      <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 0.5, display: 'block' }}>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        fontWeight={600}
+                        sx={{ mb: 0.5, display: 'block' }}
+                      >
                         INÍCIO
                       </Typography>
                       <Typography variant="body2" fontWeight={500}>
@@ -766,7 +912,12 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
                       </Typography>
                     </Box>
                     <Box flex={1}>
-                      <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 0.5, display: 'block' }}>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        fontWeight={600}
+                        sx={{ mb: 0.5, display: 'block' }}
+                      >
                         TÉRMINO
                       </Typography>
                       <Typography variant="body2" fontWeight={500}>
@@ -781,7 +932,12 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
                   {displayTask.origin === 'azure_devops' && (
                     <Stack direction="row" spacing={2}>
                       <Box flex={1}>
-                        <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 0.5, display: 'block' }}>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          fontWeight={600}
+                          sx={{ mb: 0.5, display: 'block' }}
+                        >
                           CRIADO (AZURE)
                         </Typography>
                         <Typography variant="body2" fontWeight={600}>
@@ -789,7 +945,12 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
                         </Typography>
                       </Box>
                       <Box flex={1}>
-                        <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 0.5, display: 'block' }}>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          fontWeight={600}
+                          sx={{ mb: 0.5, display: 'block' }}
+                        >
                           ATUALIZADO (AZURE)
                         </Typography>
                         <Typography variant="body2" fontWeight={600}>
@@ -800,9 +961,20 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
                   )}
 
                   {/* Datas locais */}
-                  <Stack direction="row" spacing={2} sx={{ opacity: displayTask.origin === 'azure_devops' ? 0.5 : 1 }}>
+                  <Stack
+                    direction="row"
+                    spacing={2}
+                    sx={{
+                      opacity: displayTask.origin === 'azure_devops' ? 0.5 : 1,
+                    }}
+                  >
                     <Box flex={1}>
-                      <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 0.5, display: 'block' }}>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        fontWeight={600}
+                        sx={{ mb: 0.5, display: 'block' }}
+                      >
                         CRIADO (LOCAL)
                       </Typography>
                       <Typography variant="body2">
@@ -810,7 +982,12 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
                       </Typography>
                     </Box>
                     <Box flex={1}>
-                      <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 0.5, display: 'block' }}>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        fontWeight={600}
+                        sx={{ mb: 0.5, display: 'block' }}
+                      >
                         ATUALIZADO (LOCAL)
                       </Typography>
                       <Typography variant="body2">

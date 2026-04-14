@@ -17,59 +17,59 @@
 
 export const STATUS_COLORS: Record<string, string> = {
   // ── Planejamento (blues) ──
-  'Novo':                    '#42A5F5', // blue 400
-  'New':                     '#42A5F5',
-  'Em classificação':        '#5C6BC0', // indigo 400
-  'Backlog Comprometido':    '#1E88E5', // blue 600
-  'Em levantamento':         '#29B6F6', // light blue 400
+  Novo: '#42A5F5', // blue 400
+  New: '#42A5F5',
+  'Em classificação': '#5C6BC0', // indigo 400
+  'Backlog Comprometido': '#1E88E5', // blue 600
+  'Em levantamento': '#29B6F6', // light blue 400
 
   // ── Preparação (amber / yellow) ──
-  'Preparando para Dev':     '#FFA726', // orange 400
-  'Aguardando validação':    '#FFCA28', // amber 400
-  'Em validação':            '#FFB300', // amber 600
+  'Preparando para Dev': '#FFA726', // orange 400
+  'Aguardando validação': '#FFCA28', // amber 400
+  'Em validação': '#FFB300', // amber 600
 
   // ── Desenvolvimento (deep orange) ──
-  'Em desenvolvimento':      '#FF7043', // deep orange 400
-  'Em andamento':            '#FF7043',
-  'Em Andamento':            '#FF7043',
-  'Active':                  '#FF7043',
-  'In Progress':             '#FF7043',
-  'Committed':               '#FF7043',
+  'Em desenvolvimento': '#FF7043', // deep orange 400
+  'Em andamento': '#FF7043',
+  'Em Andamento': '#FF7043',
+  Active: '#FF7043',
+  'In Progress': '#FF7043',
+  Committed: '#FF7043',
 
   // ── Qualidade / Auditoria (purple) ──
-  'Aguardando auditoria':    '#CE93D8', // purple 200
-  'Aguardando Auditoria':    '#CE93D8',
-  'Em auditoria':            '#AB47BC', // purple 400
-  'Em Auditoria':            '#AB47BC',
+  'Aguardando auditoria': '#CE93D8', // purple 200
+  'Aguardando Auditoria': '#CE93D8',
+  'Em auditoria': '#AB47BC', // purple 400
+  'Em Auditoria': '#AB47BC',
 
   // ── Homologação (deep purple) ──
-  'Aguardando homologação':  '#9575CD', // deep purple 300
-  'Aguardando Homologação':  '#9575CD',
-  'Em homologação':          '#7E57C2', // deep purple 400
-  'Em Homologação':          '#7E57C2',
+  'Aguardando homologação': '#9575CD', // deep purple 300
+  'Aguardando Homologação': '#9575CD',
+  'Em homologação': '#7E57C2', // deep purple 400
+  'Em Homologação': '#7E57C2',
 
   // ── Implantação (teal) ──
-  'Aguardando implantação':  '#4DB6AC', // teal 300
-  'Aguardando Implantação':  '#4DB6AC',
-  'Em implantação':          '#26A69A', // teal 400
-  'Em Implantação':          '#26A69A',
+  'Aguardando implantação': '#4DB6AC', // teal 300
+  'Aguardando Implantação': '#4DB6AC',
+  'Em implantação': '#26A69A', // teal 400
+  'Em Implantação': '#26A69A',
 
   // ── Concluído (green) ──
-  'Finalizado':              '#66BB6A', // green 400
-  'Done':                    '#66BB6A',
-  'Closed':                  '#66BB6A',
-  'Resolved':                '#66BB6A',
-  'completed':               '#66BB6A',
+  Finalizado: '#66BB6A', // green 400
+  Done: '#66BB6A',
+  Closed: '#66BB6A',
+  Resolved: '#66BB6A',
+  completed: '#66BB6A',
 
   // ── Cancelado (red) ──
-  'Cancelado':               '#EF5350', // red 400
-  'Removed':                 '#EF5350',
-  'Cut':                     '#EF5350',
-  'cancelled':               '#EF5350',
+  Cancelado: '#EF5350', // red 400
+  Removed: '#EF5350',
+  Cut: '#EF5350',
+  cancelled: '#EF5350',
 
   // ── Legacy internal statuses ──
-  'pending':                 '#42A5F5',
-  'in_progress':             '#FF7043',
+  pending: '#42A5F5',
+  in_progress: '#FF7043',
 };
 
 export const DEFAULT_STATUS_COLOR = '#78909C'; // blue-grey 400

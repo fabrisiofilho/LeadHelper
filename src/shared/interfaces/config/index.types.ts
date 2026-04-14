@@ -187,10 +187,10 @@ export type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
  * Business hours: 08:00–12:00 and 13:30–17:30 (8h/day).
  */
 export const SLA_LIMITS: Record<TaskPriority, number> = {
-  critical: 4,   // Prioridade 4 (Crítica): 4 horas úteis
-  high: 8,       // Prioridade 3 (Alta): 8 horas úteis (1 dia útil)
-  medium: 24,    // Prioridade 2 (Média): 24 horas úteis (3 dias úteis)
-  low: 40,       // Prioridade 1 (Baixa): 40 horas úteis (5 dias úteis)
+  critical: 4, // Prioridade 4 (Crítica): 4 horas úteis
+  high: 8, // Prioridade 3 (Alta): 8 horas úteis (1 dia útil)
+  medium: 24, // Prioridade 2 (Média): 24 horas úteis (3 dias úteis)
+  low: 40, // Prioridade 1 (Baixa): 40 horas úteis (5 dias úteis)
 };
 
 // TaskType uses Azure DevOps work item types directly (Epic, Feature, User Story, Task, Bug, etc.)
@@ -680,11 +680,17 @@ export interface IDashboardController {
   getSustentacaoItems(
     options?: SustentacaoOptions,
   ): Promise<ApiResponse<SustentacaoItemWithSLA[]>>;
-  getSustentacaoMetrics(statuses?: string[]): Promise<ApiResponse<SustentacaoMetrics>>;
-  getSustentacaoMembersWithCards(): Promise<ApiResponse<SustentacaoMemberWithCards[]>>;
+  getSustentacaoMetrics(
+    statuses?: string[],
+  ): Promise<ApiResponse<SustentacaoMetrics>>;
+  getSustentacaoMembersWithCards(): Promise<
+    ApiResponse<SustentacaoMemberWithCards[]>
+  >;
   getTaskAllocationData(): Promise<ApiResponse<TaskAllocationMember[]>>;
   getProjetosItems(sprintId: number): Promise<ApiResponse<ProjetosResult>>;
-  getTaskUpdateHistory(taskId: number): Promise<ApiResponse<TaskUpdateRecord[]>>;
+  getTaskUpdateHistory(
+    taskId: number,
+  ): Promise<ApiResponse<TaskUpdateRecord[]>>;
   getBurndownData(sprintId: number): Promise<ApiResponse<BurndownPoint[]>>;
   getStatusDistribution(
     parentId?: number,
@@ -931,18 +937,18 @@ export interface SustentacaoItem {
  * Used by the Sustentação dashboard to display SLA status indicators.
  */
 export interface SustentacaoItemWithSLA extends SustentacaoItem {
-  businessHoursElapsed: number;  // horas úteis decorridas
-  slaLimit: number;              // limite SLA em horas úteis
-  slaPercentage: number;         // % do SLA consumido
-  slaViolated: boolean;          // SLA ultrapassado
-  slaWarning: boolean;           // ≥80% do SLA
+  businessHoursElapsed: number; // horas úteis decorridas
+  slaLimit: number; // limite SLA em horas úteis
+  slaPercentage: number; // % do SLA consumido
+  slaViolated: boolean; // SLA ultrapassado
+  slaWarning: boolean; // ≥80% do SLA
   expirationDate: string | null; // data/hora prevista de expiração do SLA
   businessHoursRemaining: number; // horas úteis restantes (negativo se estourado)
-  daysUntilExpiration: number;   // dias úteis até expirar (negativo se estourado)
+  daysUntilExpiration: number; // dias úteis até expirar (negativo se estourado)
   expirationAlert: 'expired' | 'critical' | 'warning' | 'attention' | null;
   // expired = já estourou, critical = 1 dia, warning = 2 dias, attention = 3 dias
-  slaExcluded?: boolean;         // SLA removido manualmente pelo usuário
-  isHidden?: boolean;            // Item oculto/desativado pelo usuário
+  slaExcluded?: boolean; // SLA removido manualmente pelo usuário
+  isHidden?: boolean; // Item oculto/desativado pelo usuário
 }
 
 /**
@@ -1108,7 +1114,10 @@ export interface ISyncController {
 
 export interface INoteCardController {
   create(input: CreateNoteCardInput): Promise<ApiResponse<NoteCard>>;
-  update(id: number, input: UpdateNoteCardInput): Promise<ApiResponse<NoteCard>>;
+  update(
+    id: number,
+    input: UpdateNoteCardInput,
+  ): Promise<ApiResponse<NoteCard>>;
   delete(id: number): Promise<ApiResponse<void>>;
   complete(id: number): Promise<ApiResponse<NoteCard>>;
   reactivate(id: number): Promise<ApiResponse<NoteCard>>;

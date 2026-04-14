@@ -88,18 +88,22 @@ export function StandardTable({
   }
 
   return (
-    <Paper sx={{
-      width: '100%',
-      overflow: 'hidden',
-      borderRadius: '1rem',
-      ...(fullHeight && {
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        minHeight: 0,
-      }),
-    }}>
-      <TableContainer sx={fullHeight ? { flex: 1, overflow: 'auto' } : undefined}>
+    <Paper
+      sx={{
+        width: '100%',
+        overflow: 'hidden',
+        borderRadius: '1rem',
+        ...(fullHeight && {
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
+        }),
+      }}
+    >
+      <TableContainer
+        sx={fullHeight ? { flex: 1, overflow: 'auto' } : undefined}
+      >
         <Table stickyHeader={stickyHeader}>
           <TableHead>
             <TableRow>
@@ -126,7 +130,10 @@ export function StandardTable({
                 sx={row.onClick ? { cursor: 'pointer' } : undefined}
               >
                 {columns.map((col) => (
-                  <TableCell key={col.id} align={col.align as 'left' | 'right' | 'center'}>
+                  <TableCell
+                    key={col.id}
+                    align={col.align as 'left' | 'right' | 'center'}
+                  >
                     {row.cells[col.id]}
                   </TableCell>
                 ))}
@@ -137,21 +144,21 @@ export function StandardTable({
       </TableContainer>
       {!hidePagination && (
         <TablePagination
-        rowsPerPageOptions={rowsPerPageOptions}
-        component="div"
-        count={totalCount}
-        rowsPerPage={rowsPerPage}
-        page={page}
-        onPageChange={(_: unknown, newPage: number) => onPageChange(newPage)}
-        onRowsPerPageChange={(e) => {
-          onRowsPerPageChange(parseInt(e.target.value, 10));
-          onPageChange(0);
-        }}
-        labelRowsPerPage="Linhas por página:"
-        labelDisplayedRows={({ from, to, count }) =>
-          `${from}-${to} de ${count !== -1 ? count : `mais de ${to}`}`
-        }
-      />
+          rowsPerPageOptions={rowsPerPageOptions}
+          component="div"
+          count={totalCount}
+          rowsPerPage={rowsPerPage}
+          page={page}
+          onPageChange={(_: unknown, newPage: number) => onPageChange(newPage)}
+          onRowsPerPageChange={(e) => {
+            onRowsPerPageChange(parseInt(e.target.value, 10));
+            onPageChange(0);
+          }}
+          labelRowsPerPage="Linhas por página:"
+          labelDisplayedRows={({ from, to, count }) =>
+            `${from}-${to} de ${count !== -1 ? count : `mais de ${to}`}`
+          }
+        />
       )}
     </Paper>
   );

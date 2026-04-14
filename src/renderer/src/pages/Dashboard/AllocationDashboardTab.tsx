@@ -242,7 +242,10 @@ export function AllocationDashboardTab() {
               }}
             >
               {data.membersWithoutAllocation.map((member) => (
-                <MemberItem key={member.id} sx={{ flex: '0 0 auto', minWidth: 240, maxWidth: 320 }}>
+                <MemberItem
+                  key={member.id}
+                  sx={{ flex: '0 0 auto', minWidth: 240, maxWidth: 320 }}
+                >
                   <Avatar
                     sx={{
                       bgcolor:

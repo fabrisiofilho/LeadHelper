@@ -5,7 +5,7 @@
  * Preserves the original Azure DevOps state in the 'status' field.
  * Extracts assignedToName and assignedToEmail from System.AssignedTo.
  * Sets origin: 'azure_devops' and externalId as string of the work item ID.
- * 
+ *
  * NOTE: The 'type' field stores the Azure DevOps work item type directly
  * (Epic, Feature, User Story, Task, Bug, etc.) without any mapping.
  * The 'status' field stores the original Azure DevOps state directly
@@ -73,27 +73,38 @@ export interface ParsedTask {
  * - Microsoft.VSTS.Common.Priority (number): 1=Baixo, 2=Médio, 3=Alto, 4=Crítica
  * - Custom.Prioridade (string): "1 - Baixo", "2 - Médio", "3 - Alto", "4 - Crítica"
  */
-function mapPriority(numericPriority?: number, customPrioridade?: string): TaskPriority {
+function mapPriority(
+  numericPriority?: number,
+  customPrioridade?: string,
+): TaskPriority {
   // Prefer Custom.Prioridade if available (extract leading number)
   if (customPrioridade) {
     const match = customPrioridade.match(/^(\d)/);
     if (match) {
       const num = parseInt(match[1], 10);
       switch (num) {
-        case 4: return 'critical';
-        case 3: return 'high';
-        case 2: return 'medium';
-        case 1: return 'low';
+        case 4:
+          return 'critical';
+        case 3:
+          return 'high';
+        case 2:
+          return 'medium';
+        case 1:
+          return 'low';
       }
     }
   }
   // Fallback to Microsoft.VSTS.Common.Priority
   if (numericPriority != null) {
     switch (numericPriority) {
-      case 4: return 'critical';
-      case 3: return 'high';
-      case 2: return 'medium';
-      case 1: return 'low';
+      case 4:
+        return 'critical';
+      case 3:
+        return 'high';
+      case 2:
+        return 'medium';
+      case 1:
+        return 'low';
     }
   }
   return 'low';

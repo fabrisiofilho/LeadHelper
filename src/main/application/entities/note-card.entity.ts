@@ -14,7 +14,11 @@ export class NoteCardEntity extends AuditableEntity {
   @Column({ type: 'text' })
   body!: string;
 
-  @Column({ type: 'datetime', nullable: true, transformer: DateTimeTransformer })
+  @Column({
+    type: 'datetime',
+    nullable: true,
+    transformer: DateTimeTransformer,
+  })
   deadline?: Date;
 
   @Column({

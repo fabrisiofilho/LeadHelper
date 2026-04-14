@@ -82,7 +82,9 @@ export function useNoteCards() {
         setState((prev) => ({
           ...prev,
           loading: false,
-          noteCards: response.data ? [...prev.noteCards, response.data] : prev.noteCards,
+          noteCards: response.data
+            ? [...prev.noteCards, response.data]
+            : prev.noteCards,
         }));
         return response.data || null;
       } catch (err) {
@@ -138,25 +140,28 @@ export function useNoteCards() {
     }
   }, []);
 
-  const reactivate = useCallback(async (id: number): Promise<NoteCard | null> => {
-    setLoading(true);
-    try {
-      const response = await window.electronAPI.noteCard.reactivate(id);
-      if (!response.success) {
-        setError(response.error || 'Erro ao reativar nota');
+  const reactivate = useCallback(
+    async (id: number): Promise<NoteCard | null> => {
+      setLoading(true);
+      try {
+        const response = await window.electronAPI.noteCard.reactivate(id);
+        if (!response.success) {
+          setError(response.error || 'Erro ao reativar nota');
+          return null;
+        }
+        setState((prev) => ({
+          ...prev,
+          loading: false,
+          noteCards: prev.noteCards.filter((nc) => nc.id !== id),
+        }));
+        return response.data || null;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erro de comunicação');
         return null;
       }
-      setState((prev) => ({
-        ...prev,
-        loading: false,
-        noteCards: prev.noteCards.filter((nc) => nc.id !== id),
-      }));
-      return response.data || null;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro de comunicação');
-      return null;
-    }
-  }, []);
+    },
+    [],
+  );
 
   const deleteNoteCard = useCallback(async (id: number): Promise<boolean> => {
     setLoading(true);

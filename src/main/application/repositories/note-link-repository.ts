@@ -12,7 +12,9 @@ export class NoteLinkRepository {
     return this._repository;
   }
 
-  async createLinks(links: Partial<NoteLinkEntity>[]): Promise<NoteLinkEntity[]> {
+  async createLinks(
+    links: Partial<NoteLinkEntity>[],
+  ): Promise<NoteLinkEntity[]> {
     if (links.length === 0) return [];
     const entities = links.map((link) => this.repository.create(link));
     return this.repository.save(entities);

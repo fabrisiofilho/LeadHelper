@@ -691,7 +691,14 @@ function computeSummary(statuses: string[]): SprintQuantitativeSummary {
   const total = pending + inProgress + completed + cancelled;
   const completionPercentage = total > 0 ? (completed / total) * 100 : 0;
 
-  return { total, completed, inProgress, pending, cancelled, completionPercentage };
+  return {
+    total,
+    completed,
+    inProgress,
+    pending,
+    cancelled,
+    completionPercentage,
+  };
 }
 
 // ============================================================
@@ -708,7 +715,10 @@ describe('Feature: leadhelper-restructure, Property 8: invariante do resumo quan
         const summary = computeSummary(statuses);
 
         expect(summary.total).toBe(
-          summary.pending + summary.inProgress + summary.completed + summary.cancelled,
+          summary.pending +
+            summary.inProgress +
+            summary.completed +
+            summary.cancelled,
         );
       }),
       { numRuns: 100 },
@@ -800,7 +810,9 @@ describe('Feature: leadhelper-restructure, Property 8: invariante do resumo quan
       fc.property(statusArb, (status) => {
         const category = categorizeStatus(status);
 
-        expect(['pending', 'inProgress', 'completed', 'cancelled']).toContain(category);
+        expect(['pending', 'inProgress', 'completed', 'cancelled']).toContain(
+          category,
+        );
       }),
       { numRuns: 100 },
     );

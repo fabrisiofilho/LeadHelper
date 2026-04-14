@@ -87,9 +87,7 @@ export function CardHistoryDialog({
 
       setHistory(response.data || []);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Erro de comunicação',
-      );
+      setError(err instanceof Error ? err.message : 'Erro de comunicação');
     } finally {
       setLoading(false);
     }
@@ -138,7 +136,10 @@ export function CardHistoryDialog({
       <DialogContent sx={{ p: 0, minHeight: 300 }}>
         {loading && (
           <Box sx={{ p: 3 }}>
-            <ContentLoading variant="spinner" message="Carregando histórico..." />
+            <ContentLoading
+              variant="spinner"
+              message="Carregando histórico..."
+            />
           </Box>
         )}
 
@@ -174,9 +175,7 @@ export function CardHistoryDialog({
                     <TableCell sx={{ whiteSpace: 'nowrap' }}>
                       {formatDate(record.changedDate)}
                     </TableCell>
-                    <TableCell>
-                      {record.changedBy || '—'}
-                    </TableCell>
+                    <TableCell>{record.changedBy || '—'}</TableCell>
                     <TableCell>
                       <Chip
                         label={record.fieldName}
@@ -185,13 +184,21 @@ export function CardHistoryDialog({
                       />
                     </TableCell>
                     <TableCell
-                      sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}
+                      sx={{
+                        maxWidth: 200,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
                       title={record.oldValue || undefined}
                     >
                       {truncateValue(record.oldValue)}
                     </TableCell>
                     <TableCell
-                      sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}
+                      sx={{
+                        maxWidth: 200,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
                       title={record.newValue || undefined}
                     >
                       {truncateValue(record.newValue)}

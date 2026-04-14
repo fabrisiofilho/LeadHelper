@@ -64,8 +64,7 @@ export function resolveSprintByIterationPath(
   const sortedSprints = [...sprints]
     .filter((s) => s.iterationPath)
     .sort(
-      (a, b) =>
-        (b.iterationPath?.length ?? 0) - (a.iterationPath?.length ?? 0),
+      (a, b) => (b.iterationPath?.length ?? 0) - (a.iterationPath?.length ?? 0),
     );
 
   for (const sprint of sortedSprints) {

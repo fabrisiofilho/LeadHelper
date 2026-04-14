@@ -357,7 +357,11 @@ export function TeamAllocationPage() {
         onChange={(_e, newValue) => setActiveTab(newValue)}
         sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}
       >
-        <Tab icon={<PeopleIcon />} iconPosition="start" label="Gestão de Alocações" />
+        <Tab
+          icon={<PeopleIcon />}
+          iconPosition="start"
+          label="Gestão de Alocações"
+        />
         <Tab icon={<GanttIcon />} iconPosition="start" label="Gráfico Gantt" />
       </Tabs>
 
@@ -370,9 +374,9 @@ export function TeamAllocationPage() {
                 <Alert key={index} severity="warning" variant="outlined">
                   <AlertTitle>Conflito de Alocação</AlertTitle>
                   <strong>{conflict.memberName}</strong> está alocado na equipe{' '}
-                  <strong>{conflict.allocatedTeamName}</strong>, mas possui a tarefa{' '}
-                  <strong>&quot;{conflict.taskTitle}&quot;</strong> na equipe{' '}
-                  <strong>{conflict.taskTeamName}</strong>.
+                  <strong>{conflict.allocatedTeamName}</strong>, mas possui a
+                  tarefa <strong>&quot;{conflict.taskTitle}&quot;</strong> na
+                  equipe <strong>{conflict.taskTeamName}</strong>.
                 </Alert>
               ))}
             </Stack>

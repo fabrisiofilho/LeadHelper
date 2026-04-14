@@ -1,22 +1,25 @@
 import { IpcMethod } from '@main/infrastructure/decorators/ipc.decorator';
 import { BaseHandler } from './config/base-handler';
-import * as taskService from '../services/task-service';
+import { TaskService } from '../services/task-service';
+import type {
+  CreateTaskInput,
+  UpdateTaskInput,
+  Task,
+} from '../services/task-service';
 import { ApiResponse } from '@shared/interfaces/types/common.types';
 import { logger } from '@main/infrastructure/log/logger';
 import type { TaskFilters, TaskStatus } from '@shared/interfaces';
 
 export class TaskController extends BaseHandler {
-  private service: taskService.TaskService;
+  private service: TaskService;
 
   constructor() {
     super();
-    this.service = new taskService.TaskService();
+    this.service = new TaskService();
   }
 
   @IpcMethod('task:create')
-  async create(
-    data: taskService.CreateTaskInput,
-  ): Promise<ApiResponse<taskService.Task>> {
+  async create(data: CreateTaskInput): Promise<ApiResponse<Task>> {
     try {
       const result = await this.service.create(data);
       return { success: true, data: result };
@@ -29,10 +32,7 @@ export class TaskController extends BaseHandler {
   }
 
   @IpcMethod('task:update')
-  async update(
-    id: number,
-    data: taskService.UpdateTaskInput,
-  ): Promise<ApiResponse<taskService.Task>> {
+  async update(id: number, data: UpdateTaskInput): Promise<ApiResponse<Task>> {
     try {
       const result = await this.service.update(id, data);
       return { success: true, data: result };
@@ -58,7 +58,7 @@ export class TaskController extends BaseHandler {
   }
 
   @IpcMethod('task:findById')
-  async findById(id: number): Promise<ApiResponse<taskService.Task | null>> {
+  async findById(id: number): Promise<ApiResponse<Task | null>> {
     try {
       const result = await this.service.findById(id);
       return { success: true, data: result };
@@ -71,9 +71,7 @@ export class TaskController extends BaseHandler {
   }
 
   @IpcMethod('task:findAll')
-  async findAll(
-    filters?: TaskFilters,
-  ): Promise<ApiResponse<taskService.Task[]>> {
+  async findAll(filters?: TaskFilters): Promise<ApiResponse<Task[]>> {
     try {
       const result = await this.service.findAll(filters);
       return { success: true, data: result };
@@ -86,9 +84,7 @@ export class TaskController extends BaseHandler {
   }
 
   @IpcMethod('task:findByStatus')
-  async findByStatus(
-    status: TaskStatus,
-  ): Promise<ApiResponse<taskService.Task[]>> {
+  async findByStatus(status: TaskStatus): Promise<ApiResponse<Task[]>> {
     try {
       const result = await this.service.findByStatus(status);
       return { success: true, data: result };
@@ -106,7 +102,7 @@ export class TaskController extends BaseHandler {
   async findByPeriod(
     startDate: Date,
     endDate: Date,
-  ): Promise<ApiResponse<taskService.Task[]>> {
+  ): Promise<ApiResponse<Task[]>> {
     try {
       const result = await this.service.findByPeriod(startDate, endDate);
       return { success: true, data: result };
@@ -120,9 +116,7 @@ export class TaskController extends BaseHandler {
     }
   }
   @IpcMethod('task:findBySprint')
-  async findBySprint(
-    sprintId: number,
-  ): Promise<ApiResponse<taskService.Task[]>> {
+  async findBySprint(sprintId: number): Promise<ApiResponse<Task[]>> {
     try {
       const result = await this.service.findBySprint(sprintId);
       return { success: true, data: result };
@@ -137,18 +131,13 @@ export class TaskController extends BaseHandler {
   }
 
   @IpcMethod('task:search')
-  async search(
-    query: string,
-    limit?: number,
-  ): Promise<ApiResponse<taskService.Task[]>> {
+  async search(query: string, limit?: number): Promise<ApiResponse<Task[]>> {
     try {
       const result = await this.service.searchByText(query, limit);
       return { success: true, data: result };
     } catch (error) {
       const message =
-        error instanceof Error
-          ? error.message
-          : 'Erro ao buscar tarefas';
+        error instanceof Error ? error.message : 'Erro ao buscar tarefas';
       logger.error('TaskController.search error:', error);
       return { success: false, error: message };
     }

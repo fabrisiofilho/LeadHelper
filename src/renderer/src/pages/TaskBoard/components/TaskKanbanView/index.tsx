@@ -157,7 +157,10 @@ export function TaskKanbanView({
                       flexWrap="wrap"
                       useFlexGap
                     >
-                      <WorkItemTypeChip type={task.type || 'Task'} sx={{ height: 18, fontSize: '0.6rem' }} />
+                      <WorkItemTypeChip
+                        type={task.type || 'Task'}
+                        sx={{ height: 18, fontSize: '0.6rem' }}
+                      />
                       {task.team && (
                         <Chip
                           label={task.team.name}

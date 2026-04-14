@@ -199,7 +199,9 @@ const api: CustomElectronAPI = {
     ipcRenderer.removeListener('sync:progress', callback as any);
   },
 
-  onSyncStatusChanged: (callback: (status: SyncStatus) => void): (() => void) => {
+  onSyncStatusChanged: (
+    callback: (status: SyncStatus) => void,
+  ): (() => void) => {
     const handler = (_event: Electron.IpcRendererEvent, status: SyncStatus) => {
       callback(status);
     };

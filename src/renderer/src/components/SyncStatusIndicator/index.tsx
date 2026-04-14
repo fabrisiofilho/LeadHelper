@@ -35,7 +35,9 @@ export function SyncStatusIndicator() {
     try {
       const res = await window.electronAPI.sync.getStatus();
       if (res.success && res.data) setStatus(res.data);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   useEffect(() => {
@@ -48,7 +50,10 @@ export function SyncStatusIndicator() {
       }
     });
     const interval = setInterval(fetchStatus, 30_000);
-    return () => { unsub(); clearInterval(interval); };
+    return () => {
+      unsub();
+      clearInterval(interval);
+    };
   }, [fetchStatus]);
 
   const handleClick = useCallback(() => {
@@ -82,8 +87,12 @@ export function SyncStatusIndicator() {
           onClick={handleClick}
         >
           {!status.isConfigured ? (
-            <Badge variant="dot" color="error" overlap="circular"
-              anchorOrigin={{ vertical: 'top', horizontal: 'right' }}>
+            <Badge
+              variant="dot"
+              color="error"
+              overlap="circular"
+              anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+            >
               <IconButton size="small" color="error">
                 <CloudOffIcon fontSize="small" />
               </IconButton>
@@ -99,16 +108,28 @@ export function SyncStatusIndicator() {
           )}
           {status.isConfigured && !status.isSyncing && (
             <Stack direction="column" spacing={0} sx={{ lineHeight: 1 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem', lineHeight: 1.2 }}>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ fontSize: '0.65rem', lineHeight: 1.2 }}
+              >
                 Última: {formatTime(status.lastSyncAt)}
               </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem', lineHeight: 1.2 }}>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ fontSize: '0.65rem', lineHeight: 1.2 }}
+              >
                 Próxima: {formatTime(status.nextSyncAt)}
               </Typography>
             </Stack>
           )}
           {status.isSyncing && (
-            <Typography variant="caption" color="primary" sx={{ fontSize: '0.7rem' }}>
+            <Typography
+              variant="caption"
+              color="primary"
+              sx={{ fontSize: '0.7rem' }}
+            >
               Sincronizando...
             </Typography>
           )}

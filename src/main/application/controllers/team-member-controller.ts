@@ -1,23 +1,26 @@
 import { IpcMethod } from '@main/infrastructure/decorators/ipc.decorator';
 import { BaseHandler } from './config/base-handler';
-import * as teamMemberService from '../services/team-member-service';
+import { TeamMemberService } from '../services/team-member-service';
+import type {
+  CreateTeamMemberInput,
+  UpdateTeamMemberInput,
+  TeamMember,
+} from '../services/team-member-service';
 import type { TeamMemberFilters } from '../repositories/team-member-repository';
 import type { TeamMemberRole } from '../entities/team-member.entity';
 import { ApiResponse } from '@shared/interfaces/types/common.types';
 import { logger } from '@main/infrastructure/log/logger';
 
 export class TeamMemberController extends BaseHandler {
-  private service: teamMemberService.TeamMemberService;
+  private service: TeamMemberService;
 
   constructor() {
     super();
-    this.service = new teamMemberService.TeamMemberService();
+    this.service = new TeamMemberService();
   }
 
   @IpcMethod('team-member:create')
-  async create(
-    data: teamMemberService.CreateTeamMemberInput,
-  ): Promise<ApiResponse<teamMemberService.TeamMember>> {
+  async create(data: CreateTeamMemberInput): Promise<ApiResponse<TeamMember>> {
     try {
       const result = await this.service.create(data);
       return { success: true, data: result };
@@ -34,8 +37,8 @@ export class TeamMemberController extends BaseHandler {
   @IpcMethod('team-member:update')
   async update(
     id: number,
-    data: teamMemberService.UpdateTeamMemberInput,
-  ): Promise<ApiResponse<teamMemberService.TeamMember>> {
+    data: UpdateTeamMemberInput,
+  ): Promise<ApiResponse<TeamMember>> {
     try {
       const result = await this.service.update(id, data);
       return { success: true, data: result };
@@ -80,9 +83,7 @@ export class TeamMemberController extends BaseHandler {
   }
 
   @IpcMethod('team-member:findById')
-  async findById(
-    id: number,
-  ): Promise<ApiResponse<teamMemberService.TeamMember | null>> {
+  async findById(id: number): Promise<ApiResponse<TeamMember | null>> {
     try {
       const result = await this.service.findById(id);
       return { success: true, data: result };
@@ -99,7 +100,7 @@ export class TeamMemberController extends BaseHandler {
   @IpcMethod('team-member:findAll')
   async findAll(
     filters?: TeamMemberFilters,
-  ): Promise<ApiResponse<teamMemberService.TeamMember[]>> {
+  ): Promise<ApiResponse<TeamMember[]>> {
     try {
       const result = await this.service.findAll(filters);
       return { success: true, data: result };
@@ -114,9 +115,7 @@ export class TeamMemberController extends BaseHandler {
   }
 
   @IpcMethod('team-member:findByRole')
-  async findByRole(
-    role: TeamMemberRole,
-  ): Promise<ApiResponse<teamMemberService.TeamMember[]>> {
+  async findByRole(role: TeamMemberRole): Promise<ApiResponse<TeamMember[]>> {
     try {
       const result = await this.service.findByRole(role);
       return { success: true, data: result };
@@ -147,12 +146,15 @@ export class TeamMemberController extends BaseHandler {
           await this.service.update(member.id, { positionId: row.positionId });
           updated++;
         } catch (err) {
-          errors.push(`Erro ao atualizar "${row.email}": ${err instanceof Error ? err.message : 'Erro desconhecido'}`);
+          errors.push(
+            `Erro ao atualizar "${row.email}": ${err instanceof Error ? err.message : 'Erro desconhecido'}`,
+          );
         }
       }
       return { success: true, data: { updated, errors } };
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Erro ao importar cargos';
+      const message =
+        error instanceof Error ? error.message : 'Erro ao importar cargos';
       logger.error('TeamMemberController.importPositions error:', error);
       return { success: false, error: message };
     }

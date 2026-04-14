@@ -417,8 +417,8 @@ describe('Feature: leadhelper-restructure, Property 2: resolução de time por a
         const normalizedTask = normalizeAreaRef(taskPath);
 
         // Expand semicolon-separated paths for the matched team
-        const matchedPaths = matched.azureAreaPath!
-          .split(';')
+        const matchedPaths = matched
+          .azureAreaPath!.split(';')
           .map((p) => p.replace(/^\\+/, '').trim().toLowerCase());
 
         const hasValidPrefix = matchedPaths.some((mp) => {
@@ -440,16 +440,15 @@ describe('Feature: leadhelper-restructure, Property 2: resolução de time por a
         const normalizedTask = normalizeAreaRef(taskPath);
 
         // Get the longest matching path from the matched team
-        const matchedPaths = matched.azureAreaPath!
-          .split(';')
+        const matchedPaths = matched
+          .azureAreaPath!.split(';')
           .map((p) => p.replace(/^\\+/, '').trim().toLowerCase());
 
         const matchedLen = Math.max(
           ...matchedPaths
             .filter(
               (mp) =>
-                normalizedTask === mp ||
-                normalizedTask.startsWith(mp + '\\'),
+                normalizedTask === mp || normalizedTask.startsWith(mp + '\\'),
             )
             .map((mp) => mp.length),
         );
@@ -519,9 +518,7 @@ describe('Feature: leadhelper-restructure, Property 2: resolução de time por a
           '\\' + basePath.toUpperCase(),
         ];
 
-        const results = variations.map((v) =>
-          resolveTeamByAreaPath(v, teams),
-        );
+        const results = variations.map((v) => resolveTeamByAreaPath(v, teams));
 
         // All variations should produce the same result
         for (const r of results) {

@@ -91,7 +91,9 @@ export class TaskRepository extends BaseRepository<TaskEntity> {
       .andWhere('task.type IN (:...types)', { types: validTypes });
 
     if (closedStatuses.length > 0) {
-      qb.andWhere('task.status NOT IN (:...closed)', { closed: closedStatuses });
+      qb.andWhere('task.status NOT IN (:...closed)', {
+        closed: closedStatuses,
+      });
     }
 
     return qb.getMany();
@@ -102,10 +104,9 @@ export class TaskRepository extends BaseRepository<TaskEntity> {
       .createQueryBuilder('task')
       .leftJoinAndSelect('task.sprint', 'sprint')
       .leftJoinAndSelect('task.team', 'team')
-      .where(
-        '(task.title LIKE :q OR task.external_id LIKE :q)',
-        { q: `%${query}%` },
-      )
+      .where('(task.title LIKE :q OR task.external_id LIKE :q)', {
+        q: `%${query}%`,
+      })
       .orderBy('task.createdAt', 'DESC')
       .limit(limit)
       .getMany();

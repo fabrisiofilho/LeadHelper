@@ -78,9 +78,9 @@ export function ConfigTab({
     setValue,
     formState: { errors: formErrors, isDirty },
   } = useForm<ConfigFormData>({
-    defaultValues: { 
-      organizationUrl: '', 
-      projectName: '', 
+    defaultValues: {
+      organizationUrl: '',
+      projectName: '',
       pat: '',
       sustentacaoAreaPath: '',
       projetosAreaPath: '',
@@ -338,7 +338,7 @@ export function ConfigTab({
               </Typography>
             </Stack>
             <Typography variant="body2" color="text.secondary" mb={2}>
-              Configure os Area Paths usados para filtrar work items por equipe. 
+              Configure os Area Paths usados para filtrar work items por equipe.
               Se não configurados, serão usados os valores padrão.
             </Typography>
 

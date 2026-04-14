@@ -55,9 +55,7 @@ export function AzureDevOpsConfigPage() {
       if (response.success && response.data) {
         const d = response.data;
         const failureInfo =
-          d.failureCount > 0
-            ? ` (${d.failureCount} falha(s))`
-            : '';
+          d.failureCount > 0 ? ` (${d.failureCount} falha(s))` : '';
         setSyncResult(
           `Sincronização concluída: ${d.sprints.total} sprints, ${d.teams.total} equipes, ${d.members.total} membros, ${d.tasks.total} tarefas.${failureInfo}`,
         );

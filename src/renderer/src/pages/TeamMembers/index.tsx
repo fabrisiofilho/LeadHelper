@@ -28,7 +28,10 @@ import { Modal } from '@renderer/components/Modal';
 import { useTeamMembers } from '@renderer/hooks/useTeamMembers';
 import { usePositions } from '@renderer/hooks/usePositions';
 import { useTableSort } from '@renderer/hooks/useTableSort';
-import { StandardTable, type StandardColumn } from '@renderer/components/StandardTable';
+import {
+  StandardTable,
+  type StandardColumn,
+} from '@renderer/components/StandardTable';
 import { ImportPositionsModal } from '@renderer/components/ImportPositionsModal';
 import {
   PageContainer,
@@ -417,9 +420,18 @@ export function TeamMembersPage() {
                 </Typography>
               ),
               position: member.position ? (
-                <Chip label={member.position.name} color="primary" size="small" variant="outlined" />
+                <Chip
+                  label={member.position.name}
+                  color="primary"
+                  size="small"
+                  variant="outlined"
+                />
               ) : (
-                <Typography variant="body2" color="text.secondary" fontStyle="italic">
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  fontStyle="italic"
+                >
                   Sem cargo
                 </Typography>
               ),
@@ -434,7 +446,10 @@ export function TeamMembersPage() {
               actions: (
                 <>
                   <Tooltip title="Editar">
-                    <IconButton size="small" onClick={() => handleEditMember(member)}>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleEditMember(member)}
+                    >
                       <EditIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
@@ -444,7 +459,11 @@ export function TeamMembersPage() {
                       onClick={() => handleToggleStatus(member)}
                       color={member.isActive ? 'warning' : 'success'}
                     >
-                      {member.isActive ? <ToggleOffIcon fontSize="small" /> : <ToggleOnIcon fontSize="small" />}
+                      {member.isActive ? (
+                        <ToggleOffIcon fontSize="small" />
+                      ) : (
+                        <ToggleOnIcon fontSize="small" />
+                      )}
                     </IconButton>
                   </Tooltip>
                 </>
@@ -457,8 +476,13 @@ export function TeamMembersPage() {
           rowsPerPage={rowsPerPage}
           totalCount={filteredMembers.length}
           onPageChange={setPage}
-          onRowsPerPageChange={(rpp) => { setRowsPerPage(rpp); setPage(0); }}
-          emptyIcon={<PeopleIcon sx={{ fontSize: 64, color: 'text.secondary' }} />}
+          onRowsPerPageChange={(rpp) => {
+            setRowsPerPage(rpp);
+            setPage(0);
+          }}
+          emptyIcon={
+            <PeopleIcon sx={{ fontSize: 64, color: 'text.secondary' }} />
+          }
           emptyTitle={
             searchTerm || positionFilter || statusFilter !== 'all'
               ? 'Nenhum membro encontrado com os filtros aplicados'
@@ -620,7 +644,10 @@ export function TeamMembersPage() {
 
       <ImportPositionsModal
         open={isImportOpen}
-        onClose={() => { setIsImportOpen(false); loadTeamMembers(); }}
+        onClose={() => {
+          setIsImportOpen(false);
+          loadTeamMembers();
+        }}
         positions={positions}
         memberEmails={teamMembers.map((m) => m.email)}
         onImport={async (rows) => {

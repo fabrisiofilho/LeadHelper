@@ -39,7 +39,10 @@ function sortUpdatesDescending(updates: TaskUpdate[]): TaskUpdate[] {
 
 /** Generate a random Date within a reasonable range (2020-2030) */
 const dateArb = fc
-  .integer({ min: new Date('2020-01-01').getTime(), max: new Date('2030-12-31').getTime() })
+  .integer({
+    min: new Date('2020-01-01').getTime(),
+    max: new Date('2030-12-31').getTime(),
+  })
   .map((ts) => new Date(ts));
 
 const fieldNameArb = fc.constantFrom(
@@ -52,13 +55,12 @@ const fieldNameArb = fc.constantFrom(
 );
 
 /** Generate a single TaskUpdate entry */
-const taskUpdateArb = fc
-  .record({
-    id: fc.integer({ min: 1, max: 100000 }),
-    changedDate: dateArb,
-    fieldName: fieldNameArb,
-    revision: fc.integer({ min: 1, max: 500 }),
-  });
+const taskUpdateArb = fc.record({
+  id: fc.integer({ min: 1, max: 100000 }),
+  changedDate: dateArb,
+  fieldName: fieldNameArb,
+  revision: fc.integer({ min: 1, max: 500 }),
+});
 
 /** Generate a list of TaskUpdate entries (0 to 50 items) */
 const taskUpdatesArb = fc.array(taskUpdateArb, { minLength: 0, maxLength: 50 });
@@ -107,7 +109,9 @@ describe('Feature: leadhelper-restructure, Property 9: ordenação do histórico
         fc.array(taskUpdateArb, { minLength: 1, maxLength: 50 }),
         (updates) => {
           const sorted = sortUpdatesDescending(updates);
-          const maxDate = Math.max(...updates.map((u) => u.changedDate.getTime()));
+          const maxDate = Math.max(
+            ...updates.map((u) => u.changedDate.getTime()),
+          );
 
           expect(sorted[0].changedDate.getTime()).toBe(maxDate);
         },
@@ -122,7 +126,9 @@ describe('Feature: leadhelper-restructure, Property 9: ordenação do histórico
         fc.array(taskUpdateArb, { minLength: 1, maxLength: 50 }),
         (updates) => {
           const sorted = sortUpdatesDescending(updates);
-          const minDate = Math.min(...updates.map((u) => u.changedDate.getTime()));
+          const minDate = Math.min(
+            ...updates.map((u) => u.changedDate.getTime()),
+          );
 
           expect(sorted[sorted.length - 1].changedDate.getTime()).toBe(minDate);
         },
@@ -155,13 +161,14 @@ describe('Feature: leadhelper-restructure, Property 9: ordenação do histórico
       fc.property(taskUpdateArb, (update) => {
         const sorted = sortUpdatesDescending([update]);
         expect(sorted.length).toBe(1);
-        expect(sorted[0].changedDate.getTime()).toBe(update.changedDate.getTime());
+        expect(sorted[0].changedDate.getTime()).toBe(
+          update.changedDate.getTime(),
+        );
       }),
       { numRuns: 100 },
     );
   });
 });
-
 
 // ============================================================
 // Property 10 — Round-trip de armazenamento de histórico
@@ -249,7 +256,10 @@ function storeUpdates(
  */
 function retrieveUpdates(
   records: StoredRecord[],
-): Pick<StoredRecord, 'changedDate' | 'changedBy' | 'fieldName' | 'oldValue' | 'newValue'>[] {
+): Pick<
+  StoredRecord,
+  'changedDate' | 'changedBy' | 'fieldName' | 'oldValue' | 'newValue'
+>[] {
   return records.map((r) => ({
     changedDate: r.changedDate,
     changedBy: r.changedBy,
@@ -286,7 +296,10 @@ const p10FieldArb: fc.Arbitrary<WorkItemUpdateField> = fc.record({
 });
 
 const p10DateArb = fc
-  .integer({ min: new Date('2020-01-01').getTime(), max: new Date('2030-12-31').getTime() })
+  .integer({
+    min: new Date('2020-01-01').getTime(),
+    max: new Date('2030-12-31').getTime(),
+  })
   .map((ts) => new Date(ts));
 
 const p10ChangedByArb = fc.oneof(
@@ -301,7 +314,10 @@ const p10WorkItemUpdateArb: fc.Arbitrary<WorkItemUpdate> = fc.record({
   fields: fc.array(p10FieldArb, { minLength: 1, maxLength: 10 }),
 });
 
-const p10UpdatesArb = fc.array(p10WorkItemUpdateArb, { minLength: 0, maxLength: 20 });
+const p10UpdatesArb = fc.array(p10WorkItemUpdateArb, {
+  minLength: 0,
+  maxLength: 20,
+});
 
 // ============================================================
 // Property 10 Tests
@@ -322,7 +338,10 @@ describe('Feature: leadhelper-restructure, Property 10: round-trip de armazename
           const retrieved = retrieveUpdates(stored);
 
           // Build expected records from the original input
-          const expected: Pick<StoredRecord, 'changedDate' | 'changedBy' | 'fieldName' | 'oldValue' | 'newValue'>[] = [];
+          const expected: Pick<
+            StoredRecord,
+            'changedDate' | 'changedBy' | 'fieldName' | 'oldValue' | 'newValue'
+          >[] = [];
           for (const update of updates) {
             for (const field of update.fields) {
               expected.push({
@@ -340,7 +359,9 @@ describe('Feature: leadhelper-restructure, Property 10: round-trip de armazename
 
           // Each retrieved record matches the expected record at the same index
           for (let i = 0; i < expected.length; i++) {
-            expect(retrieved[i].changedDate.getTime()).toBe(expected[i].changedDate.getTime());
+            expect(retrieved[i].changedDate.getTime()).toBe(
+              expected[i].changedDate.getTime(),
+            );
             expect(retrieved[i].changedBy).toBe(expected[i].changedBy);
             expect(retrieved[i].fieldName).toBe(expected[i].fieldName);
             expect(retrieved[i].oldValue).toBe(expected[i].oldValue);
@@ -356,7 +377,10 @@ describe('Feature: leadhelper-restructure, Property 10: round-trip de armazename
     fc.assert(
       fc.property(p10UpdatesArb, (updates) => {
         const stored = storeUpdates(updates, 1, 1);
-        const expectedCount = updates.reduce((sum, u) => sum + u.fields.length, 0);
+        const expectedCount = updates.reduce(
+          (sum, u) => sum + u.fields.length,
+          0,
+        );
         expect(stored.length).toBe(expectedCount);
       }),
       { numRuns: 100 },
@@ -405,7 +429,9 @@ describe('Feature: leadhelper-restructure, Property 10: round-trip de armazename
 
         expect(retrieved1.length).toBe(retrieved2.length);
         for (let i = 0; i < retrieved1.length; i++) {
-          expect(retrieved1[i].changedDate.getTime()).toBe(retrieved2[i].changedDate.getTime());
+          expect(retrieved1[i].changedDate.getTime()).toBe(
+            retrieved2[i].changedDate.getTime(),
+          );
           expect(retrieved1[i].changedBy).toBe(retrieved2[i].changedBy);
           expect(retrieved1[i].fieldName).toBe(retrieved2[i].fieldName);
           expect(retrieved1[i].oldValue).toBe(retrieved2[i].oldValue);

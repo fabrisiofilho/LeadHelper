@@ -35,7 +35,10 @@ import {
 } from '@mui/icons-material';
 import { PageLayout } from '@renderer/components/PageLayout';
 import { useTableSort } from '@renderer/hooks/useTableSort';
-import { StandardTable, type StandardColumn } from '@renderer/components/StandardTable';
+import {
+  StandardTable,
+  type StandardColumn,
+} from '@renderer/components/StandardTable';
 import { TaskViewModal } from '@renderer/components/TaskViewModal';
 import type {
   Sprint,
@@ -51,7 +54,14 @@ const STATUS_CONFIG: Record<
   string,
   {
     label: string;
-    color: 'default' | 'primary' | 'success' | 'error' | 'warning' | 'info' | 'secondary';
+    color:
+      | 'default'
+      | 'primary'
+      | 'success'
+      | 'error'
+      | 'warning'
+      | 'info'
+      | 'secondary';
   }
 > = {
   pending: { label: 'Pendentes', color: 'warning' },
@@ -92,26 +102,52 @@ function categorizeStatus(
   return 'pending';
 }
 
-type DetailedCategory = 'pending' | 'desenvolvimento' | 'auditoria' | 'homologacao' | 'implantacao' | 'completed' | 'cancelled';
+type DetailedCategory =
+  | 'pending'
+  | 'desenvolvimento'
+  | 'auditoria'
+  | 'homologacao'
+  | 'implantacao'
+  | 'completed'
+  | 'cancelled';
 
 function categorizeStatusDetailed(status: string): DetailedCategory {
   const completed = ['completed', 'Done', 'Closed', 'Resolved', 'Finalizado'];
   const cancelled = ['cancelled', 'Removed', 'Cut', 'Cancelado'];
-  const auditoria = ['Aguardando Auditoria', 'Aguardando auditoria', 'Em Auditoria', 'Em auditoria'];
+  const auditoria = [
+    'Aguardando Auditoria',
+    'Aguardando auditoria',
+    'Em Auditoria',
+    'Em auditoria',
+  ];
   const homologacao = [
-    'Aguardando Homologação', 'Aguardando homologação',
-    'Em Homologação', 'Em homologação',
-    'Aguardando Validação', 'Aguardando validação',
-    'Em validação', 'Em Validação',
+    'Aguardando Homologação',
+    'Aguardando homologação',
+    'Em Homologação',
+    'Em homologação',
+    'Aguardando Validação',
+    'Aguardando validação',
+    'Em validação',
+    'Em Validação',
   ];
   const implantacao = [
-    'Aguardando Implantação', 'Aguardando implantação',
-    'Em Implantação', 'Em implantação',
+    'Aguardando Implantação',
+    'Aguardando implantação',
+    'Em Implantação',
+    'Em implantação',
   ];
   const desenvolvimento = [
-    'in_progress', 'Active', 'In Progress', 'Committed',
-    'Em Andamento', 'Em andamento', 'Em Desenvolvimento', 'Em desenvolvimento',
-    'Preparando para Dev', 'Em classificação', 'Backlog Comprometido',
+    'in_progress',
+    'Active',
+    'In Progress',
+    'Committed',
+    'Em Andamento',
+    'Em andamento',
+    'Em Desenvolvimento',
+    'Em desenvolvimento',
+    'Preparando para Dev',
+    'Em classificação',
+    'Backlog Comprometido',
   ];
 
   if (completed.includes(status)) return 'completed';
@@ -136,9 +172,18 @@ function categorizeStatusDetailed(status: string): DetailedCategory {
  * - If the parent is "pending" but SOME children are completed or in progress,
  *   treat it as "inProgress".
  */
-function deriveParentDisplayStatus(
-  item: ProjetosItem,
-): { cat: string; label: string; color: 'default' | 'primary' | 'success' | 'error' | 'warning' | 'info' | 'secondary' } {
+function deriveParentDisplayStatus(item: ProjetosItem): {
+  cat: string;
+  label: string;
+  color:
+    | 'default'
+    | 'primary'
+    | 'success'
+    | 'error'
+    | 'warning'
+    | 'info'
+    | 'secondary';
+} {
   const { task, childrenCount, completedChildrenCount } = item;
   const detailedCat = categorizeStatusDetailed(task.status);
 
@@ -150,11 +195,19 @@ function deriveParentDisplayStatus(
 
   // Parent is "pending" — check children to derive a better status
   if (childrenCount > 0 && completedChildrenCount === childrenCount) {
-    return { cat: 'homologacao', label: 'Em Homologação', color: STATUS_CONFIG.homologacao.color };
+    return {
+      cat: 'homologacao',
+      label: 'Em Homologação',
+      color: STATUS_CONFIG.homologacao.color,
+    };
   }
 
   if (childrenCount > 0 && completedChildrenCount > 0) {
-    return { cat: 'desenvolvimento', label: 'Em Andamento', color: STATUS_CONFIG.desenvolvimento.color };
+    return {
+      cat: 'desenvolvimento',
+      label: 'Em Andamento',
+      color: STATUS_CONFIG.desenvolvimento.color,
+    };
   }
 
   // Truly pending
@@ -174,7 +227,13 @@ const CHILDREN_COLUMNS: StandardColumn[] = [
 
 // ── Children table for accordion ──
 
-function ChildrenTable({ children, onTaskClick }: { children: Task[]; onTaskClick: (task: Task) => void }) {
+function ChildrenTable({
+  children,
+  onTaskClick,
+}: {
+  children: Task[];
+  onTaskClick: (task: Task) => void;
+}) {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const { sortedItems, sortConfig, handleSort } = useTableSort(children);
@@ -205,16 +264,36 @@ function ChildrenTable({ children, onTaskClick }: { children: Task[]; onTaskClic
     <Box>
       <Stack direction="row" spacing={1} mb={1} pl={1}>
         {statusSummary.completed > 0 && (
-          <Chip label={`${statusSummary.completed} concluído(s)`} size="small" color="success" variant="outlined" />
+          <Chip
+            label={`${statusSummary.completed} concluído(s)`}
+            size="small"
+            color="success"
+            variant="outlined"
+          />
         )}
         {statusSummary.inProgress > 0 && (
-          <Chip label={`${statusSummary.inProgress} em andamento`} size="small" color="primary" variant="outlined" />
+          <Chip
+            label={`${statusSummary.inProgress} em andamento`}
+            size="small"
+            color="primary"
+            variant="outlined"
+          />
         )}
         {statusSummary.pending > 0 && (
-          <Chip label={`${statusSummary.pending} pendente(s)`} size="small" color="warning" variant="outlined" />
+          <Chip
+            label={`${statusSummary.pending} pendente(s)`}
+            size="small"
+            color="warning"
+            variant="outlined"
+          />
         )}
         {statusSummary.cancelled > 0 && (
-          <Chip label={`${statusSummary.cancelled} cancelado(s)`} size="small" color="error" variant="outlined" />
+          <Chip
+            label={`${statusSummary.cancelled} cancelado(s)`}
+            size="small"
+            color="error"
+            variant="outlined"
+          />
         )}
       </Stack>
       <StandardTable
@@ -228,9 +307,7 @@ function ChildrenTable({ children, onTaskClick }: { children: Task[]; onTaskClic
                 #{child.externalId ?? child.id}
               </Typography>
             ),
-            type: (
-              <WorkItemTypeChip type={child.type} />
-            ),
+            type: <WorkItemTypeChip type={child.type} />,
             title: (
               <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
                 {child.title}
@@ -249,7 +326,9 @@ function ChildrenTable({ children, onTaskClick }: { children: Task[]; onTaskClic
               />
             ),
             assignedToName: (
-              <Typography variant="body2">{child.assignedToName || '—'}</Typography>
+              <Typography variant="body2">
+                {child.assignedToName || '—'}
+              </Typography>
             ),
           },
         }))}
@@ -268,7 +347,13 @@ function ChildrenTable({ children, onTaskClick }: { children: Task[]; onTaskClic
 
 // ── User Story Accordion ──
 
-function UserStoryAccordion({ item, onTaskClick }: { item: ProjetosItem; onTaskClick: (task: Task) => void }) {
+function UserStoryAccordion({
+  item,
+  onTaskClick,
+}: {
+  item: ProjetosItem;
+  onTaskClick: (task: Task) => void;
+}) {
   const [children, setChildren] = useState<Task[] | null>(null);
   const [loadingChildren, setLoadingChildren] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -337,11 +422,7 @@ function UserStoryAccordion({ item, onTaskClick }: { item: ProjetosItem; onTaskC
             >
               #{task.externalId ?? task.id}
             </Typography>
-            <Chip
-              label={derived.label}
-              size="small"
-              color={derived.color}
-            />
+            <Chip label={derived.label} size="small" color={derived.color} />
             {task.assignedToName && (
               <Chip
                 label={task.assignedToName}
@@ -350,23 +431,24 @@ function UserStoryAccordion({ item, onTaskClick }: { item: ProjetosItem; onTaskC
                 sx={{ fontSize: '0.7rem' }}
               />
             )}
-            {item.childrenCount > 0 && (() => {
-              const allDone = item.progressPercent === 100;
-              return (
-                <Chip
-                  label={`${item.completedChildrenCount}/${item.childrenCount} filhos`}
-                  size="small"
-                  variant={allDone ? 'outlined' : 'filled'}
-                  sx={{
-                    fontSize: '0.7rem',
-                    fontWeight: allDone ? 400 : 700,
-                    ...(allDone
-                      ? { color: 'text.disabled', borderColor: 'divider' }
-                      : { bgcolor: '#FF7043', color: '#fff' }),
-                  }}
-                />
-              );
-            })()}
+            {item.childrenCount > 0 &&
+              (() => {
+                const allDone = item.progressPercent === 100;
+                return (
+                  <Chip
+                    label={`${item.completedChildrenCount}/${item.childrenCount} filhos`}
+                    size="small"
+                    variant={allDone ? 'outlined' : 'filled'}
+                    sx={{
+                      fontSize: '0.7rem',
+                      fontWeight: allDone ? 400 : 700,
+                      ...(allDone
+                        ? { color: 'text.disabled', borderColor: 'divider' }
+                        : { bgcolor: '#FF7043', color: '#fff' }),
+                    }}
+                  />
+                );
+              })()}
           </Stack>
           <Typography
             variant="body2"
@@ -375,25 +457,26 @@ function UserStoryAccordion({ item, onTaskClick }: { item: ProjetosItem; onTaskC
           >
             {task.title}
           </Typography>
-          {item.childrenCount > 0 && (() => {
-            const allDone = item.progressPercent === 100;
-            return (
-              <LinearProgress
-                variant="determinate"
-                value={item.progressPercent}
-                sx={{
-                  height: 4,
-                  borderRadius: 2,
-                  mt: 0.5,
-                  bgcolor: allDone ? 'action.disabledBackground' : undefined,
-                  '& .MuiLinearProgress-bar': {
-                    bgcolor: allDone ? 'text.disabled' : '#FF7043',
+          {item.childrenCount > 0 &&
+            (() => {
+              const allDone = item.progressPercent === 100;
+              return (
+                <LinearProgress
+                  variant="determinate"
+                  value={item.progressPercent}
+                  sx={{
+                    height: 4,
                     borderRadius: 2,
-                  },
-                }}
-              />
-            );
-          })()}
+                    mt: 0.5,
+                    bgcolor: allDone ? 'action.disabledBackground' : undefined,
+                    '& .MuiLinearProgress-bar': {
+                      bgcolor: allDone ? 'text.disabled' : '#FF7043',
+                      borderRadius: 2,
+                    },
+                  }}
+                />
+              );
+            })()}
         </Stack>
       </AccordionSummary>
       <AccordionDetails>
@@ -517,7 +600,9 @@ export function DashboardProjetosPage() {
   };
   for (const item of userStories) {
     const derived = deriveParentDisplayStatus(item);
-    const cat = (derived.cat in grouped ? derived.cat : 'pending') as DetailedCategory;
+    const cat = (
+      derived.cat in grouped ? derived.cat : 'pending'
+    ) as DetailedCategory;
     grouped[cat].push(item);
   }
 
@@ -633,28 +718,40 @@ export function DashboardProjetosPage() {
           {result.alerts.length > 0 && <AlertsSection alerts={result.alerts} />}
 
           {/* User Stories grouped by status */}
-          {(['desenvolvimento', 'auditoria', 'homologacao', 'implantacao', 'pending', 'completed', 'cancelled'] as DetailedCategory[]).map(
-            (key) => {
-              const items = grouped[key];
-              if (items.length === 0) return null;
-              const cfg = STATUS_CONFIG[key];
-              return (
-                <Box key={key}>
-                  <Stack direction="row" alignItems="center" spacing={1} mb={1}>
-                    <Typography variant="subtitle1" fontWeight={600}>
-                      {cfg.label}
-                    </Typography>
-                    <Chip label={items.length} size="small" color={cfg.color} />
-                  </Stack>
-                  <Stack spacing={1}>
-                    {items.map((item) => (
-                      <UserStoryAccordion key={item.task.id} item={item} onTaskClick={handleTaskClick} />
-                    ))}
-                  </Stack>
-                </Box>
-              );
-            },
-          )}
+          {(
+            [
+              'desenvolvimento',
+              'auditoria',
+              'homologacao',
+              'implantacao',
+              'pending',
+              'completed',
+              'cancelled',
+            ] as DetailedCategory[]
+          ).map((key) => {
+            const items = grouped[key];
+            if (items.length === 0) return null;
+            const cfg = STATUS_CONFIG[key];
+            return (
+              <Box key={key}>
+                <Stack direction="row" alignItems="center" spacing={1} mb={1}>
+                  <Typography variant="subtitle1" fontWeight={600}>
+                    {cfg.label}
+                  </Typography>
+                  <Chip label={items.length} size="small" color={cfg.color} />
+                </Stack>
+                <Stack spacing={1}>
+                  {items.map((item) => (
+                    <UserStoryAccordion
+                      key={item.task.id}
+                      item={item}
+                      onTaskClick={handleTaskClick}
+                    />
+                  ))}
+                </Stack>
+              </Box>
+            );
+          })}
 
           {userStories.length === 0 && (
             <Alert severity="info">
@@ -798,7 +895,10 @@ function SummarySection({ summary }: { summary: ProjetosSummary }) {
 
 function AlertsSection({ alerts }: { alerts: SprintAlert[] }) {
   // Group alerts by parent User Story (or "Sem User Story" for orphans)
-  const grouped = new Map<string, { parentTitle: string; parentExternalId?: string; alerts: SprintAlert[] }>();
+  const grouped = new Map<
+    string,
+    { parentTitle: string; parentExternalId?: string; alerts: SprintAlert[] }
+  >();
 
   for (const alert of alerts) {
     const key = alert.parentExternalId ?? '__orphan__';
@@ -812,8 +912,10 @@ function AlertsSection({ alerts }: { alerts: SprintAlert[] }) {
     grouped.get(key)!.alerts.push(alert);
   }
 
-  const pendingCount = alerts.filter(a => a.type === 'pending_no_progress').length;
-  const stagnantCount = alerts.filter(a => a.type === 'stagnant').length;
+  const pendingCount = alerts.filter(
+    (a) => a.type === 'pending_no_progress',
+  ).length;
+  const stagnantCount = alerts.filter((a) => a.type === 'stagnant').length;
 
   return (
     <Accordion
@@ -875,16 +977,20 @@ function AlertsSection({ alerts }: { alerts: SprintAlert[] }) {
                       py: 0.5,
                       px: 1,
                       borderRadius: 1,
-                      bgcolor: alert.type === 'stagnant'
-                        ? 'rgba(211,47,47,0.06)'
-                        : 'rgba(237,108,2,0.06)',
+                      bgcolor:
+                        alert.type === 'stagnant'
+                          ? 'rgba(211,47,47,0.06)'
+                          : 'rgba(237,108,2,0.06)',
                     }}
                   >
                     <WarningIcon
                       sx={{
                         fontSize: 16,
                         mt: 0.2,
-                        color: alert.type === 'stagnant' ? 'error.main' : 'warning.main',
+                        color:
+                          alert.type === 'stagnant'
+                            ? 'error.main'
+                            : 'warning.main',
                       }}
                     />
                     <Box sx={{ minWidth: 0 }}>

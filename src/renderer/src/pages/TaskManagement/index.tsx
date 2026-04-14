@@ -26,7 +26,10 @@ import { useTeams } from '@renderer/hooks/useTeams';
 import { useSprints } from '@renderer/hooks/useSprints';
 import { useTableSort } from '@renderer/hooks/useTableSort';
 import { TaskViewModal } from '@renderer/components/TaskViewModal';
-import { StandardTable, type StandardColumn } from '@renderer/components/StandardTable';
+import {
+  StandardTable,
+  type StandardColumn,
+} from '@renderer/components/StandardTable';
 import { WorkItemTypeChip } from '@renderer/components/WorkItemTypeChip';
 import type { Task } from '@shared/interfaces/config/index.types';
 import { PageContainer, ContentArea, FiltersContainer } from './styles';
@@ -234,11 +237,7 @@ export function TaskManagementPage() {
             </Typography>
           </Tooltip>
         ),
-        type: task.type ? (
-          <WorkItemTypeChip type={task.type} />
-        ) : (
-          '-'
-        ),
+        type: task.type ? <WorkItemTypeChip type={task.type} /> : '-',
         status: (
           <Chip
             label={task.status}

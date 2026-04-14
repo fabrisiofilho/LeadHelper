@@ -9,7 +9,9 @@ export class TaskHiddenRepository extends BaseRepository<TaskHiddenEntity> {
 
   async findByExternalIds(externalIds: string[]): Promise<Set<string>> {
     if (externalIds.length === 0) return new Set();
-    const entities = await this.find({ where: { externalId: In(externalIds) } });
+    const entities = await this.find({
+      where: { externalId: In(externalIds) },
+    });
     return new Set(entities.map((e) => e.externalId));
   }
 

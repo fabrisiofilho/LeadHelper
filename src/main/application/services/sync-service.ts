@@ -143,14 +143,20 @@ export class SyncService {
 
     this.emitProgress({
       step: 'sprints',
-      message: sprintsResult.errors.length > 0
-        ? `Sprints sincronizados com ${sprintsResult.errors.length} erro(s)`
-        : `Sprints sincronizados: ${sprintsResult.total}`,
+      message:
+        sprintsResult.errors.length > 0
+          ? `Sprints sincronizados com ${sprintsResult.errors.length} erro(s)`
+          : `Sprints sincronizados: ${sprintsResult.total}`,
       current: 20,
       total: 100,
       percentage: 20,
-      stepErrors: sprintsResult.errors.length > 0 ? sprintsResult.errors : undefined,
-      stepResult: { created: sprintsResult.created, updated: sprintsResult.updated, total: sprintsResult.total },
+      stepErrors:
+        sprintsResult.errors.length > 0 ? sprintsResult.errors : undefined,
+      stepResult: {
+        created: sprintsResult.created,
+        updated: sprintsResult.updated,
+        total: sprintsResult.total,
+      },
     });
 
     // Step 2: Sync teams
@@ -180,14 +186,20 @@ export class SyncService {
 
     this.emitProgress({
       step: 'teams',
-      message: teamsResult.errors.length > 0
-        ? `Equipes sincronizadas com ${teamsResult.errors.length} erro(s)`
-        : `Equipes sincronizadas: ${teamsResult.total}`,
+      message:
+        teamsResult.errors.length > 0
+          ? `Equipes sincronizadas com ${teamsResult.errors.length} erro(s)`
+          : `Equipes sincronizadas: ${teamsResult.total}`,
       current: 40,
       total: 100,
       percentage: 40,
-      stepErrors: teamsResult.errors.length > 0 ? teamsResult.errors : undefined,
-      stepResult: { created: teamsResult.created, updated: teamsResult.updated, total: teamsResult.total },
+      stepErrors:
+        teamsResult.errors.length > 0 ? teamsResult.errors : undefined,
+      stepResult: {
+        created: teamsResult.created,
+        updated: teamsResult.updated,
+        total: teamsResult.total,
+      },
     });
 
     // Step 3: Fetch all work items
@@ -216,9 +228,10 @@ export class SyncService {
 
     this.emitProgress({
       step: 'work_items',
-      message: workItemErrors.length > 0
-        ? `Erro ao buscar work items`
-        : `${workItems.length} work items encontrados`,
+      message:
+        workItemErrors.length > 0
+          ? `Erro ao buscar work items`
+          : `${workItems.length} work items encontrados`,
       current: 60,
       total: 100,
       percentage: 60,
@@ -252,14 +265,20 @@ export class SyncService {
 
     this.emitProgress({
       step: 'members',
-      message: membersResult.errors.length > 0
-        ? `Membros sincronizados com ${membersResult.errors.length} erro(s)`
-        : `Membros sincronizados: ${membersResult.total}`,
+      message:
+        membersResult.errors.length > 0
+          ? `Membros sincronizados com ${membersResult.errors.length} erro(s)`
+          : `Membros sincronizados: ${membersResult.total}`,
       current: 80,
       total: 100,
       percentage: 80,
-      stepErrors: membersResult.errors.length > 0 ? membersResult.errors : undefined,
-      stepResult: { created: membersResult.created, updated: membersResult.updated, total: membersResult.total },
+      stepErrors:
+        membersResult.errors.length > 0 ? membersResult.errors : undefined,
+      stepResult: {
+        created: membersResult.created,
+        updated: membersResult.updated,
+        total: membersResult.total,
+      },
     });
 
     // Step 5: Sync tasks from work items (needs sprints and teams for relationship resolution)
@@ -313,8 +332,13 @@ export class SyncService {
       current: 100,
       total: 100,
       percentage: 100,
-      stepErrors: tasksResult.errors.length > 0 ? tasksResult.errors : undefined,
-      stepResult: { created: tasksResult.created, updated: tasksResult.updated, total: tasksResult.total },
+      stepErrors:
+        tasksResult.errors.length > 0 ? tasksResult.errors : undefined,
+      stepResult: {
+        created: tasksResult.created,
+        updated: tasksResult.updated,
+        total: tasksResult.total,
+      },
     });
 
     return {

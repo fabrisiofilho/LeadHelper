@@ -500,7 +500,10 @@ export class MigrationRunner {
           const errorMessage =
             error instanceof Error ? error.message : String(error);
 
-          if (!errorMessage.includes('already exists') && !errorMessage.includes('duplicate column name')) {
+          if (
+            !errorMessage.includes('already exists') &&
+            !errorMessage.includes('duplicate column name')
+          ) {
             const preview = trimmedStatement
               .substring(0, 100)
               .replace(/\s+/g, ' ');

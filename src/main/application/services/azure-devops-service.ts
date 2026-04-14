@@ -133,7 +133,8 @@ export class AzureDevOpsService {
     const trimmedOrgUrl = input.organizationUrl?.trim();
     const trimmedProjectName = input.projectName?.trim();
     const trimmedPat = input.pat?.trim();
-    const trimmedSustentacaoAreaPath = input.sustentacaoAreaPath?.trim() || undefined;
+    const trimmedSustentacaoAreaPath =
+      input.sustentacaoAreaPath?.trim() || undefined;
     const trimmedProjetosAreaPath = input.projetosAreaPath?.trim() || undefined;
 
     if (!trimmedOrgUrl) {
@@ -198,7 +199,8 @@ export class AzureDevOpsService {
       projectName: config.projectName,
       isConfigured: true,
       // Return configured Area Paths or default values (Property 25)
-      sustentacaoAreaPath: config.sustentacaoAreaPath || DEFAULT_SUSTENTACAO_AREA_PATH,
+      sustentacaoAreaPath:
+        config.sustentacaoAreaPath || DEFAULT_SUSTENTACAO_AREA_PATH,
       projetosAreaPath: config.projetosAreaPath || DEFAULT_PROJETOS_AREA_PATH,
     };
 
@@ -1138,15 +1140,29 @@ export class AzureDevOpsService {
           // Log priority-related fields for the first work item of the first batch
           if (i === 0 && mapped.length === 0) {
             const prioFields = Object.entries(wi.fields)
-              .filter(([key]) => key.toLowerCase().includes('prio') || key.toLowerCase().includes('sever'))
+              .filter(
+                ([key]) =>
+                  key.toLowerCase().includes('prio') ||
+                  key.toLowerCase().includes('sever'),
+              )
               .map(([key, val]) => `${key}=${val}`);
-            logger.info(`[fetchAllWorkItems] Priority/Severity fields for WI#${wi.id}: ${prioFields.join(', ') || 'none'}`);
+            logger.info(
+              `[fetchAllWorkItems] Priority/Severity fields for WI#${wi.id}: ${prioFields.join(', ') || 'none'}`,
+            );
             // Also log all custom fields (non-System, non-Microsoft)
             const customFields = Object.entries(wi.fields)
-              .filter(([key]) => !key.startsWith('System.') && !key.startsWith('Microsoft.'))
-              .map(([key, val]) => `${key}=${typeof val === 'object' ? JSON.stringify(val) : val}`);
+              .filter(
+                ([key]) =>
+                  !key.startsWith('System.') && !key.startsWith('Microsoft.'),
+              )
+              .map(
+                ([key, val]) =>
+                  `${key}=${typeof val === 'object' ? JSON.stringify(val) : val}`,
+              );
             if (customFields.length > 0) {
-              logger.info(`[fetchAllWorkItems] Custom fields for WI#${wi.id}: ${customFields.join(', ')}`);
+              logger.info(
+                `[fetchAllWorkItems] Custom fields for WI#${wi.id}: ${customFields.join(', ')}`,
+              );
             }
           }
 
@@ -1158,14 +1174,19 @@ export class AzureDevOpsService {
           if (priorityValue == null) {
             // Search for any field containing 'prio' in the key name
             for (const [key, val] of Object.entries(wi.fields)) {
-              if (key.toLowerCase().includes('prio') && typeof val === 'number') {
+              if (
+                key.toLowerCase().includes('prio') &&
+                typeof val === 'number'
+              ) {
                 priorityValue = val;
                 break;
               }
             }
           }
 
-          const customPrioridade = wi.fields['Custom.Prioridade'] as string | undefined;
+          const customPrioridade = wi.fields['Custom.Prioridade'] as
+            | string
+            | undefined;
 
           mapped.push({
             id: wi.id,
@@ -1438,27 +1459,30 @@ export class AzureDevOpsService {
           rev: number;
           revisedBy?: { displayName?: string };
           revisedDate?: string;
-          fields?: Record<
-            string,
-            { oldValue?: unknown; newValue?: unknown }
-          >;
+          fields?: Record<string, { oldValue?: unknown; newValue?: unknown }>;
         }>;
       };
 
       const updates: WorkItemUpdate[] = (data.value ?? [])
-        .filter((update) => update.fields && Object.keys(update.fields).length > 0)
+        .filter(
+          (update) => update.fields && Object.keys(update.fields).length > 0,
+        )
         .map((update) => {
           const fields = Object.entries(update.fields!).map(
             ([fieldName, change]) => ({
               fieldName,
-              oldValue: change.oldValue != null ? String(change.oldValue) : undefined,
-              newValue: change.newValue != null ? String(change.newValue) : undefined,
+              oldValue:
+                change.oldValue != null ? String(change.oldValue) : undefined,
+              newValue:
+                change.newValue != null ? String(change.newValue) : undefined,
             }),
           );
 
           return {
             revision: update.rev,
-            changedDate: new Date(update.revisedDate ?? new Date().toISOString()),
+            changedDate: new Date(
+              update.revisedDate ?? new Date().toISOString(),
+            ),
             changedBy: update.revisedBy?.displayName,
             fields,
           };
@@ -1489,7 +1513,9 @@ export class AzureDevOpsService {
 
     const fullConfig = await this.getFullConfig();
     if (!fullConfig) {
-      logger.info('Configuração do Azure DevOps não encontrada ao buscar bulk updates');
+      logger.info(
+        'Configuração do Azure DevOps não encontrada ao buscar bulk updates',
+      );
       return result;
     }
 
@@ -1512,7 +1538,9 @@ export class AzureDevOpsService {
 
         if (!response.ok) {
           const errorText = await response.text();
-          logger.error(`Erro ao buscar bulk revisions: ${response.status} - ${errorText}`);
+          logger.error(
+            `Erro ao buscar bulk revisions: ${response.status} - ${errorText}`,
+          );
           break;
         }
 
@@ -1535,9 +1563,20 @@ export class AzureDevOpsService {
             ? new Date(revision.fields['System.ChangedDate'] as string)
             : new Date();
 
-          const fields: { fieldName: string; oldValue?: string; newValue?: string }[] = [];
-          for (const [fieldName, value] of Object.entries(revision.fields ?? {})) {
-            if (fieldName === 'System.ChangedBy' || fieldName === 'System.ChangedDate' || fieldName === 'System.AuthorizedAs') continue;
+          const fields: {
+            fieldName: string;
+            oldValue?: string;
+            newValue?: string;
+          }[] = [];
+          for (const [fieldName, value] of Object.entries(
+            revision.fields ?? {},
+          )) {
+            if (
+              fieldName === 'System.ChangedBy' ||
+              fieldName === 'System.ChangedDate' ||
+              fieldName === 'System.AuthorizedAs'
+            )
+              continue;
             fields.push({
               fieldName,
               newValue: value != null ? String(value) : undefined,
@@ -1556,10 +1595,14 @@ export class AzureDevOpsService {
           }
         }
 
-        continuationToken = data.isLastBatch ? undefined : data.continuationToken;
+        continuationToken = data.isLastBatch
+          ? undefined
+          : data.continuationToken;
       } while (continuationToken);
 
-      logger.info(`[fetchAllWorkItemUpdates] Fetched revisions for ${result.size} work items`);
+      logger.info(
+        `[fetchAllWorkItemUpdates] Fetched revisions for ${result.size} work items`,
+      );
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Erro desconhecido';
       logger.error(`[fetchAllWorkItemUpdates] Erro: ${msg}`);
@@ -1568,67 +1611,66 @@ export class AzureDevOpsService {
     return result;
   }
 
-    /**
-     * Proxy an external image URL through the main process, adding Azure DevOps
-     * authentication when the URL belongs to the configured organization.
-     * Returns a base64 data-URI string that can be used directly in <img src>.
-     */
-    async proxyImage(imageUrl: string): Promise<string> {
-        const authHeader = await this.buildAuthHeaderForUrl(imageUrl);
-        const headers: Record<string, string> = {};
-        if (authHeader) {
-          headers['Authorization'] = authHeader;
+  /**
+   * Proxy an external image URL through the main process, adding Azure DevOps
+   * authentication when the URL belongs to the configured organization.
+   * Returns a base64 data-URI string that can be used directly in <img src>.
+   */
+  async proxyImage(imageUrl: string): Promise<string> {
+    const authHeader = await this.buildAuthHeaderForUrl(imageUrl);
+    const headers: Record<string, string> = {};
+    if (authHeader) {
+      headers['Authorization'] = authHeader;
+    }
+
+    // Follow redirects manually to preserve auth header across hops
+    let currentUrl = imageUrl;
+    const MAX_REDIRECTS = 5;
+
+    for (let i = 0; i < MAX_REDIRECTS; i++) {
+      const response = await fetch(currentUrl, {
+        method: 'GET',
+        headers,
+        redirect: 'manual',
+      });
+
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location');
+        if (!location) {
+          throw new Error(
+            `Redirect without Location header: ${response.status}`,
+          );
         }
-
-        // Follow redirects manually to preserve auth header across hops
-        let currentUrl = imageUrl;
-        const MAX_REDIRECTS = 5;
-
-        for (let i = 0; i < MAX_REDIRECTS; i++) {
-          const response = await fetch(currentUrl, {
-            method: 'GET',
-            headers,
-            redirect: 'manual',
-          });
-
-          if (response.status >= 300 && response.status < 400) {
-            const location = response.headers.get('location');
-            if (!location) {
-              throw new Error(`Redirect without Location header: ${response.status}`);
-            }
-            // Resolve relative redirects
-            currentUrl = new URL(location, currentUrl).toString();
-            continue;
-          }
-
-          if (!response.ok) {
-            throw new Error(`Failed to fetch image: ${response.status}`);
-          }
-
-          const contentType = response.headers.get('content-type') || 'image/png';
-          const buffer = Buffer.from(await response.arrayBuffer());
-          return `data:${contentType};base64,${buffer.toString('base64')}`;
-        }
-
-        throw new Error('Too many redirects');
+        // Resolve relative redirects
+        currentUrl = new URL(location, currentUrl).toString();
+        continue;
       }
 
-      private async buildAuthHeaderForUrl(url: string): Promise<string | null> {
-        const fullConfig = await this.getFullConfig();
-        if (!fullConfig) return null;
-
-        try {
-          const orgHost = new URL(fullConfig.organizationUrl).host.toLowerCase();
-          const imgHost = new URL(url).host.toLowerCase();
-          if (imgHost === orgHost || imgHost.endsWith(`.${orgHost}`)) {
-            return `Basic ${Buffer.from(`:${fullConfig.pat}`).toString('base64')}`;
-          }
-        } catch {
-          // invalid URL
-        }
-        return null;
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.status}`);
       }
 
+      const contentType = response.headers.get('content-type') || 'image/png';
+      const buffer = Buffer.from(await response.arrayBuffer());
+      return `data:${contentType};base64,${buffer.toString('base64')}`;
+    }
 
+    throw new Error('Too many redirects');
+  }
 
+  private async buildAuthHeaderForUrl(url: string): Promise<string | null> {
+    const fullConfig = await this.getFullConfig();
+    if (!fullConfig) return null;
+
+    try {
+      const orgHost = new URL(fullConfig.organizationUrl).host.toLowerCase();
+      const imgHost = new URL(url).host.toLowerCase();
+      if (imgHost === orgHost || imgHost.endsWith(`.${orgHost}`)) {
+        return `Basic ${Buffer.from(`:${fullConfig.pat}`).toString('base64')}`;
+      }
+    } catch {
+      // invalid URL
+    }
+    return null;
+  }
 }

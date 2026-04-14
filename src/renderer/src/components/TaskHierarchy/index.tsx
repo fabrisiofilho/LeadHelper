@@ -35,21 +35,30 @@ interface TaskHierarchyProps {
   maxLevel?: number;
 }
 
-const typeConfigMap: Record<string, { label: string; color: string; icon: typeof TaskIcon }> = {
-  'Epic': { label: 'Epic', color: '#ff8c00', icon: EpicIcon },
-  'Feature': { label: 'Feature', color: '#9c27b0', icon: FeatureIcon },
-  'Improvement': { label: 'Improvement', color: '#e91e63', icon: ImprovementIcon },
-  'Rework': { label: 'Rework', color: '#d32f2f', icon: BugIcon },
-  'Bug': { label: 'Bug', color: '#d32f2f', icon: BugIcon },
-  'Roadmap': { label: 'Roadmap', color: '#424242', icon: RoadmapIcon },
-  'Task': { label: 'Task', color: '#c8a415', icon: TaskTypeIcon },
-  'Ticket': { label: 'Ticket', color: '#4caf50', icon: TicketIcon },
+const typeConfigMap: Record<
+  string,
+  { label: string; color: string; icon: typeof TaskIcon }
+> = {
+  Epic: { label: 'Epic', color: '#ff8c00', icon: EpicIcon },
+  Feature: { label: 'Feature', color: '#9c27b0', icon: FeatureIcon },
+  Improvement: {
+    label: 'Improvement',
+    color: '#e91e63',
+    icon: ImprovementIcon,
+  },
+  Rework: { label: 'Rework', color: '#d32f2f', icon: BugIcon },
+  Bug: { label: 'Bug', color: '#d32f2f', icon: BugIcon },
+  Roadmap: { label: 'Roadmap', color: '#424242', icon: RoadmapIcon },
+  Task: { label: 'Task', color: '#c8a415', icon: TaskTypeIcon },
+  Ticket: { label: 'Ticket', color: '#4caf50', icon: TicketIcon },
   'User Story': { label: 'User Story', color: '#2196f3', icon: UserStoryIcon },
 };
 
 function getTypeConfig(type?: string) {
   if (!type) return { label: 'Desconhecido', color: '#9e9e9e', icon: TaskIcon };
-  return typeConfigMap[type] || { label: type, color: '#2196f3', icon: TaskIcon };
+  return (
+    typeConfigMap[type] || { label: type, color: '#2196f3', icon: TaskIcon }
+  );
 }
 
 function TaskHierarchyItem({
@@ -239,7 +248,11 @@ function TaskHierarchyItem({
                 />
               )}
               {task.assignedToName && (
-                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ fontSize: '0.7rem' }}
+                >
                   {task.assignedToName}
                 </Typography>
               )}

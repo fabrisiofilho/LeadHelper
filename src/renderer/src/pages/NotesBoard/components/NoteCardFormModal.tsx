@@ -71,7 +71,12 @@ export interface NoteCardFormModalProps {
 // ============================================================================
 
 function isBodyEmpty(html: string): boolean {
-  return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim().length === 0;
+  return (
+    html
+      .replace(/<[^>]*>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .trim().length === 0
+  );
 }
 
 function toMemberOptions(members: TeamMember[]): LinkOption[] {
@@ -86,7 +91,9 @@ function toTeamOptions(teams: Team[]): LinkOption[] {
   return teams.map((t) => ({
     id: t.id,
     label: t.name,
-    secondary: t.azureAreaPath ? t.azureAreaPath.split('\\').slice(-2).join(' › ') : undefined,
+    secondary: t.azureAreaPath
+      ? t.azureAreaPath.split('\\').slice(-2).join(' › ')
+      : undefined,
   }));
 }
 
@@ -119,7 +126,10 @@ function combineDeadline(date: Date | null, time: Date | null): string | null {
 }
 
 /** Split an ISO deadline string into separate date and time Date objects. */
-function splitDeadline(deadline: string | null | undefined): { date: Date | null; time: Date | null } {
+function splitDeadline(deadline: string | null | undefined): {
+  date: Date | null;
+  time: Date | null;
+} {
   if (!deadline) return { date: null, time: null };
   const d = new Date(deadline);
   if (isNaN(d.getTime())) return { date: null, time: null };
@@ -156,7 +166,9 @@ function resolveLinksFromNoteCard(
         teamLinks.push({
           id: link.entityId,
           label: t?.name || link.entityName || `Equipe #${link.entityId}`,
-          secondary: t?.azureAreaPath ? t.azureAreaPath.split('\\').slice(-2).join(' › ') : undefined,
+          secondary: t?.azureAreaPath
+            ? t.azureAreaPath.split('\\').slice(-2).join(' › ')
+            : undefined,
         });
         break;
       }
@@ -173,7 +185,9 @@ function resolveLinksFromNoteCard(
         const tk = tasks.find((x) => x.id === link.entityId);
         taskLinks.push({
           id: link.entityId,
-          label: tk ? `#${tk.externalId || tk.id} - ${tk.title}` : link.entityName || `Task #${link.entityId}`,
+          label: tk
+            ? `#${tk.externalId || tk.id} - ${tk.title}`
+            : link.entityName || `Task #${link.entityId}`,
           secondary: tk?.status || undefined,
         });
         break;
@@ -183,11 +197,23 @@ function resolveLinksFromNoteCard(
   return { memberLinks, teamLinks, positionLinks, taskLinks };
 }
 
-function SectionHeader({ icon, label }: { icon: React.ReactNode; label: string }) {
+function SectionHeader({
+  icon,
+  label,
+}: {
+  icon: React.ReactNode;
+  label: string;
+}) {
   return (
     <Stack direction="row" alignItems="center" spacing={0.75} sx={{ mb: 1.5 }}>
-      <Box sx={{ color: 'primary.main', display: 'flex', alignItems: 'center' }}>{icon}</Box>
-      <Typography variant="subtitle2" fontWeight={600} color="text.secondary">{label}</Typography>
+      <Box
+        sx={{ color: 'primary.main', display: 'flex', alignItems: 'center' }}
+      >
+        {icon}
+      </Box>
+      <Typography variant="subtitle2" fontWeight={600} color="text.secondary">
+        {label}
+      </Typography>
     </Stack>
   );
 }
@@ -197,13 +223,37 @@ function SectionHeader({ icon, label }: { icon: React.ReactNode; label: string }
 // ============================================================================
 
 export function NoteCardFormModal({
-  open, onClose, onSubmit, noteCard, members, teams, positions, tasks,
-  loading = false, error,
+  open,
+  onClose,
+  onSubmit,
+  noteCard,
+  members,
+  teams,
+  positions,
+  tasks,
+  loading = false,
+  error,
 }: NoteCardFormModalProps) {
   const isEditing = !!noteCard;
 
-  const { control, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<NoteCardFormData>({
-    defaultValues: { title: '', body: '', deadlineDate: null, deadlineTime: null, memberLinks: [], teamLinks: [], positionLinks: [], taskLinks: [] },
+  const {
+    control,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<NoteCardFormData>({
+    defaultValues: {
+      title: '',
+      body: '',
+      deadlineDate: null,
+      deadlineTime: null,
+      memberLinks: [],
+      teamLinks: [],
+      positionLinks: [],
+      taskLinks: [],
+    },
   });
 
   const deadlineDateValue = watch('deadlineDate');
@@ -225,52 +275,102 @@ export function NoteCardFormModal({
       if (res.success && res.data) {
         setTaskSearchOptions(toTaskOptions(res.data));
       }
-    } catch { /* silent */ } finally {
+    } catch {
+      /* silent */
+    } finally {
       setTaskSearchLoading(false);
     }
   }, []);
 
-  const handleTaskInputChange = useCallback((_: unknown, value: string) => {
-    setTaskInputValue(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => searchTasks(value), 300);
-  }, [searchTasks]);
+  const handleTaskInputChange = useCallback(
+    (_: unknown, value: string) => {
+      setTaskInputValue(value);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => searchTasks(value), 300);
+    },
+    [searchTasks],
+  );
 
   useEffect(() => {
     if (open) {
       if (noteCard) {
-        const resolved = resolveLinksFromNoteCard(noteCard, members, teams, positions, tasks);
+        const resolved = resolveLinksFromNoteCard(
+          noteCard,
+          members,
+          teams,
+          positions,
+          tasks,
+        );
         const { date, time } = splitDeadline(noteCard.deadline);
-        reset({ title: noteCard.title, body: noteCard.body, deadlineDate: date, deadlineTime: time, ...resolved });
+        reset({
+          title: noteCard.title,
+          body: noteCard.body,
+          deadlineDate: date,
+          deadlineTime: time,
+          ...resolved,
+        });
       } else {
-        reset({ title: '', body: '', deadlineDate: null, deadlineTime: null, memberLinks: [], teamLinks: [], positionLinks: [], taskLinks: [] });
+        reset({
+          title: '',
+          body: '',
+          deadlineDate: null,
+          deadlineTime: null,
+          memberLinks: [],
+          teamLinks: [],
+          positionLinks: [],
+          taskLinks: [],
+        });
       }
     }
   }, [open, noteCard, members, teams, positions, tasks, reset]);
 
-  const handleBodyChange = useCallback((html: string) => {
-    setValue('body', html, { shouldValidate: true });
-  }, [setValue]);
+  const handleBodyChange = useCallback(
+    (html: string) => {
+      setValue('body', html, { shouldValidate: true });
+    },
+    [setValue],
+  );
 
   const onFormSubmit = async (data: NoteCardFormData) => {
     const links = [
-      ...data.memberLinks.map((l) => ({ entityType: 'team_member' as const, entityId: l.id })),
-      ...data.teamLinks.map((l) => ({ entityType: 'team' as const, entityId: l.id })),
-      ...data.positionLinks.map((l) => ({ entityType: 'position' as const, entityId: l.id })),
-      ...data.taskLinks.map((l) => ({ entityType: 'task' as const, entityId: l.id })),
+      ...data.memberLinks.map((l) => ({
+        entityType: 'team_member' as const,
+        entityId: l.id,
+      })),
+      ...data.teamLinks.map((l) => ({
+        entityType: 'team' as const,
+        entityId: l.id,
+      })),
+      ...data.positionLinks.map((l) => ({
+        entityType: 'position' as const,
+        entityId: l.id,
+      })),
+      ...data.taskLinks.map((l) => ({
+        entityType: 'task' as const,
+        entityId: l.id,
+      })),
     ];
     const deadline = combineDeadline(data.deadlineDate, data.deadlineTime);
-    await onSubmit({ title: data.title, body: data.body, deadline, links } as CreateNoteCardInput);
+    await onSubmit({
+      title: data.title,
+      body: data.body,
+      deadline,
+      links,
+    } as CreateNoteCardInput);
   };
 
   const memberOptions = toMemberOptions(members.filter((m) => m.isActive));
   const teamOptions = toTeamOptions(teams.filter((t) => t.isActive));
-  const positionOptions = toPositionOptions(positions.filter((p) => p.isActive));
+  const positionOptions = toPositionOptions(
+    positions.filter((p) => p.isActive),
+  );
 
   // Merge selected task links with search results (so selected items always appear)
   const currentTaskLinks = watch('taskLinks');
   const mergedTaskOptions = [
-    ...currentTaskLinks.filter((sel) => !taskSearchOptions.some((o) => o.id === sel.id)),
+    ...currentTaskLinks.filter(
+      (sel) => !taskSearchOptions.some((o) => o.id === sel.id),
+    ),
     ...taskSearchOptions,
   ];
 
@@ -290,13 +390,21 @@ export function NoteCardFormModal({
         height="85vh"
       >
         {error && (
-          <Typography color="error" variant="body2" sx={{ mb: 1 }}>{error}</Typography>
+          <Typography color="error" variant="body2" sx={{ mb: 1 }}>
+            {error}
+          </Typography>
         )}
 
         <Grid container spacing={3} sx={{ flex: 1, minHeight: 0 }}>
           {/* ── Left: Conteúdo ── */}
-          <Grid size={{ xs: 12, md: 7 }} sx={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-            <SectionHeader icon={<NotesIcon fontSize="small" />} label="Conteúdo" />
+          <Grid
+            size={{ xs: 12, md: 7 }}
+            sx={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}
+          >
+            <SectionHeader
+              icon={<NotesIcon fontSize="small" />}
+              label="Conteúdo"
+            />
 
             <Stack spacing={2} sx={{ flex: 1, minHeight: 0 }}>
               {/* Title */}
@@ -320,7 +428,10 @@ export function NoteCardFormModal({
 
               {/* Deadline: Date + Time */}
               <Box>
-                <SectionHeader icon={<ScheduleIcon fontSize="small" />} label="Prazo" />
+                <SectionHeader
+                  icon={<ScheduleIcon fontSize="small" />}
+                  label="Prazo"
+                />
                 <Grid container spacing={1.5}>
                   <Grid size={{ xs: 7 }}>
                     <Controller
@@ -336,7 +447,11 @@ export function NoteCardFormModal({
                           }}
                           disabled={loading}
                           slotProps={{
-                            textField: { fullWidth: true, size: 'small', placeholder: 'dd/mm/aaaa' },
+                            textField: {
+                              fullWidth: true,
+                              size: 'small',
+                              placeholder: 'dd/mm/aaaa',
+                            },
                             field: { clearable: true },
                           }}
                         />
@@ -355,15 +470,27 @@ export function NoteCardFormModal({
                           disabled={loading || !deadlineDateValue}
                           ampm={false}
                           slotProps={{
-                            textField: { fullWidth: true, size: 'small', placeholder: 'HH:mm' },
+                            textField: {
+                              fullWidth: true,
+                              size: 'small',
+                              placeholder: 'HH:mm',
+                            },
                           }}
                         />
                       )}
                     />
                   </Grid>
                 </Grid>
-                <Typography variant="caption" color="text.disabled" sx={{ mt: 0.5, display: 'block' }}>
-                  {!deadlineDateValue ? 'Opcional — selecione uma data para definir o prazo' : !watch('deadlineTime') ? 'Hora padrão: 23:59' : ''}
+                <Typography
+                  variant="caption"
+                  color="text.disabled"
+                  sx={{ mt: 0.5, display: 'block' }}
+                >
+                  {!deadlineDateValue
+                    ? 'Opcional — selecione uma data para definir o prazo'
+                    : !watch('deadlineTime')
+                      ? 'Hora padrão: 23:59'
+                      : ''}
                 </Typography>
               </Box>
 
@@ -371,17 +498,39 @@ export function NoteCardFormModal({
               <Controller
                 name="body"
                 control={control}
-                rules={{ validate: (v) => (!v || isBodyEmpty(v)) ? 'Corpo é obrigatório' : true }}
+                rules={{
+                  validate: (v) =>
+                    !v || isBodyEmpty(v) ? 'Corpo é obrigatório' : true,
+                }}
                 render={({ field }) => (
-                  <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-                    <Typography variant="caption" color="text.secondary" mb={0.5} display="block">
+                  <Box
+                    sx={{
+                      flex: 1,
+                      minHeight: 0,
+                      display: 'flex',
+                      flexDirection: 'column',
+                    }}
+                  >
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      mb={0.5}
+                      display="block"
+                    >
                       Corpo *
                     </Typography>
-                    <Box sx={{
-                      flex: 1, minHeight: 180,
-                      '& > div': { height: '100%', display: 'flex', flexDirection: 'column' },
-                      '& .tiptap': { flex: 1, overflow: 'auto' },
-                    }}>
+                    <Box
+                      sx={{
+                        flex: 1,
+                        minHeight: 180,
+                        '& > div': {
+                          height: '100%',
+                          display: 'flex',
+                          flexDirection: 'column',
+                        },
+                        '& .tiptap': { flex: 1, overflow: 'auto' },
+                      }}
+                    >
                       <RichTextEditor
                         key={noteCard?.id ?? 'new'}
                         content={field.value}
@@ -389,7 +538,11 @@ export function NoteCardFormModal({
                         editable={!loading}
                       />
                     </Box>
-                    {errors.body && <FormHelperText error>{errors.body.message}</FormHelperText>}
+                    {errors.body && (
+                      <FormHelperText error>
+                        {errors.body.message}
+                      </FormHelperText>
+                    )}
                   </Box>
                 )}
               />
@@ -400,18 +553,43 @@ export function NoteCardFormModal({
           <Grid
             size={{ xs: 12, md: 5 }}
             sx={{
-              display: 'flex', flexDirection: 'column', minHeight: 0,
-              borderLeft: { md: '1px solid' }, borderColor: { md: 'divider' }, pl: { md: 3 },
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: 0,
+              borderLeft: { md: '1px solid' },
+              borderColor: { md: 'divider' },
+              pl: { md: 3 },
             }}
           >
-            <SectionHeader icon={<LinkIcon fontSize="small" />} label="Vínculos" />
+            <SectionHeader
+              icon={<LinkIcon fontSize="small" />}
+              label="Vínculos"
+            />
 
-            <Stack spacing={2} sx={{ flex: 1, minHeight: 0, overflow: 'auto', pr: 0.5 }}>
-              {([
-                { name: 'memberLinks' as const, label: 'Membros', options: memberOptions, limit: 2 },
-                { name: 'teamLinks' as const, label: 'Equipes', options: teamOptions, limit: 2 },
-                { name: 'positionLinks' as const, label: 'Cargos', options: positionOptions, limit: 3 },
-              ]).map(({ name, label, options, limit }) => (
+            <Stack
+              spacing={2}
+              sx={{ flex: 1, minHeight: 0, overflow: 'auto', pr: 0.5 }}
+            >
+              {[
+                {
+                  name: 'memberLinks' as const,
+                  label: 'Membros',
+                  options: memberOptions,
+                  limit: 2,
+                },
+                {
+                  name: 'teamLinks' as const,
+                  label: 'Equipes',
+                  options: teamOptions,
+                  limit: 2,
+                },
+                {
+                  name: 'positionLinks' as const,
+                  label: 'Cargos',
+                  options: positionOptions,
+                  limit: 3,
+                },
+              ].map(({ name, label, options, limit }) => (
                 <Controller
                   key={name}
                   name={name}
@@ -431,11 +609,24 @@ export function NoteCardFormModal({
                       renderOption={(props, option) => {
                         const { key, ...rest } = props;
                         return (
-                          <Box component="li" key={key} {...rest} sx={{ '&.MuiAutocomplete-option': { py: 0.75 } }}>
+                          <Box
+                            component="li"
+                            key={key}
+                            {...rest}
+                            sx={{ '&.MuiAutocomplete-option': { py: 0.75 } }}
+                          >
                             <Box sx={{ minWidth: 0, overflow: 'hidden' }}>
-                              <Typography variant="body2" noWrap>{option.label}</Typography>
+                              <Typography variant="body2" noWrap>
+                                {option.label}
+                              </Typography>
                               {option.secondary && (
-                                <Typography variant="caption" color="text.disabled" noWrap display="block" sx={{ lineHeight: 1.3 }}>
+                                <Typography
+                                  variant="caption"
+                                  color="text.disabled"
+                                  noWrap
+                                  display="block"
+                                  sx={{ lineHeight: 1.3 }}
+                                >
                                   {option.secondary}
                                 </Typography>
                               )}
@@ -444,7 +635,11 @@ export function NoteCardFormModal({
                         );
                       }}
                       renderInput={(params) => (
-                        <TextField {...params} label={label} placeholder="Selecione..." />
+                        <TextField
+                          {...params}
+                          label={label}
+                          placeholder="Selecione..."
+                        />
                       )}
                     />
                   )}
@@ -471,15 +666,32 @@ export function NoteCardFormModal({
                     disabled={loading}
                     limitTags={2}
                     slotProps={{ chip: { sx: { maxWidth: '180px' } } }}
-                    noOptionsText={taskInputValue.length < 2 ? 'Digite ao menos 2 caracteres...' : 'Nenhuma task encontrada'}
+                    noOptionsText={
+                      taskInputValue.length < 2
+                        ? 'Digite ao menos 2 caracteres...'
+                        : 'Nenhuma task encontrada'
+                    }
                     renderOption={(props, option) => {
                       const { key, ...rest } = props;
                       return (
-                        <Box component="li" key={key} {...rest} sx={{ '&.MuiAutocomplete-option': { py: 0.75 } }}>
+                        <Box
+                          component="li"
+                          key={key}
+                          {...rest}
+                          sx={{ '&.MuiAutocomplete-option': { py: 0.75 } }}
+                        >
                           <Box sx={{ minWidth: 0, overflow: 'hidden' }}>
-                            <Typography variant="body2" noWrap>{option.label}</Typography>
+                            <Typography variant="body2" noWrap>
+                              {option.label}
+                            </Typography>
                             {option.secondary && (
-                              <Typography variant="caption" color="text.disabled" noWrap display="block" sx={{ lineHeight: 1.3 }}>
+                              <Typography
+                                variant="caption"
+                                color="text.disabled"
+                                noWrap
+                                display="block"
+                                sx={{ lineHeight: 1.3 }}
+                              >
                                 {option.secondary}
                               </Typography>
                             )}
@@ -497,7 +709,9 @@ export function NoteCardFormModal({
                             ...params.InputProps,
                             endAdornment: (
                               <>
-                                {taskSearchLoading ? <CircularProgress size={16} /> : null}
+                                {taskSearchLoading ? (
+                                  <CircularProgress size={16} />
+                                ) : null}
                                 {params.InputProps.endAdornment}
                               </>
                             ),

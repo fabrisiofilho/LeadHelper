@@ -65,7 +65,9 @@ export const DateTimeTransformer: ValueTransformer = {
 
     if (typeof value === 'string') {
       // Formato 'YYYY-MM-DD HH:mm:ss' ou 'YYYY-MM-DD HH:mm:ss.SSS'
-      const match = value.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})/);
+      const match = value.match(
+        /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})/,
+      );
       if (match) {
         const [, year, month, day, hours, minutes, seconds] = match.map(Number);
         return new Date(year, month - 1, day, hours, minutes, seconds);

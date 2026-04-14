@@ -19,15 +19,15 @@ interface TypeConfig {
 const ICON_SX = { fontSize: 14, color: '#fff !important' } as const;
 
 const TYPE_CONFIG: Record<string, TypeConfig> = {
-  Epic:          { color: '#ff8c00', icon: <EpicIcon sx={ICON_SX} /> },
-  Feature:       { color: '#9c27b0', icon: <FeatureIcon sx={ICON_SX} /> },
-  Improvement:   { color: '#e91e63', icon: <ImprovementIcon sx={ICON_SX} /> },
-  Rework:        { color: '#d32f2f', icon: <BugIcon sx={ICON_SX} /> },
-  Bug:           { color: '#d32f2f', icon: <BugIcon sx={ICON_SX} /> },
-  Roadmap:       { color: '#424242', icon: <RoadmapIcon sx={ICON_SX} /> },
-  Task:          { color: '#c8a415', icon: <TaskIcon sx={ICON_SX} /> },
-  Ticket:        { color: '#4caf50', icon: <TicketIcon sx={ICON_SX} /> },
-  'User Story':  { color: '#2196f3', icon: <UserStoryIcon sx={ICON_SX} /> },
+  Epic: { color: '#ff8c00', icon: <EpicIcon sx={ICON_SX} /> },
+  Feature: { color: '#9c27b0', icon: <FeatureIcon sx={ICON_SX} /> },
+  Improvement: { color: '#e91e63', icon: <ImprovementIcon sx={ICON_SX} /> },
+  Rework: { color: '#d32f2f', icon: <BugIcon sx={ICON_SX} /> },
+  Bug: { color: '#d32f2f', icon: <BugIcon sx={ICON_SX} /> },
+  Roadmap: { color: '#424242', icon: <RoadmapIcon sx={ICON_SX} /> },
+  Task: { color: '#c8a415', icon: <TaskIcon sx={ICON_SX} /> },
+  Ticket: { color: '#4caf50', icon: <TicketIcon sx={ICON_SX} /> },
+  'User Story': { color: '#2196f3', icon: <UserStoryIcon sx={ICON_SX} /> },
 };
 
 const DEFAULT_CONFIG: TypeConfig = {
@@ -45,7 +45,11 @@ interface WorkItemTypeChipProps {
   sx?: SxProps<Theme>;
 }
 
-export const WorkItemTypeChip: FC<WorkItemTypeChipProps> = ({ type, size = 'small', sx }) => {
+export const WorkItemTypeChip: FC<WorkItemTypeChipProps> = ({
+  type,
+  size = 'small',
+  sx,
+}) => {
   const config = TYPE_CONFIG[type] ?? DEFAULT_CONFIG;
   return (
     <Chip

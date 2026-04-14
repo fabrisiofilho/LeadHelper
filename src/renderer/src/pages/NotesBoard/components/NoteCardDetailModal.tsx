@@ -30,7 +30,10 @@ const ENTITY_TYPE_LABELS: Record<string, string> = {
   task: 'Task',
 };
 
-const ENTITY_TYPE_COLORS: Record<string, 'primary' | 'secondary' | 'success' | 'warning'> = {
+const ENTITY_TYPE_COLORS: Record<
+  string,
+  'primary' | 'secondary' | 'success' | 'warning'
+> = {
   team_member: 'primary',
   team: 'secondary',
   position: 'success',
@@ -46,12 +49,19 @@ function formatDateTime(dateStr: string): string {
   return `${d.toLocaleDateString('pt-BR')} às ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
 }
 
-function isDeadlinePast(deadline: string | null | undefined, completedAt: string | null | undefined): boolean {
+function isDeadlinePast(
+  deadline: string | null | undefined,
+  completedAt: string | null | undefined,
+): boolean {
   if (!deadline || completedAt) return false;
   return new Date() > new Date(deadline);
 }
 
-export function NoteCardDetailModal({ open, onClose, noteCard }: NoteCardDetailModalProps) {
+export function NoteCardDetailModal({
+  open,
+  onClose,
+  noteCard,
+}: NoteCardDetailModalProps) {
   if (!noteCard) return null;
 
   const sanitizedBody = DOMPurify.sanitize(noteCard.body);
@@ -92,7 +102,12 @@ export function NoteCardDetailModal({ open, onClose, noteCard }: NoteCardDetailM
           {noteCard.deadline && (
             <Grid size={{ xs: 12, sm: 'auto' }}>
               <Stack direction="row" alignItems="center" spacing={0.5}>
-                <TimeIcon sx={{ fontSize: 16, color: deadlinePast ? 'error.main' : 'text.disabled' }} />
+                <TimeIcon
+                  sx={{
+                    fontSize: 16,
+                    color: deadlinePast ? 'error.main' : 'text.disabled',
+                  }}
+                />
                 {deadlinePast ? (
                   <Chip
                     icon={<WarningIcon />}
@@ -125,7 +140,13 @@ export function NoteCardDetailModal({ open, onClose, noteCard }: NoteCardDetailM
             '& h2': { fontSize: '1.25rem', mt: 0, mb: 1 },
             '& h3': { fontSize: '1.1rem', mt: 0, mb: 1 },
             '& ul, & ol': { pl: 3, my: 0.5 },
-            '& pre': { bgcolor: 'action.hover', p: 1.5, borderRadius: 1, overflow: 'auto', fontSize: '0.85rem' },
+            '& pre': {
+              bgcolor: 'action.hover',
+              p: 1.5,
+              borderRadius: 1,
+              overflow: 'auto',
+              fontSize: '0.85rem',
+            },
             '& code': { fontSize: '0.85rem' },
           }}
           dangerouslySetInnerHTML={{ __html: sanitizedBody }}
@@ -138,7 +159,11 @@ export function NoteCardDetailModal({ open, onClose, noteCard }: NoteCardDetailM
             <Box>
               <Stack direction="row" alignItems="center" spacing={0.5} mb={1}>
                 <LinkIcon sx={{ fontSize: 16, color: 'text.disabled' }} />
-                <Typography variant="body2" color="text.secondary" fontWeight={600}>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  fontWeight={600}
+                >
                   Vínculos
                 </Typography>
               </Stack>
@@ -146,7 +171,10 @@ export function NoteCardDetailModal({ open, onClose, noteCard }: NoteCardDetailM
                 {noteCard.links.map((link) => (
                   <Chip
                     key={link.id}
-                    label={link.entityName || `${ENTITY_TYPE_LABELS[link.entityType] || link.entityType} #${link.entityId}`}
+                    label={
+                      link.entityName ||
+                      `${ENTITY_TYPE_LABELS[link.entityType] || link.entityType} #${link.entityId}`
+                    }
                     size="small"
                     variant="outlined"
                     color={ENTITY_TYPE_COLORS[link.entityType] || 'primary'}

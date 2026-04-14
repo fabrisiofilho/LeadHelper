@@ -212,9 +212,7 @@ describe('DashboardService - getSustentacaoMembersWithCards', () => {
     });
 
     // DB query already filters out closed tasks, so mock only returns open ones
-    mockTaskRepository.findOpenByAreaAndTypes.mockResolvedValue([
-      openTask,
-    ]);
+    mockTaskRepository.findOpenByAreaAndTypes.mockResolvedValue([openTask]);
 
     const result = await service.getSustentacaoMembersWithCards();
 

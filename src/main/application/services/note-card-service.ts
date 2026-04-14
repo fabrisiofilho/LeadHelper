@@ -193,8 +193,8 @@ export class NoteCardService {
   private stripHtmlTags(html: string): string {
     return html
       .replace(/<br\s*\/?>/gi, '') // remove <br> / <br/>
-      .replace(/<[^>]*>/g, '')     // remove all HTML tags
-      .replace(/&nbsp;/gi, ' ');   // replace &nbsp; with space
+      .replace(/<[^>]*>/g, '') // remove all HTML tags
+      .replace(/&nbsp;/gi, ' '); // replace &nbsp; with space
   }
 
   // ── Entity name resolution ─────────────────────────────────
@@ -206,7 +206,9 @@ export class NoteCardService {
     try {
       switch (entityType) {
         case 'team_member': {
-          const member = await this.teamMemberRepository.findOneBy({ id: entityId } as any);
+          const member = await this.teamMemberRepository.findOneBy({
+            id: entityId,
+          } as any);
           return member?.name ?? undefined;
         }
         case 'team': {
@@ -227,7 +229,10 @@ export class NoteCardService {
           return undefined;
       }
     } catch (error) {
-      logger.warning(`Failed to resolve entity name for ${entityType}:${entityId}`, error);
+      logger.warning(
+        `Failed to resolve entity name for ${entityType}:${entityId}`,
+        error,
+      );
       return undefined;
     }
   }

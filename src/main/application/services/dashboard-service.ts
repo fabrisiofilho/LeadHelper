@@ -11,17 +11,19 @@ import { TaskEntity } from '../entities/task.entity';
 import { SprintEntity } from '../entities/sprint.entity';
 import type { AllocationConflict } from './team-member-allocation-service';
 import { logger } from '@main/infrastructure/log/logger';
-import { calculateBusinessHours, addBusinessHours, isBusinessDay } from '@main/infrastructure/utils/business-hours';
+import {
+  calculateBusinessHours,
+  addBusinessHours,
+  isBusinessDay,
+} from '@main/infrastructure/utils/business-hours';
 import {
   SLA_LIMITS,
   type TaskPriority,
 } from '@shared/interfaces/config/index.types';
 import { getStatusColor as _getStatusColor } from '@shared/constants/status-colors';
 
-
 import { TaskSlaExclusionRepository } from '../repositories/task-sla-exclusion-repository';
 import { TaskHiddenRepository } from '../repositories/task-hidden-repository';
-
 
 export interface DashboardPeriod {
   startDate: Date;
@@ -263,16 +265,28 @@ const SUSTENTACAO_WORK_ITEM_TYPES = ['Ticket', 'Improvement'];
  * Property 1: status NOT IN closed/cancelled
  */
 const CLOSED_STATUSES = [
-  'completed', 'cancelled',
-  'Done', 'Closed', 'Resolved', 'Finalizado',
-  'Removed', 'Cut', 'Cancelado',
+  'completed',
+  'cancelled',
+  'Done',
+  'Closed',
+  'Resolved',
+  'Finalizado',
+  'Removed',
+  'Cut',
+  'Cancelado',
 ];
 
 /**
  * Statuses that indicate a task is completed for progress calculation.
  * Property 10, 11: Tasks with these statuses are considered completed.
  */
-const COMPLETED_STATUSES = ['completed', 'Done', 'Closed', 'Resolved', 'Finalizado'];
+const COMPLETED_STATUSES = [
+  'completed',
+  'Done',
+  'Closed',
+  'Resolved',
+  'Finalizado',
+];
 
 /**
  * Statuses that indicate a task is cancelled.
@@ -283,11 +297,21 @@ const CANCELLED_STATUSES = ['cancelled', 'Removed', 'Cut', 'Cancelado'];
  * Statuses that indicate a task is in progress.
  */
 const IN_PROGRESS_STATUSES = [
-  'in_progress', 'Active', 'In Progress', 'Committed',
-  'Em Andamento', 'Em Desenvolvimento', 'Em Auditoria',
-  'Em Homologação', 'Aguardando Auditoria', 'Aguardando Validação',
-  'Aguardando Implantação', 'Aguardando Homologação',
-  'Em Implantação', 'Em validação', 'Em classificação',
+  'in_progress',
+  'Active',
+  'In Progress',
+  'Committed',
+  'Em Andamento',
+  'Em Desenvolvimento',
+  'Em Auditoria',
+  'Em Homologação',
+  'Aguardando Auditoria',
+  'Aguardando Validação',
+  'Aguardando Implantação',
+  'Aguardando Homologação',
+  'Em Implantação',
+  'Em validação',
+  'Em classificação',
   'Preparando para Dev',
 ];
 
@@ -295,15 +319,21 @@ const IN_PROGRESS_STATUSES = [
  * Statuses that indicate a task is pending (not yet started).
  */
 const PENDING_STATUSES = [
-  'pending', 'New', 'Novo', 'Em Levantamento',
-  'Em levantamento', 'Backlog Comprometido',
+  'pending',
+  'New',
+  'Novo',
+  'Em Levantamento',
+  'Em levantamento',
+  'Backlog Comprometido',
 ];
 
 /**
  * Categorize a task status string into one of the four canonical groups.
  * Falls back to 'pending' for unknown statuses.
  */
-export function categorizeStatus(status: string): 'pending' | 'inProgress' | 'completed' | 'cancelled' {
+export function categorizeStatus(
+  status: string,
+): 'pending' | 'inProgress' | 'completed' | 'cancelled' {
   if (COMPLETED_STATUSES.includes(status)) return 'completed';
   if (CANCELLED_STATUSES.includes(status)) return 'cancelled';
   if (IN_PROGRESS_STATUSES.includes(status)) return 'inProgress';
@@ -336,7 +366,8 @@ export function findCurrentSprint<
 >(sprints: T[], referenceDate: Date, teamId?: number): T | null {
   const candidates = sprints.filter((s) => {
     const matchesTeam = teamId === undefined || s.teamId === teamId;
-    const matchesDate = s.startDate <= referenceDate && s.endDate >= referenceDate;
+    const matchesDate =
+      s.startDate <= referenceDate && s.endDate >= referenceDate;
     return matchesTeam && matchesDate;
   });
 
@@ -447,7 +478,10 @@ export class DashboardService {
   private hiddenRepository: TaskHiddenRepository;
 
   // Short-lived cache for getSustentacaoItems (avoids double calculation when metrics are fetched right after items)
-  private _sustentacaoCache: { data: SustentacaoItemWithSLA[]; ts: number } | null = null;
+  private _sustentacaoCache: {
+    data: SustentacaoItemWithSLA[];
+    ts: number;
+  } | null = null;
   private static readonly CACHE_TTL_MS = 5_000; // 5 seconds
 
   constructor(
@@ -477,8 +511,7 @@ export class DashboardService {
       taskUpdateRepository ?? new TaskUpdateRepository();
     this.slaExclusionRepository =
       slaExclusionRepository ?? new TaskSlaExclusionRepository();
-    this.hiddenRepository =
-      hiddenRepository ?? new TaskHiddenRepository();
+    this.hiddenRepository = hiddenRepository ?? new TaskHiddenRepository();
   }
 
   // Reserved for future use - suppress unused warning
@@ -753,132 +786,157 @@ export class DashboardService {
    * @returns Array of SustentacaoItem with enriched data
    */
   async getSustentacaoItems(
-        options: SustentacaoOptions = {},
-      ): Promise<SustentacaoItemWithSLA[]> {
-        const { staleDays = 7 } = options;
+    options: SustentacaoOptions = {},
+  ): Promise<SustentacaoItemWithSLA[]> {
+    const { staleDays = 7 } = options;
 
-        // Return cached result if fresh (avoids double calculation when metrics call this right after items)
-        if (this._sustentacaoCache && (Date.now() - this._sustentacaoCache.ts) < DashboardService.CACHE_TTL_MS) {
-          logger.debug('[DashboardService.getSustentacaoItems] returning cached result');
-          return this._sustentacaoCache.data;
-        }
+    // Return cached result if fresh (avoids double calculation when metrics call this right after items)
+    if (
+      this._sustentacaoCache &&
+      Date.now() - this._sustentacaoCache.ts < DashboardService.CACHE_TTL_MS
+    ) {
+      logger.debug(
+        '[DashboardService.getSustentacaoItems] returning cached result',
+      );
+      return this._sustentacaoCache.data;
+    }
 
-        logger.debug('[DashboardService.getSustentacaoItems]', { options });
+    logger.debug('[DashboardService.getSustentacaoItems]', { options });
 
-        // Get filtered tasks directly from DB (avoids loading all tasks)
-        const filteredTasks = await this.taskRepository.findOpenByAreaAndTypes(
-          SUSTENTACAO_AREA_PATH_PATTERN,
-          SUSTENTACAO_WORK_ITEM_TYPES,
-          CLOSED_STATUSES,
-        );
+    // Get filtered tasks directly from DB (avoids loading all tasks)
+    const filteredTasks = await this.taskRepository.findOpenByAreaAndTypes(
+      SUSTENTACAO_AREA_PATH_PATTERN,
+      SUSTENTACAO_WORK_ITEM_TYPES,
+      CLOSED_STATUSES,
+    );
 
-        // Get external IDs for priority lookup
-        const externalIds = filteredTasks
-          .map((t) => t.externalId)
-          .filter((id): id is string => id !== undefined && id !== null);
+    // Get external IDs for priority lookup
+    const externalIds = filteredTasks
+      .map((t) => t.externalId)
+      .filter((id): id is string => id !== undefined && id !== null);
 
-        // Get local priorities for all filtered tasks
-        const priorityMap =
-          await this.taskLocalPriorityRepository.findByExternalIds(externalIds);
+    // Get local priorities for all filtered tasks
+    const priorityMap =
+      await this.taskLocalPriorityRepository.findByExternalIds(externalIds);
 
-        // Get SLA exclusions
-        const slaExclusions =
-          await this.slaExclusionRepository.findByExternalIds(externalIds);
+    // Get SLA exclusions
+    const slaExclusions =
+      await this.slaExclusionRepository.findByExternalIds(externalIds);
 
-        // Get hidden items
-        const hiddenItems =
-          await this.hiddenRepository.findByExternalIds(externalIds);
+    // Get hidden items
+    const hiddenItems =
+      await this.hiddenRepository.findByExternalIds(externalIds);
 
-        const now = new Date();
-        const HOURS_PER_DAY = 8;
+    const now = new Date();
+    const HOURS_PER_DAY = 8;
 
-        const items: SustentacaoItemWithSLA[] = filteredTasks.map((task) => {
-            const localPriority = task.externalId
-              ? (priorityMap.get(task.externalId) ?? 0)
-              : 0;
+    const items: SustentacaoItemWithSLA[] = filteredTasks.map((task) => {
+      const localPriority = task.externalId
+        ? (priorityMap.get(task.externalId) ?? 0)
+        : 0;
 
-            const daysSinceUpdate = this.calculateDaysSinceUpdate(
-              task.updatedAt,
-              now,
-            );
-            const isStale = daysSinceUpdate > staleDays;
-            const childrenCount = task.children?.length ?? 0;
+      const daysSinceUpdate = this.calculateDaysSinceUpdate(
+        task.updatedAt,
+        now,
+      );
+      const isStale = daysSinceUpdate > staleDays;
+      const childrenCount = task.children?.length ?? 0;
 
-            // SLA applies only to Ticket, not Improvement, and not excluded
-            const isTicket = task.type === 'Ticket';
-            const isSlaExcluded = task.externalId ? slaExclusions.has(task.externalId) : false;
-            const isHidden = task.externalId ? hiddenItems.has(task.externalId) : false;
-            const applySla = isTicket && !isSlaExcluded;
-            const slaStartDate = task.azureCreatedDate ?? task.startDate ?? task.createdAt;
-            const taskPriority = task.priority as TaskPriority;
-            const slaLimit = applySla ? (SLA_LIMITS[taskPriority] ?? SLA_LIMITS.medium) : 0;
+      // SLA applies only to Ticket, not Improvement, and not excluded
+      const isTicket = task.type === 'Ticket';
+      const isSlaExcluded = task.externalId
+        ? slaExclusions.has(task.externalId)
+        : false;
+      const isHidden = task.externalId
+        ? hiddenItems.has(task.externalId)
+        : false;
+      const applySla = isTicket && !isSlaExcluded;
+      const slaStartDate =
+        task.azureCreatedDate ?? task.startDate ?? task.createdAt;
+      const taskPriority = task.priority as TaskPriority;
+      const slaLimit = applySla
+        ? (SLA_LIMITS[taskPriority] ?? SLA_LIMITS.medium)
+        : 0;
 
-            let businessHoursElapsed = 0;
-            if (applySla && slaStartDate) {
-              businessHoursElapsed = calculateBusinessHours(slaStartDate, now);
-            }
-
-            const slaPercentage = slaLimit > 0
-              ? (businessHoursElapsed / slaLimit) * 100
-              : 0;
-            const slaViolated = applySla && businessHoursElapsed > slaLimit;
-            const slaWarning = applySla && !slaViolated && slaPercentage >= 80;
-
-            // Expiration only for Tickets with SLA
-            const businessHoursRemaining = applySla ? slaLimit - businessHoursElapsed : 0;
-            const daysUntilExpiration = applySla ? businessHoursRemaining / HOURS_PER_DAY : 0;
-
-            let expirationDate: string | null = null;
-            if (applySla && slaStartDate) {
-              const expDate = addBusinessHours(slaStartDate, slaLimit);
-              expirationDate = expDate.toISOString();
-            }
-
-            let expirationAlert: 'expired' | 'critical' | 'warning' | 'attention' | null = null;
-            if (applySla) {
-              if (slaViolated) {
-                expirationAlert = 'expired';
-              } else if (daysUntilExpiration <= 1) {
-                expirationAlert = 'critical';
-              } else if (daysUntilExpiration <= 2) {
-                expirationAlert = 'warning';
-              } else if (daysUntilExpiration <= 3) {
-                expirationAlert = 'attention';
-              }
-            }
-
-            return {
-              task,
-              localPriority,
-              isStale,
-              daysSinceUpdate,
-              childrenCount,
-              businessHoursElapsed,
-              slaLimit,
-              slaPercentage,
-              slaViolated,
-              slaWarning,
-              expirationDate,
-              businessHoursRemaining,
-              daysUntilExpiration,
-              expirationAlert,
-              slaExcluded: isSlaExcluded,
-              isHidden,
-            };
-          });
-
-        // Sort: priority (critical first), then hours remaining ASC
-        const priorityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
-        items.sort((a, b) => {
-          const aPrio = priorityOrder[a.task.priority] ?? 99;
-          const bPrio = priorityOrder[b.task.priority] ?? 99;
-          if (aPrio !== bPrio) return aPrio - bPrio;
-          return a.businessHoursRemaining - b.businessHoursRemaining;
-        });
-
-        this._sustentacaoCache = { data: items, ts: Date.now() };
-        return items;
+      let businessHoursElapsed = 0;
+      if (applySla && slaStartDate) {
+        businessHoursElapsed = calculateBusinessHours(slaStartDate, now);
       }
+
+      const slaPercentage =
+        slaLimit > 0 ? (businessHoursElapsed / slaLimit) * 100 : 0;
+      const slaViolated = applySla && businessHoursElapsed > slaLimit;
+      const slaWarning = applySla && !slaViolated && slaPercentage >= 80;
+
+      // Expiration only for Tickets with SLA
+      const businessHoursRemaining = applySla
+        ? slaLimit - businessHoursElapsed
+        : 0;
+      const daysUntilExpiration = applySla
+        ? businessHoursRemaining / HOURS_PER_DAY
+        : 0;
+
+      let expirationDate: string | null = null;
+      if (applySla && slaStartDate) {
+        const expDate = addBusinessHours(slaStartDate, slaLimit);
+        expirationDate = expDate.toISOString();
+      }
+
+      let expirationAlert:
+        | 'expired'
+        | 'critical'
+        | 'warning'
+        | 'attention'
+        | null = null;
+      if (applySla) {
+        if (slaViolated) {
+          expirationAlert = 'expired';
+        } else if (daysUntilExpiration <= 1) {
+          expirationAlert = 'critical';
+        } else if (daysUntilExpiration <= 2) {
+          expirationAlert = 'warning';
+        } else if (daysUntilExpiration <= 3) {
+          expirationAlert = 'attention';
+        }
+      }
+
+      return {
+        task,
+        localPriority,
+        isStale,
+        daysSinceUpdate,
+        childrenCount,
+        businessHoursElapsed,
+        slaLimit,
+        slaPercentage,
+        slaViolated,
+        slaWarning,
+        expirationDate,
+        businessHoursRemaining,
+        daysUntilExpiration,
+        expirationAlert,
+        slaExcluded: isSlaExcluded,
+        isHidden,
+      };
+    });
+
+    // Sort: priority (critical first), then hours remaining ASC
+    const priorityOrder: Record<string, number> = {
+      critical: 0,
+      high: 1,
+      medium: 2,
+      low: 3,
+    };
+    items.sort((a, b) => {
+      const aPrio = priorityOrder[a.task.priority] ?? 99;
+      const bPrio = priorityOrder[b.task.priority] ?? 99;
+      if (aPrio !== bPrio) return aPrio - bPrio;
+      return a.businessHoursRemaining - b.businessHoursRemaining;
+    });
+
+    this._sustentacaoCache = { data: items, ts: Date.now() };
+    return items;
+  }
 
   /**
    * Get Sustentação team members with their in-progress cards.
@@ -891,44 +949,51 @@ export class DashboardService {
    *
    * @returns Array of SustentacaoMemberWithCards
    */
-  async getSustentacaoMembersWithCards(): Promise<SustentacaoMemberWithCards[]> {
-      logger.debug('[DashboardService.getSustentacaoMembersWithCards]');
+  async getSustentacaoMembersWithCards(): Promise<
+    SustentacaoMemberWithCards[]
+  > {
+    logger.debug('[DashboardService.getSustentacaoMembersWithCards]');
 
-      // 1. Get all open Sustentação items with SLA (not just in_progress)
-      const allSustentacaoItems = await this.getSustentacaoItems();
+    // 1. Get all open Sustentação items with SLA (not just in_progress)
+    const allSustentacaoItems = await this.getSustentacaoItems();
 
-      // 2. Group cards by assignedTo (name or email) — no allocation needed
-      const memberCardMap = new Map<string, {
+    // 2. Group cards by assignedTo (name or email) — no allocation needed
+    const memberCardMap = new Map<
+      string,
+      {
         name: string;
         email?: string;
         cards: SustentacaoItemWithSLA[];
-      }>();
+      }
+    >();
 
-      for (const item of allSustentacaoItems) {
-        const assignedName = item.task.assignedToName;
-        const assignedEmail = item.task.assignedToEmail;
-        const key = assignedEmail || assignedName || 'Não atribuído';
+    for (const item of allSustentacaoItems) {
+      const assignedName = item.task.assignedToName;
+      const assignedEmail = item.task.assignedToEmail;
+      const key = assignedEmail || assignedName || 'Não atribuído';
 
-        if (!memberCardMap.has(key)) {
-          memberCardMap.set(key, {
-            name: assignedName || key,
-            email: assignedEmail,
-            cards: [],
-          });
-        }
-        memberCardMap.get(key)!.cards.push(item);
+      if (!memberCardMap.has(key)) {
+        memberCardMap.set(key, {
+          name: assignedName || key,
+          email: assignedEmail,
+          cards: [],
+        });
+      }
+      memberCardMap.get(key)!.cards.push(item);
+    }
+
+    // 3. Build result — create a lightweight member representation from assignedTo
+    const result: SustentacaoMemberWithCards[] = [];
+    for (const [, data] of memberCardMap) {
+      // Try to find a real TeamMemberEntity by email or name
+      let memberEntity: TeamMemberEntity | null = null;
+      if (data.email) {
+        memberEntity = await this.teamMemberRepository.findByEmail(data.email);
       }
 
-      // 3. Build result — create a lightweight member representation from assignedTo
-      const result: SustentacaoMemberWithCards[] = [];
-      for (const [, data] of memberCardMap) {
-        // Try to find a real TeamMemberEntity by email or name
-        let memberEntity: TeamMemberEntity | null = null;
-        if (data.email) {
-          memberEntity = await this.teamMemberRepository.findByEmail(data.email);
-        }
-
-        const member: TeamMemberEntity = memberEntity ?? {
+      const member: TeamMemberEntity =
+        memberEntity ??
+        ({
           id: 0,
           name: data.name,
           email: data.email ?? '',
@@ -936,41 +1001,54 @@ export class DashboardService {
           isActive: true,
           createdAt: new Date(),
           updatedAt: new Date(),
-        } as TeamMemberEntity;
+        } as TeamMemberEntity);
 
-        // Sort cards: priority critical > high > medium > low, then by SLA remaining ASC
-        const sortedCards = [...data.cards].sort((a, b) => {
-          const priorityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
-          const aPrio = priorityOrder[a.task.priority] ?? 99;
-          const bPrio = priorityOrder[b.task.priority] ?? 99;
-          if (aPrio !== bPrio) return aPrio - bPrio;
-          return a.businessHoursRemaining - b.businessHoursRemaining;
-        });
-
-        result.push({
-          member,
-          inProgressCards: sortedCards,
-          hasNoCards: sortedCards.length === 0,
-        });
-      }
-
-      // Sort members: those with expired/critical cards first, then by name
-      result.sort((a, b) => {
-        const aHasExpired = a.inProgressCards.some(c => c.expirationAlert === 'expired' || c.expirationAlert === 'critical');
-        const bHasExpired = b.inProgressCards.some(c => c.expirationAlert === 'expired' || c.expirationAlert === 'critical');
-        if (aHasExpired && !bHasExpired) return -1;
-        if (!aHasExpired && bHasExpired) return 1;
-        return a.member.name.localeCompare(b.member.name);
+      // Sort cards: priority critical > high > medium > low, then by SLA remaining ASC
+      const sortedCards = [...data.cards].sort((a, b) => {
+        const priorityOrder: Record<string, number> = {
+          critical: 0,
+          high: 1,
+          medium: 2,
+          low: 3,
+        };
+        const aPrio = priorityOrder[a.task.priority] ?? 99;
+        const bPrio = priorityOrder[b.task.priority] ?? 99;
+        if (aPrio !== bPrio) return aPrio - bPrio;
+        return a.businessHoursRemaining - b.businessHoursRemaining;
       });
 
-      return result;
+      result.push({
+        member,
+        inProgressCards: sortedCards,
+        hasNoCards: sortedCards.length === 0,
+      });
     }
+
+    // Sort members: those with expired/critical cards first, then by name
+    result.sort((a, b) => {
+      const aHasExpired = a.inProgressCards.some(
+        (c) =>
+          c.expirationAlert === 'expired' || c.expirationAlert === 'critical',
+      );
+      const bHasExpired = b.inProgressCards.some(
+        (c) =>
+          c.expirationAlert === 'expired' || c.expirationAlert === 'critical',
+      );
+      if (aHasExpired && !bHasExpired) return -1;
+      if (!aHasExpired && bHasExpired) return 1;
+      return a.member.name.localeCompare(b.member.name);
+    });
+
+    return result;
+  }
 
   /**
    * Get task allocation data: all active members with ALL their open tasks
    * filtered by each member's position allowedStatuses, grouped by area.
    */
-  async getTaskAllocationData(): Promise<import('@shared/interfaces/config/index.types').TaskAllocationMember[]> {
+  async getTaskAllocationData(): Promise<
+    import('@shared/interfaces/config/index.types').TaskAllocationMember[]
+  > {
     logger.debug('[DashboardService.getTaskAllocationData]');
 
     // 1. Get all active members (with position relation)
@@ -980,10 +1058,15 @@ export class DashboardService {
     const allTasks = await this.taskRepository.findAllWithRelations();
 
     // 3. Filter: only open tasks
-    const openTasks = allTasks.filter((t) => !CLOSED_STATUSES.includes(t.status));
+    const openTasks = allTasks.filter(
+      (t) => !CLOSED_STATUSES.includes(t.status),
+    );
 
     // 4. Index by assignedToEmail (lowercase)
-    const tasksByEmail = new Map<string, import('../entities/task.entity').TaskEntity[]>();
+    const tasksByEmail = new Map<
+      string,
+      import('../entities/task.entity').TaskEntity[]
+    >();
     for (const task of openTasks) {
       const email = task.assignedToEmail?.toLowerCase();
       if (!email) continue;
@@ -992,27 +1075,37 @@ export class DashboardService {
     }
 
     // 5. For each member, filter by position's allowedStatuses and group by area
-    const result: import('@shared/interfaces/config/index.types').TaskAllocationMember[] = [];
+    const result: import('@shared/interfaces/config/index.types').TaskAllocationMember[] =
+      [];
 
     for (const entity of activeMembers) {
       const email = entity.email?.toLowerCase();
-      const assignedTasks = email ? tasksByEmail.get(email) ?? [] : [];
+      const assignedTasks = email ? (tasksByEmail.get(email) ?? []) : [];
 
       // Parse allowed statuses from position
       const allowedStatuses = entity.position?.allowedStatuses
-        ? entity.position.allowedStatuses.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
+        ? entity.position.allowedStatuses
+            .split(',')
+            .map((s) => s.trim().toLowerCase())
+            .filter(Boolean)
         : [];
 
       // Filter by position's allowed statuses
-      const filteredTasks = allowedStatuses.length > 0
-        ? assignedTasks.filter((task) => {
-            const status = task.status?.toLowerCase() ?? '';
-            return allowedStatuses.some((allowed) => status.includes(allowed));
-          })
-        : assignedTasks;
+      const filteredTasks =
+        allowedStatuses.length > 0
+          ? assignedTasks.filter((task) => {
+              const status = task.status?.toLowerCase() ?? '';
+              return allowedStatuses.some((allowed) =>
+                status.includes(allowed),
+              );
+            })
+          : assignedTasks;
 
       // Group by area context
-      const groupMap = new Map<string, import('@shared/interfaces/config/index.types').Task[]>();
+      const groupMap = new Map<
+        string,
+        import('@shared/interfaces/config/index.types').Task[]
+      >();
       for (const task of filteredTasks) {
         const area = this.classifyArea(task.areaPath);
         if (!groupMap.has(area)) groupMap.set(area, []);
@@ -1052,8 +1145,10 @@ export class DashboardService {
   private classifyArea(areaPath?: string): string {
     if (!areaPath) return 'Outros';
     if (areaPath.startsWith(SUSTENTACAO_AREA_PATH_PATTERN)) {
-      if (areaPath.includes('Gestão de Terceiros')) return 'Gestão de Terceiros';
-      if (areaPath.includes('Chamada Tecnológica')) return 'Chamada Tecnológica';
+      if (areaPath.includes('Gestão de Terceiros'))
+        return 'Gestão de Terceiros';
+      if (areaPath.includes('Chamada Tecnológica'))
+        return 'Chamada Tecnológica';
       return 'Sustentação';
     }
     if (areaPath.startsWith(PROJETOS_AREA_PATH_PATTERN)) {
@@ -1065,7 +1160,9 @@ export class DashboardService {
   }
 
   /** Map a TaskEntity to the shared Task DTO */
-  private mapTaskToDto(entity: import('../entities/task.entity').TaskEntity): import('@shared/interfaces/config/index.types').Task {
+  private mapTaskToDto(
+    entity: import('../entities/task.entity').TaskEntity,
+  ): import('@shared/interfaces/config/index.types').Task {
     return {
       id: entity.id,
       title: entity.title,
@@ -1073,9 +1170,11 @@ export class DashboardService {
       startDate: entity.startDate,
       endDate: entity.endDate,
       status: entity.status,
-      priority: entity.priority as import('@shared/interfaces/config/index.types').TaskPriority,
+      priority:
+        entity.priority as import('@shared/interfaces/config/index.types').TaskPriority,
       type: entity.type,
-      origin: entity.origin as import('@shared/interfaces/config/index.types').TaskOrigin,
+      origin:
+        entity.origin as import('@shared/interfaces/config/index.types').TaskOrigin,
       externalId: entity.externalId,
       sprintId: entity.sprintId,
       teamId: entity.teamId,
@@ -1115,35 +1214,50 @@ export class DashboardService {
    * Get metrics/KPIs for the Sustentação dashboard.
    * Calculates stats from both open items and recently closed Tickets.
    */
-  async getSustentacaoMetrics(statuses?: string[]): Promise<import('@shared/interfaces/config/index.types').SustentacaoMetrics> {
+  async getSustentacaoMetrics(
+    statuses?: string[],
+  ): Promise<
+    import('@shared/interfaces/config/index.types').SustentacaoMetrics
+  > {
     logger.debug('[DashboardService.getSustentacaoMetrics]', { statuses });
 
     // 1. Get open items (already calculated with SLA)
     const allOpenItems = await this.getSustentacaoItems();
 
     // Filter by statuses if provided (dev + auditoria lanes)
-    const statusSet = statuses ? new Set(statuses.map(s => s.toLowerCase())) : null;
+    const statusSet = statuses
+      ? new Set(statuses.map((s) => s.toLowerCase()))
+      : null;
     const openItems = statusSet
-      ? allOpenItems.filter(i => statusSet.has(i.task.status.toLowerCase()))
+      ? allOpenItems.filter((i) => statusSet.has(i.task.status.toLowerCase()))
       : allOpenItems;
 
     // Exclude hidden items entirely from metrics (they are irrelevant, e.g. hour-tracking tasks)
-    const visibleItems = openItems.filter(i => !i.isHidden);
+    const visibleItems = openItems.filter((i) => !i.isHidden);
 
-    const openTickets = visibleItems.filter(i => i.task.type === 'Ticket');
-    const openImprovements = visibleItems.filter(i => i.task.type === 'Improvement');
+    const openTickets = visibleItems.filter((i) => i.task.type === 'Ticket');
+    const openImprovements = visibleItems.filter(
+      (i) => i.task.type === 'Improvement',
+    );
 
     // SLA metrics: only tickets that are NOT SLA-excluded
-    const ticketsWithSla = openTickets.filter(i => !i.slaExcluded);
-    const slaViolated = ticketsWithSla.filter(i => i.slaViolated);
-    const slaWarning = ticketsWithSla.filter(i => i.slaWarning);
-    const slaUrgent = ticketsWithSla.filter(i => !i.slaViolated && i.businessHoursRemaining > 0 && i.businessHoursRemaining <= 8);
-    const unassigned = visibleItems.filter(i => !i.task.assignedToName);
+    const ticketsWithSla = openTickets.filter((i) => !i.slaExcluded);
+    const slaViolated = ticketsWithSla.filter((i) => i.slaViolated);
+    const slaWarning = ticketsWithSla.filter((i) => i.slaWarning);
+    const slaUrgent = ticketsWithSla.filter(
+      (i) =>
+        !i.slaViolated &&
+        i.businessHoursRemaining > 0 &&
+        i.businessHoursRemaining <= 8,
+    );
+    const unassigned = visibleItems.filter((i) => !i.task.assignedToName);
 
     // Average age of open Tickets (business hours) — only SLA-active
-    const avgAge = ticketsWithSla.length > 0
-      ? ticketsWithSla.reduce((sum, i) => sum + i.businessHoursElapsed, 0) / ticketsWithSla.length
-      : 0;
+    const avgAge =
+      ticketsWithSla.length > 0
+        ? ticketsWithSla.reduce((sum, i) => sum + i.businessHoursElapsed, 0) /
+          ticketsWithSla.length
+        : 0;
 
     // Oldest open ticket (with externalId) — only SLA-active
     let oldestTicketHours: number | null = null;
@@ -1165,7 +1279,9 @@ export class DashboardService {
       const p = item.task.priority ?? 'medium';
       prioMap.set(p, (prioMap.get(p) ?? 0) + 1);
     }
-    const byPriority = Array.from(prioMap.entries()).map(([priority, count]) => ({ priority, count }));
+    const byPriority = Array.from(prioMap.entries()).map(
+      ([priority, count]) => ({ priority, count }),
+    );
 
     // 2. Get recently closed Tickets for avg close time (all closed, not filtered by status)
     const allTasks = await this.taskRepository.findAllWithRelations();
@@ -1173,9 +1289,10 @@ export class DashboardService {
     const thirtyDaysAgo = new Date(now);
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const closedTickets = allTasks.filter(task => {
+    const closedTickets = allTasks.filter((task) => {
       const isTicket = task.type === 'Ticket';
-      const isSustentacao = task.areaPath?.startsWith(SUSTENTACAO_AREA_PATH_PATTERN) ?? false;
+      const isSustentacao =
+        task.areaPath?.startsWith(SUSTENTACAO_AREA_PATH_PATTERN) ?? false;
       const isClosed = CLOSED_STATUSES.includes(task.status);
       const closedRecently = task.updatedAt && task.updatedAt >= thirtyDaysAgo;
       return isTicket && isSustentacao && isClosed && closedRecently;
@@ -1192,7 +1309,8 @@ export class DashboardService {
         }
       }
       if (closeTimes.length > 0) {
-        avgCloseTime = closeTimes.reduce((a, b) => a + b, 0) / closeTimes.length;
+        avgCloseTime =
+          closeTimes.reduce((a, b) => a + b, 0) / closeTimes.length;
       }
     }
 
@@ -1203,17 +1321,22 @@ export class DashboardService {
       openTickets: openTickets.length,
       openImprovements: openImprovements.length,
       slaViolatedCount: slaViolated.length,
-      slaViolatedPercent: activeTickets.length > 0
-        ? Math.round((slaViolated.length / activeTickets.length) * 100)
-        : 0,
+      slaViolatedPercent:
+        activeTickets.length > 0
+          ? Math.round((slaViolated.length / activeTickets.length) * 100)
+          : 0,
       slaWarningCount: slaWarning.length,
       slaUrgentCount: slaUrgent.length,
       unassignedCount: unassigned.length,
       avgAgeBusinessHours: Math.round(avgAge * 10) / 10,
-      avgCloseTimeBusinessHours: avgCloseTime !== null ? Math.round(avgCloseTime * 10) / 10 : null,
+      avgCloseTimeBusinessHours:
+        avgCloseTime !== null ? Math.round(avgCloseTime * 10) / 10 : null,
       closedTicketsLast30Days: closedTickets.length,
       byPriority,
-      oldestOpenTicketHours: oldestTicketHours !== null ? Math.round(oldestTicketHours * 10) / 10 : null,
+      oldestOpenTicketHours:
+        oldestTicketHours !== null
+          ? Math.round(oldestTicketHours * 10) / 10
+          : null,
       oldestOpenTicketExternalId: oldestTicketExternalId,
     };
   }
@@ -1230,7 +1353,11 @@ export class DashboardService {
    * @param taskId - The task ID to get history for
    * @returns Array of TaskUpdateRecord
    */
-  async getTaskUpdateHistory(taskId: number): Promise<import('@shared/interfaces/config/index.types').TaskUpdateRecord[]> {
+  async getTaskUpdateHistory(
+    taskId: number,
+  ): Promise<
+    import('@shared/interfaces/config/index.types').TaskUpdateRecord[]
+  > {
     logger.debug('[DashboardService.getTaskUpdateHistory]', { taskId });
 
     const updates = await this.taskUpdateRepository.findByTaskId(taskId);
@@ -1261,97 +1388,99 @@ export class DashboardService {
    * @param sprintId - The Sprint ID to filter by
    * @returns Array of ProjetosItem with enriched data
    */
-  async getProjetosItems(sprintId: number, referenceDate: Date = new Date()): Promise<ProjetosResult> {
-      logger.debug('[DashboardService.getProjetosItems]', { sprintId });
+  async getProjetosItems(
+    sprintId: number,
+    referenceDate: Date = new Date(),
+  ): Promise<ProjetosResult> {
+    logger.debug('[DashboardService.getProjetosItems]', { sprintId });
 
-      // Get tasks for the specified sprint
-      const sprintTasks = await this.taskRepository.findBySprint(sprintId);
+    // Get tasks for the specified sprint
+    const sprintTasks = await this.taskRepository.findBySprint(sprintId);
 
-      // Property 2: Filter by area_path LIKE 'Tribo SEIF\Projetos\%'
-      const filteredTasks = sprintTasks.filter((task) => {
-        return task.areaPath?.startsWith(PROJETOS_AREA_PATH_PATTERN) ?? false;
-      });
+    // Property 2: Filter by area_path LIKE 'Tribo SEIF\Projetos\%'
+    const filteredTasks = sprintTasks.filter((task) => {
+      return task.areaPath?.startsWith(PROJETOS_AREA_PATH_PATTERN) ?? false;
+    });
 
-      // Get external IDs for priority lookup
-      const externalIds = filteredTasks
-        .map((t) => t.externalId)
-        .filter((id): id is string => id !== undefined && id !== null);
+    // Get external IDs for priority lookup
+    const externalIds = filteredTasks
+      .map((t) => t.externalId)
+      .filter((id): id is string => id !== undefined && id !== null);
 
-      // Get local priorities
-      const priorityMap =
-        await this.taskLocalPriorityRepository.findByExternalIds(externalIds);
+    // Get local priorities
+    const priorityMap =
+      await this.taskLocalPriorityRepository.findByExternalIds(externalIds);
 
-      // Build ProjetosItem array with enriched data
-      const items: ProjetosItem[] = await Promise.all(
-        filteredTasks.map(async (task) => {
-          const localPriority = task.externalId
-            ? (priorityMap.get(task.externalId) ?? 0)
+    // Build ProjetosItem array with enriched data
+    const items: ProjetosItem[] = await Promise.all(
+      filteredTasks.map(async (task) => {
+        const localPriority = task.externalId
+          ? (priorityMap.get(task.externalId) ?? 0)
+          : 0;
+
+        // Get children and calculate progress
+        const children = await this.taskRepository.findByParentId(task.id);
+        const childrenCount = children.length;
+        const completedChildrenCount = children.filter((child) =>
+          COMPLETED_STATUSES.includes(child.status),
+        ).length;
+
+        // Property 10: Progress = (completed / total) * 100, or 0 if no children
+        const progressPercent =
+          childrenCount > 0
+            ? Math.round((completedChildrenCount / childrenCount) * 100)
             : 0;
 
-          // Get children and calculate progress
-          const children = await this.taskRepository.findByParentId(task.id);
-          const childrenCount = children.length;
-          const completedChildrenCount = children.filter((child) =>
-            COMPLETED_STATUSES.includes(child.status),
-          ).length;
+        return {
+          task,
+          localPriority,
+          childrenCount,
+          completedChildrenCount,
+          progressPercent,
+        };
+      }),
+    );
 
-          // Property 10: Progress = (completed / total) * 100, or 0 if no children
-          const progressPercent =
-            childrenCount > 0
-              ? Math.round((completedChildrenCount / childrenCount) * 100)
-              : 0;
+    // Group items by status category (Req 3.3)
+    const groupedByStatus: ProjetosResult['groupedByStatus'] = {
+      pending: [],
+      inProgress: [],
+      completed: [],
+      cancelled: [],
+    };
 
-          return {
-            task,
-            localPriority,
-            childrenCount,
-            completedChildrenCount,
-            progressPercent,
-          };
-        }),
-      );
-
-      // Group items by status category (Req 3.3)
-      const groupedByStatus: ProjetosResult['groupedByStatus'] = {
-        pending: [],
-        inProgress: [],
-        completed: [],
-        cancelled: [],
-      };
-
-      for (const item of items) {
-        const category = categorizeStatus(item.task.status);
-        groupedByStatus[category].push(item);
-      }
-
-      // Calculate quantitative summary (Req 3.6, Property 8)
-      const pendingCount = groupedByStatus.pending.length;
-      const inProgressCount = groupedByStatus.inProgress.length;
-      const completedCount = groupedByStatus.completed.length;
-      const cancelledCount = groupedByStatus.cancelled.length;
-      const total = pendingCount + inProgressCount + completedCount + cancelledCount;
-      const completionPercentage = total > 0
-        ? (completedCount / total) * 100
-        : 0;
-
-      const summary: SprintQuantitativeSummary = {
-        total,
-        completed: completedCount,
-        inProgress: inProgressCount,
-        pending: pendingCount,
-        cancelled: cancelledCount,
-        completionPercentage,
-      };
-
-      // Compute sprint alerts (Req 3.4, 3.5)
-      const alerts = await this.computeSprintAlerts(
-        sprintId,
-        groupedByStatus,
-        referenceDate,
-      );
-
-      return { items, groupedByStatus, summary, alerts };
+    for (const item of items) {
+      const category = categorizeStatus(item.task.status);
+      groupedByStatus[category].push(item);
     }
+
+    // Calculate quantitative summary (Req 3.6, Property 8)
+    const pendingCount = groupedByStatus.pending.length;
+    const inProgressCount = groupedByStatus.inProgress.length;
+    const completedCount = groupedByStatus.completed.length;
+    const cancelledCount = groupedByStatus.cancelled.length;
+    const total =
+      pendingCount + inProgressCount + completedCount + cancelledCount;
+    const completionPercentage = total > 0 ? (completedCount / total) * 100 : 0;
+
+    const summary: SprintQuantitativeSummary = {
+      total,
+      completed: completedCount,
+      inProgress: inProgressCount,
+      pending: pendingCount,
+      cancelled: cancelledCount,
+      completionPercentage,
+    };
+
+    // Compute sprint alerts (Req 3.4, 3.5)
+    const alerts = await this.computeSprintAlerts(
+      sprintId,
+      groupedByStatus,
+      referenceDate,
+    );
+
+    return { items, groupedByStatus, summary, alerts };
+  }
 
   /**
    * Get User Stories with progress calculation for a Sprint.
@@ -1676,11 +1805,16 @@ export class DashboardService {
     // Fetch the sprint to get its endDate
     const sprint = await this.sprintRepository.findById(sprintId);
     if (!sprint) {
-      logger.warn('[DashboardService.computeSprintAlerts] Sprint not found', { sprintId });
+      logger.warn('[DashboardService.computeSprintAlerts] Sprint not found', {
+        sprintId,
+      });
       return alerts;
     }
 
-    const businessDaysRemaining = calculateBusinessDaysRemaining(referenceDate, sprint.endDate);
+    const businessDaysRemaining = calculateBusinessDaysRemaining(
+      referenceDate,
+      sprint.endDate,
+    );
 
     logger.debug('[DashboardService.computeSprintAlerts]', {
       sprintId,
@@ -1709,20 +1843,34 @@ export class DashboardService {
     // Req 3.5: Flag in-progress items not updated in 2+ business days as "stagnant"
     // Only alert for desenvolvimento and auditoria phases — homologação/implantação are post-dev
     const ALERT_STATUSES = [
-      'in_progress', 'Active', 'In Progress', 'Committed',
-      'Em Andamento', 'Em andamento', 'Em Desenvolvimento', 'Em desenvolvimento',
-      'Preparando para Dev', 'Em classificação', 'Backlog Comprometido',
-      'Aguardando Auditoria', 'Aguardando auditoria', 'Em Auditoria', 'Em auditoria',
+      'in_progress',
+      'Active',
+      'In Progress',
+      'Committed',
+      'Em Andamento',
+      'Em andamento',
+      'Em Desenvolvimento',
+      'Em desenvolvimento',
+      'Preparando para Dev',
+      'Em classificação',
+      'Backlog Comprometido',
+      'Aguardando Auditoria',
+      'Aguardando auditoria',
+      'Em Auditoria',
+      'Em auditoria',
     ];
 
-    const alertableInProgress = groupedByStatus.inProgress.filter(
-      (item) => ALERT_STATUSES.includes(item.task.status),
+    const alertableInProgress = groupedByStatus.inProgress.filter((item) =>
+      ALERT_STATUSES.includes(item.task.status),
     );
 
     for (const item of alertableInProgress) {
       const lastUpdate = item.task.updatedAt;
       if (lastUpdate) {
-        const businessDaysSinceUpdate = calculateBusinessDaysSince(lastUpdate, referenceDate);
+        const businessDaysSinceUpdate = calculateBusinessDaysSince(
+          lastUpdate,
+          referenceDate,
+        );
         if (businessDaysSinceUpdate >= 2) {
           alerts.push({
             type: 'stagnant',

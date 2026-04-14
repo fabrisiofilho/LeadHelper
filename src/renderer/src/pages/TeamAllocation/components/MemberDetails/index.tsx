@@ -195,7 +195,10 @@ export function MemberDetails({
 
                     <Stack spacing={0.5}>
                       <Typography variant="caption" color="text.secondary">
-                        Período: {formatDate(allocation.startDate)} → {allocation.endDate ? formatDate(allocation.endDate) : 'Indeterminado'}
+                        Período: {formatDate(allocation.startDate)} →{' '}
+                        {allocation.endDate
+                          ? formatDate(allocation.endDate)
+                          : 'Indeterminado'}
                       </Typography>
                       {allocation.notes && (
                         <Typography variant="body2" color="text.secondary">

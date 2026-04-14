@@ -40,10 +40,16 @@ const ROLE_LABELS: Record<TeamMemberRole, string> = {
   product_owner: 'PO',
 };
 const PRIO_COLOR: Record<string, string> = {
-  critical: '#d32f2f', high: '#ed6c02', medium: '#0288d1', low: '#757575',
+  critical: '#d32f2f',
+  high: '#ed6c02',
+  medium: '#0288d1',
+  low: '#757575',
 };
 const PRIO_LABEL: Record<string, string> = {
-  critical: 'Crítica', high: 'Alto', medium: 'Médio', low: 'Baixo',
+  critical: 'Crítica',
+  high: 'Alto',
+  medium: 'Médio',
+  low: 'Baixo',
 };
 
 type CardState = 'ok' | 'alert';
@@ -83,7 +89,9 @@ export function TaskAllocationPage() {
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   // Extract unique position names for filter
   const positionNames = useMemo(() => {
@@ -163,15 +171,21 @@ export function TaskAllocationPage() {
     });
   }, [filtered, excludedTypes]);
 
-  const alertCount = filteredWithTypes.filter((m) => getCardState(m) === 'alert').length;
-  const okCount = filteredWithTypes.filter((m) => getCardState(m) === 'ok').length;
+  const alertCount = filteredWithTypes.filter(
+    (m) => getCardState(m) === 'alert',
+  ).length;
+  const okCount = filteredWithTypes.filter(
+    (m) => getCardState(m) === 'ok',
+  ).length;
 
   if (loading) {
     return (
       <PageLayout>
         <Stack alignItems="center" justifyContent="center" minHeight="60vh">
           <CircularProgress size={48} />
-          <Typography variant="body2" color="text.secondary" mt={2}>Carregando dados de alocação de tarefas...</Typography>
+          <Typography variant="body2" color="text.secondary" mt={2}>
+            Carregando dados de alocação de tarefas...
+          </Typography>
         </Stack>
       </PageLayout>
     );
@@ -181,8 +195,12 @@ export function TaskAllocationPage() {
     return (
       <PageLayout>
         <Stack alignItems="center" justifyContent="center" minHeight="60vh">
-          <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
-          <IconButton onClick={fetchData}><RefreshIcon /></IconButton>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+          <IconButton onClick={fetchData}>
+            <RefreshIcon />
+          </IconButton>
         </Stack>
       </PageLayout>
     );
@@ -198,13 +216,33 @@ export function TaskAllocationPage() {
         mb={2}
       >
         <Typography variant="h5">Alocação de Tarefas</Typography>
-        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-          <Chip icon={<OkIcon />} label={`${okCount} ok`} size="small" color="success" variant="outlined" />
+        <Stack
+          direction="row"
+          spacing={1}
+          alignItems="center"
+          flexWrap="wrap"
+          useFlexGap
+        >
+          <Chip
+            icon={<OkIcon />}
+            label={`${okCount} ok`}
+            size="small"
+            color="success"
+            variant="outlined"
+          />
           {alertCount > 0 && (
-            <Chip icon={<NoTaskIcon />} label={`${alertCount} sem tarefas`} size="small" color="warning" variant="outlined" />
+            <Chip
+              icon={<NoTaskIcon />}
+              label={`${alertCount} sem tarefas`}
+              size="small"
+              color="warning"
+              variant="outlined"
+            />
           )}
           <Tooltip title="Atualizar">
-            <IconButton onClick={fetchData}><RefreshIcon /></IconButton>
+            <IconButton onClick={fetchData}>
+              <RefreshIcon />
+            </IconButton>
           </Tooltip>
         </Stack>
       </Stack>
@@ -230,7 +268,13 @@ export function TaskAllocationPage() {
 
       {/* Position filter */}
       {positionNames.length > 0 && (
-        <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mb: 2 }}>
+        <Stack
+          direction="row"
+          spacing={0.75}
+          flexWrap="wrap"
+          useFlexGap
+          sx={{ mb: 2 }}
+        >
           <Chip
             label="Todos"
             size="small"
@@ -246,7 +290,9 @@ export function TaskAllocationPage() {
               size="small"
               variant={selectedPosition === name ? 'filled' : 'outlined'}
               color={selectedPosition === name ? 'primary' : 'default'}
-              onClick={() => setSelectedPosition(selectedPosition === name ? null : name)}
+              onClick={() =>
+                setSelectedPosition(selectedPosition === name ? null : name)
+              }
               sx={{ fontWeight: 600 }}
             />
           ))}
@@ -255,8 +301,18 @@ export function TaskAllocationPage() {
 
       {/* Work item type filter */}
       {workItemTypes.length > 0 && (
-        <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mb: 2 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ alignSelf: 'center', mr: 0.5 }}>
+        <Stack
+          direction="row"
+          spacing={0.75}
+          flexWrap="wrap"
+          useFlexGap
+          sx={{ mb: 2 }}
+        >
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ alignSelf: 'center', mr: 0.5 }}
+          >
             Tipos:
           </Typography>
           {workItemTypes.map((type) => (
@@ -276,24 +332,47 @@ export function TaskAllocationPage() {
         </Stack>
       )}
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, gap: 2 }}>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: {
+            xs: '1fr',
+            sm: 'repeat(2, 1fr)',
+            lg: 'repeat(3, 1fr)',
+          },
+          gap: 2,
+        }}
+      >
         {filteredWithTypes.map((item) => (
           <MemberCard
             key={item.member.id}
             item={item}
-            onTaskClick={(task) => { setSelectedTask(task); setIsTaskModalOpen(true); }}
+            onTaskClick={(task) => {
+              setSelectedTask(task);
+              setIsTaskModalOpen(true);
+            }}
           />
         ))}
       </Box>
 
       {filteredWithTypes.length === 0 && (
-        <Typography variant="body2" color="text.secondary" textAlign="center" mt={4}>Nenhum membro encontrado.</Typography>
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          textAlign="center"
+          mt={4}
+        >
+          Nenhum membro encontrado.
+        </Typography>
       )}
 
       <TaskViewModal
         open={isTaskModalOpen}
         task={selectedTask}
-        onClose={() => { setIsTaskModalOpen(false); setSelectedTask(null); }}
+        onClose={() => {
+          setIsTaskModalOpen(false);
+          setSelectedTask(null);
+        }}
       />
     </PageLayout>
   );
@@ -302,7 +381,7 @@ export function TaskAllocationPage() {
 const AREA_COLORS: Record<string, string> = {
   'Gestão de Terceiros': '#1565c0',
   'Chamada Tecnológica': '#c62828',
-  'Sustentação': '#e65100',
+  Sustentação: '#e65100',
 };
 
 function getAreaColor(area: string): string {
@@ -311,7 +390,13 @@ function getAreaColor(area: string): string {
   return '#455a64';
 }
 
-function MemberCard({ item, onTaskClick }: { item: TaskAllocationMember; onTaskClick: (task: Task) => void }) {
+function MemberCard({
+  item,
+  onTaskClick,
+}: {
+  item: TaskAllocationMember;
+  onTaskClick: (task: Task) => void;
+}) {
   const { member, taskGroups, positionName, totalTasks } = item;
   const state = getCardState(item);
   const isOk = state === 'ok';
@@ -363,7 +448,14 @@ function MemberCard({ item, onTaskClick }: { item: TaskAllocationMember; onTaskC
             >
               {member.name}
             </Typography>
-            <Stack direction="row" alignItems="center" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 0.25 }}>
+            <Stack
+              direction="row"
+              alignItems="center"
+              spacing={0.5}
+              flexWrap="wrap"
+              useFlexGap
+              sx={{ mt: 0.25 }}
+            >
               <Chip
                 label={positionName || ROLE_LABELS[member.role] || member.role}
                 size="small"
@@ -393,10 +485,20 @@ function MemberCard({ item, onTaskClick }: { item: TaskAllocationMember; onTaskC
           >
             {isOk ? (
               <>
-                <Typography variant="h6" fontWeight={800} lineHeight={1} color="success.main" sx={{ fontSize: '1.1rem' }}>
+                <Typography
+                  variant="h6"
+                  fontWeight={800}
+                  lineHeight={1}
+                  color="success.main"
+                  sx={{ fontSize: '1.1rem' }}
+                >
                   {totalTasks}
                 </Typography>
-                <Typography variant="caption" color="success.main" sx={{ fontSize: '0.55rem', lineHeight: 1 }}>
+                <Typography
+                  variant="caption"
+                  color="success.main"
+                  sx={{ fontSize: '0.55rem', lineHeight: 1 }}
+                >
                   {totalTasks === 1 ? 'tarefa' : 'tarefas'}
                 </Typography>
               </>
@@ -411,12 +513,30 @@ function MemberCard({ item, onTaskClick }: { item: TaskAllocationMember; onTaskC
       <Box sx={{ px: 2, py: 1.5, flex: 1 }}>
         {/* Status alert */}
         {!isOk && (
-          <Alert severity="warning" variant="standard" sx={{ py: 0, px: 1, mb: 1.5, '& .MuiAlert-message': { fontSize: '0.75rem', py: 0.5 } }}>
+          <Alert
+            severity="warning"
+            variant="standard"
+            sx={{
+              py: 0,
+              px: 1,
+              mb: 1.5,
+              '& .MuiAlert-message': { fontSize: '0.75rem', py: 0.5 },
+            }}
+          >
             Sem tarefas ativas — necessita alocação
           </Alert>
         )}
         {isOk && !item.hasCards && (
-          <Alert severity="info" variant="standard" sx={{ py: 0, px: 1, mb: 1.5, '& .MuiAlert-message': { fontSize: '0.75rem', py: 0.5 } }}>
+          <Alert
+            severity="info"
+            variant="standard"
+            sx={{
+              py: 0,
+              px: 1,
+              mb: 1.5,
+              '& .MuiAlert-message': { fontSize: '0.75rem', py: 0.5 },
+            }}
+          >
             Cargo sem etapas configuradas
           </Alert>
         )}
@@ -425,7 +545,12 @@ function MemberCard({ item, onTaskClick }: { item: TaskAllocationMember; onTaskC
         <Stack spacing={1.5}>
           {taskGroups.map((group) => (
             <Box key={group.area}>
-              <Stack direction="row" alignItems="center" spacing={0.75} mb={0.75}>
+              <Stack
+                direction="row"
+                alignItems="center"
+                spacing={0.75}
+                mb={0.75}
+              >
                 <Box
                   sx={{
                     width: 4,
@@ -435,7 +560,12 @@ function MemberCard({ item, onTaskClick }: { item: TaskAllocationMember; onTaskC
                     flexShrink: 0,
                   }}
                 />
-                <Typography variant="caption" fontWeight={700} color={getAreaColor(group.area)} sx={{ flex: 1 }}>
+                <Typography
+                  variant="caption"
+                  fontWeight={700}
+                  color={getAreaColor(group.area)}
+                  sx={{ flex: 1 }}
+                >
                   {group.area}
                 </Typography>
                 <Chip
@@ -453,7 +583,11 @@ function MemberCard({ item, onTaskClick }: { item: TaskAllocationMember; onTaskC
               </Stack>
               <Stack spacing={0.5}>
                 {group.tasks.map((task) => (
-                  <TaskRow key={task.externalId ?? task.id} task={task} onClick={() => onTaskClick(task)} />
+                  <TaskRow
+                    key={task.externalId ?? task.id}
+                    task={task}
+                    onClick={() => onTaskClick(task)}
+                  />
                 ))}
               </Stack>
             </Box>
@@ -482,7 +616,12 @@ function TaskRow({ task, onClick }: { task: Task; onClick: () => void }) {
       }}
     >
       <Stack direction="row" alignItems="center" spacing={0.5} mb={0.25}>
-        <Typography variant="caption" color="text.disabled" fontWeight={700} sx={{ fontSize: '0.7rem' }}>
+        <Typography
+          variant="caption"
+          color="text.disabled"
+          fontWeight={700}
+          sx={{ fontSize: '0.7rem' }}
+        >
           #{task.externalId ?? task.id}
         </Typography>
         <WorkItemTypeChip type={task.type} sx={{ height: 16 }} />

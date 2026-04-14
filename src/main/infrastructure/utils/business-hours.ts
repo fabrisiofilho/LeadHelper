@@ -178,7 +178,9 @@ export function calculateBusinessHours(start: Date, end: Date): number {
   // Fast-path: skip full weeks (5 business days × 8h = 40h per week)
   while (true) {
     // Find how many full days remain
-    const daysRemaining = Math.floor((endTime - current.getTime()) / (24 * 3_600_000));
+    const daysRemaining = Math.floor(
+      (endTime - current.getTime()) / (24 * 3_600_000),
+    );
     if (daysRemaining < 7) break;
 
     // Skip full weeks

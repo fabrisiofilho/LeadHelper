@@ -82,28 +82,31 @@ export function NotesBoardPage() {
   }, [findAllMembers, findAllTeams, findAllPositions]);
 
   // Load note cards for the current tab and update both counts
-  const loadNoteCards = useCallback(async (tab: TabValue = activeTab) => {
-    // Load current tab data (this updates noteCards in the hook)
-    if (tab === 0) {
-      const active = await findAllActive();
-      setActiveCount(active.length);
-      // Fetch inactive count without overwriting noteCards
-      const response = await window.electronAPI.noteCard.findAllCompleted();
-      if (response.success) setInactiveCount(response.data?.length ?? 0);
-    } else {
-      const completed = await findAllCompleted();
-      setInactiveCount(completed.length);
-      // Fetch active count without overwriting noteCards
-      const response = await window.electronAPI.noteCard.findAllActive();
-      if (response.success) setActiveCount(response.data?.length ?? 0);
-    }
-  }, [activeTab, findAllActive, findAllCompleted]);
+  const loadNoteCards = useCallback(
+    async (tab: TabValue = activeTab) => {
+      // Load current tab data (this updates noteCards in the hook)
+      if (tab === 0) {
+        const active = await findAllActive();
+        setActiveCount(active.length);
+        // Fetch inactive count without overwriting noteCards
+        const response = await window.electronAPI.noteCard.findAllCompleted();
+        if (response.success) setInactiveCount(response.data?.length ?? 0);
+      } else {
+        const completed = await findAllCompleted();
+        setInactiveCount(completed.length);
+        // Fetch active count without overwriting noteCards
+        const response = await window.electronAPI.noteCard.findAllActive();
+        if (response.success) setActiveCount(response.data?.length ?? 0);
+      }
+    },
+    [activeTab, findAllActive, findAllCompleted],
+  );
 
   // Initial load
   useEffect(() => {
     loadAuxiliaryData();
     loadNoteCards(0);
-  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reload cards when tab changes
   useEffect(() => {
@@ -151,9 +154,14 @@ export function NotesBoardPage() {
     setViewingNoteCard(null);
   };
 
-  const handleFormSubmit = async (data: CreateNoteCardInput | UpdateNoteCardInput) => {
+  const handleFormSubmit = async (
+    data: CreateNoteCardInput | UpdateNoteCardInput,
+  ) => {
     if (editingNoteCard) {
-      const result = await update(editingNoteCard.id, data as UpdateNoteCardInput);
+      const result = await update(
+        editingNoteCard.id,
+        data as UpdateNoteCardInput,
+      );
       if (result) {
         enqueueSnackbar('Nota atualizada com sucesso', { variant: 'success' });
         handleCloseFormModal();
@@ -200,7 +208,18 @@ export function NotesBoardPage() {
   const isLoading = noteCardsLoading && noteCards.length === 0;
 
   return (
-    <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 }, maxWidth: 1600, margin: '0 auto', width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <Box
+      sx={{
+        p: { xs: 1.5, sm: 2, md: 3 },
+        maxWidth: 1600,
+        margin: '0 auto',
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }}
+    >
       {/* Header */}
       <Stack
         direction={{ xs: 'column', sm: 'row' }}
@@ -268,7 +287,12 @@ export function NotesBoardPage() {
             </Typography>
           </Stack>
         ) : filteredCards.length === 0 ? (
-          <Stack alignItems="center" justifyContent="center" minHeight="40vh" spacing={1}>
+          <Stack
+            alignItems="center"
+            justifyContent="center"
+            minHeight="40vh"
+            spacing={1}
+          >
             <NoteIcon sx={{ fontSize: 64, color: 'text.disabled' }} />
             <Typography variant="body1" color="text.secondary">
               {search.trim()

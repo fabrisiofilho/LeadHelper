@@ -3,6 +3,50 @@ import path from 'path';
 import fs from 'fs';
 import { logger } from '@main/infrastructure/log/logger';
 
+/**
+ * Workaround for Chromium bug on Windows where dragging/resizing the window
+ * enters a native modal loop that blocks the Node.js event loop, freezing
+ * the renderer process (UI freeze).
+ *
+ * The fix: pump the event loop manually with a high-frequency setInterval
+ * while the user is moving or resizing the window.
+ *
+ * See: https://github.com/electron/electron/issues/9539
+ */
+function applyWindowDragFix(win: BrowserWindow): void {
+  if (process.platform !== 'win32') return;
+
+  let resizeInterval: ReturnType<typeof setInterval> | null = null;
+
+  const startPumping = (): void => {
+    if (resizeInterval) return;
+    // ~60 fps keeps the event loop alive during the native modal loop
+    resizeInterval = setInterval(() => {
+      // no-op: the mere existence of the timer callback keeps Node's event loop ticking
+    }, 1000 / 60);
+  };
+
+  const stopPumping = (): void => {
+    if (resizeInterval) {
+      clearInterval(resizeInterval);
+      resizeInterval = null;
+    }
+  };
+
+  win.on('will-move', startPumping);
+  win.on('will-resize', startPumping);
+
+  // The 'moved' and 'resized' events fire once the native modal loop ends
+  win.on('moved', stopPumping);
+  win.on('resized', stopPumping);
+
+  // Safety net: also stop when the window loses focus or is destroyed
+  win.on('blur', stopPumping);
+  win.on('closed', stopPumping);
+
+  logger.info('Window drag/resize freeze fix applied (Windows)');
+}
+
 function resolveBuildIcon(filename: string) {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, 'build', filename);
@@ -58,6 +102,9 @@ export const createMainWindow = (): BrowserWindow => {
   });
 
   mainWindow.setMenu(null);
+
+  // Apply Windows drag/resize freeze fix
+  applyWindowDragFix(mainWindow);
 
   // Configurar corretor ortográfico para Português do Brasil
   mainWindow.webContents.session.setSpellCheckerLanguages(['pt-BR']);

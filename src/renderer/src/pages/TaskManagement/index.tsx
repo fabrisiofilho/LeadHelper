@@ -95,17 +95,17 @@ import { getStatusColor } from '@shared/constants/status-colors';
 // Type color mapping
 const getTypeColor = (type: string): string => {
   const typeColors: Record<string, string> = {
-    epic: '#ff8c00',
-    feature: '#9c27b0',
-    improvement: '#e91e63',
-    rework: '#d32f2f',
-    bug: '#d32f2f',
-    roadmap: '#424242',
-    task: '#c8a415',
-    ticket: '#4caf50',
-    'user story': '#2196f3',
+    epic: '#EA580C',
+    feature: '#7C3AED',
+    improvement: '#DB2777',
+    rework: '#DC2626',
+    bug: '#DC2626',
+    roadmap: '#475569',
+    task: '#CA8A04',
+    ticket: '#16A34A',
+    'user story': '#2563EB',
   };
-  return typeColors[type.toLowerCase()] || '#757575';
+  return typeColors[type.toLowerCase()] || '#64748B';
 };
 
 // Get team type from area path

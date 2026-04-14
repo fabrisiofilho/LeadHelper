@@ -40,10 +40,10 @@ const ROLE_LABELS: Record<TeamMemberRole, string> = {
   product_owner: 'PO',
 };
 const PRIO_COLOR: Record<string, string> = {
-  critical: '#d32f2f',
-  high: '#ed6c02',
-  medium: '#0288d1',
-  low: '#757575',
+  critical: '#9333EA',
+  high: '#DC2626',
+  medium: '#2563EB',
+  low: '#64748B',
 };
 const PRIO_LABEL: Record<string, string> = {
   critical: 'Crítica',
@@ -379,15 +379,15 @@ export function TaskAllocationPage() {
 }
 
 const AREA_COLORS: Record<string, string> = {
-  'Gestão de Terceiros': '#1565c0',
-  'Chamada Tecnológica': '#c62828',
-  Sustentação: '#e65100',
+  'Gestão de Terceiros': '#2563EB',
+  'Chamada Tecnológica': '#DC2626',
+  Sustentação: '#EA580C',
 };
 
 function getAreaColor(area: string): string {
   if (AREA_COLORS[area]) return AREA_COLORS[area];
-  if (area.startsWith('Projetos')) return '#2e7d32';
-  return '#455a64';
+  if (area.startsWith('Projetos')) return '#16A34A';
+  return '#64748B';
 }
 
 function MemberCard({
@@ -400,8 +400,8 @@ function MemberCard({
   const { member, taskGroups, positionName, totalTasks } = item;
   const state = getCardState(item);
   const isOk = state === 'ok';
-  const roleColor = ROLE_COLORS[member.role] ?? '#455a64';
-  const borderColor = isOk ? '#4caf50' : '#ff9800';
+  const roleColor = ROLE_COLORS[member.role] ?? '#64748B';
+  const borderColor = isOk ? 'success.main' : 'warning.main';
 
   return (
     <Paper
@@ -435,7 +435,7 @@ function MemberCard({
               height: 44,
               fontSize: '0.9rem',
               fontWeight: 700,
-              boxShadow: `0 0 0 2px #fff, 0 0 0 4px ${roleColor}40`,
+              boxShadow: `0 0 0 2px currentColor, 0 0 0 4px ${roleColor}40`,
             }}
           >
             {getInitials(member.name)}
@@ -480,7 +480,7 @@ function MemberCard({
               minWidth: 44,
               height: 44,
               borderRadius: 2,
-              bgcolor: isOk ? '#4caf5014' : '#ff980014',
+              bgcolor: isOk ? 'rgba(76,175,80,0.08)' : 'rgba(255,152,0,0.08)',
             }}
           >
             {isOk ? (
@@ -599,7 +599,7 @@ function MemberCard({
 }
 
 function TaskRow({ task, onClick }: { task: Task; onClick: () => void }) {
-  const prioColor = PRIO_COLOR[task.priority] ?? '#757575';
+  const prioColor = PRIO_COLOR[task.priority] ?? '#64748B';
 
   return (
     <Box

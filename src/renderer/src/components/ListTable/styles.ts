@@ -113,7 +113,7 @@ export const CustomTableRow = styled(TableRow)`
     css`
       &:hover {
         cursor: pointer;
-        background-color: ${theme.COLORS.primary_100};
+        background-color: ${theme.COLORS.surfaceAlt};
       }
     `}
 `;

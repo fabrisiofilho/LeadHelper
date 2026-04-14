@@ -52,11 +52,11 @@ const typeLabels: Record<string, string> = {
 };
 
 const typeColors: Record<string, string> = {
-  task: '#2196F3',
-  bug: '#f44336',
-  user_story: '#4CAF50',
-  feature: '#FF9800',
-  epic: '#9C27B0',
+  task: '#2563EB',
+  bug: '#DC2626',
+  user_story: '#16A34A',
+  feature: '#D97706',
+  epic: '#7C3AED',
 };
 
 export function TaskManagementDashboardTab() {
@@ -269,7 +269,7 @@ export function TaskManagementDashboardTab() {
                     <DotIcon
                       sx={{
                         fontSize: 10,
-                        color: typeColors[type] || '#9e9e9e',
+                        color: typeColors[type] || '#64748B',
                       }}
                     />
                     <Typography variant="body2" sx={{ flex: 1 }}>
@@ -282,8 +282,8 @@ export function TaskManagementDashboardTab() {
                         height: 20,
                         fontSize: '0.7rem',
                         fontWeight: 600,
-                        bgcolor: (typeColors[type] || '#9e9e9e') + '20',
-                        color: typeColors[type] || '#9e9e9e',
+                        bgcolor: (typeColors[type] || '#64748B') + '20',
+                        color: typeColors[type] || '#64748B',
                       }}
                     />
                     <Box sx={{ width: 60 }}>
@@ -299,7 +299,7 @@ export function TaskManagementDashboardTab() {
                           borderRadius: 2,
                           '& .MuiLinearProgress-bar': {
                             borderRadius: 2,
-                            bgcolor: typeColors[type] || '#9e9e9e',
+                            bgcolor: typeColors[type] || '#64748B',
                           },
                         }}
                       />

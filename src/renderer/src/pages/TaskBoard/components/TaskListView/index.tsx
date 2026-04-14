@@ -33,10 +33,10 @@ interface TaskListViewProps {
 }
 
 const PRIORITY_LABELS: Record<string, { label: string; color: string }> = {
-  low: { label: 'Baixa', color: '#4caf50' },
-  medium: { label: 'Média', color: '#ff9800' },
-  high: { label: 'Alta', color: '#f44336' },
-  critical: { label: 'Crítica', color: '#9c27b0' },
+  low: { label: 'Baixa', color: '#16A34A' },
+  medium: { label: 'Média', color: '#D97706' },
+  high: { label: 'Alta', color: '#DC2626' },
+  critical: { label: 'Crítica', color: '#9333EA' },
 };
 
 const formatDate = (date: Date | string | undefined): string => {
@@ -168,7 +168,7 @@ export function TaskListView({
               paginatedTasks.map((task) => {
                 const priority = PRIORITY_LABELS[task.priority] || {
                   label: task.priority,
-                  color: '#757575',
+                  color: '#64748B',
                 };
                 const statusConfig = statusMap[task.status];
 

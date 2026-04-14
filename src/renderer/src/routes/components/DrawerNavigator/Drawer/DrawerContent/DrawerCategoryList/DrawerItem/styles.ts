@@ -29,11 +29,11 @@ export const ListItem = styled(NavLink)`
   }
 
   &:hover {
-    background-color: ${({ theme }) => theme.COLORS.grey_100};
+    background-color: ${({ theme }) => theme.COLORS.surfaceAlt};
   }
 
   &.active {
-    background-color: ${({ theme }) => rgba(theme.COLORS.primary, 0.04)};
+    background-color: ${({ theme }) => rgba(theme.COLORS.primary, 0.08)};
     color: ${({ theme }) => theme.COLORS.primary};
 
     p {
@@ -47,7 +47,7 @@ export const ListItem = styled(NavLink)`
     }
 
     &:hover {
-      background-color: ${({ theme }) => theme.COLORS.grey_100};
+      background-color: ${({ theme }) => theme.COLORS.surfaceAlt};
     }
 
     &:before {

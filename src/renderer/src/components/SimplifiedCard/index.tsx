@@ -37,17 +37,17 @@ type WorkItemType =
 
 const getTypeColor = (type: WorkItemType): string => {
   const typeColors: Record<string, string> = {
-    Epic: '#ff8c00',
-    Feature: '#9c27b0',
-    Improvement: '#e91e63',
-    Rework: '#d32f2f',
-    Bug: '#d32f2f',
-    Roadmap: '#424242',
-    Task: '#c8a415',
-    Ticket: '#4caf50',
-    'User Story': '#2196f3',
+    Epic: '#EA580C',
+    Feature: '#7C3AED',
+    Improvement: '#DB2777',
+    Rework: '#DC2626',
+    Bug: '#DC2626',
+    Roadmap: '#475569',
+    Task: '#CA8A04',
+    Ticket: '#16A34A',
+    'User Story': '#2563EB',
   };
-  return typeColors[type] || '#919EAB';
+  return typeColors[type] || '#64748B';
 };
 
 // Status color mapping (Property 36)

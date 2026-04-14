@@ -82,7 +82,7 @@ export function TeamOverview({
         <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
           <GroupsIcon
             fontSize="small"
-            sx={{ color: selectedTeam === null ? '#fff' : 'text.secondary' }}
+            sx={{ color: selectedTeam === null ? 'primary.contrastText' : 'text.secondary' }}
           />
           <Typography
             variant="subtitle2"
@@ -90,7 +90,7 @@ export function TeamOverview({
             noWrap
             sx={{
               flex: 1,
-              color: selectedTeam === null ? '#fff' : 'text.primary',
+              color: selectedTeam === null ? 'primary.contrastText' : 'text.primary',
             }}
           >
             Todas
@@ -107,7 +107,7 @@ export function TeamOverview({
               selectedTeam === null
                 ? 'rgba(255,255,255,0.25)'
                 : 'action.selected',
-            color: selectedTeam === null ? '#fff' : 'text.secondary',
+            color: selectedTeam === null ? 'primary.contrastText' : 'text.secondary',
           }}
         />
       </Paper>
@@ -152,7 +152,7 @@ export function TeamOverview({
                   width: 10,
                   height: 10,
                   borderRadius: '50%',
-                  bgcolor: isSelected ? '#fff' : team.color || 'primary.main',
+                  bgcolor: isSelected ? 'primary.contrastText' : team.color || 'primary.main',
                   flexShrink: 0,
                 }}
               />
@@ -160,7 +160,7 @@ export function TeamOverview({
                 variant="subtitle2"
                 fontWeight={600}
                 noWrap
-                sx={{ flex: 1, color: isSelected ? '#fff' : 'text.primary' }}
+                sx={{ flex: 1, color: isSelected ? 'primary.contrastText' : 'text.primary' }}
               >
                 {team.name}
               </Typography>
@@ -175,7 +175,7 @@ export function TeamOverview({
                 bgcolor: isSelected
                   ? 'rgba(255,255,255,0.25)'
                   : 'action.selected',
-                color: isSelected ? '#fff' : 'text.secondary',
+                color: isSelected ? 'primary.contrastText' : 'text.secondary',
               }}
             />
           </Paper>

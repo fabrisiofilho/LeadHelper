@@ -69,10 +69,10 @@ const PRIORITY_OPTIONS: {
   label: string;
   color: string;
 }[] = [
-  { value: 'low', label: 'Baixa', color: '#4caf50' },
-  { value: 'medium', label: 'Média', color: '#ff9800' },
-  { value: 'high', label: 'Alta', color: '#f44336' },
-  { value: 'critical', label: 'Crítica', color: '#9c27b0' },
+  { value: 'low', label: 'Baixa', color: '#16A34A' },
+  { value: 'medium', label: 'Média', color: '#D97706' },
+  { value: 'high', label: 'Alta', color: '#DC2626' },
+  { value: 'critical', label: 'Crítica', color: '#9333EA' },
 ];
 
 const formatCommentDate = (date?: Date | string) => {

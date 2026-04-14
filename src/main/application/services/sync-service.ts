@@ -87,6 +87,14 @@ export class SyncService {
     private taskRepository: TaskRepository,
   ) {}
 
+  /**
+   * Yields control back to the event loop so the UI stays responsive.
+   * Call this between heavy synchronous operations (e.g. DB writes).
+   */
+  private yieldToEventLoop(): Promise<void> {
+    return new Promise((resolve) => setImmediate(resolve));
+  }
+
   setMainWindow(window: BrowserWindow | null): void {
     this.mainWindow = window;
   }
@@ -116,10 +124,10 @@ export class SyncService {
   async fullSync(): Promise<FullSyncResult> {
     const errors: string[] = [];
 
-    // Step 1: Sync sprints
+    // Steps 1 & 2: Sync sprints and teams in parallel (they are independent)
     this.emitProgress({
       step: 'sprints',
-      message: 'Sincronizando sprints...',
+      message: 'Sincronizando sprints e equipes...',
       current: 0,
       total: 100,
       percentage: 0,
@@ -131,14 +139,37 @@ export class SyncService {
       total: 0,
       errors: [],
     };
-    try {
-      sprintsResult = await this.syncSprints();
+    let teamsResult: SyncStepResult = {
+      created: 0,
+      updated: 0,
+      total: 0,
+      errors: [],
+    };
+
+    // Run sprints and teams sync in parallel since they don't depend on each other
+    const [sprintsOutcome, teamsOutcome] = await Promise.allSettled([
+      this.syncSprints(),
+      this.syncTeams(),
+    ]);
+
+    if (sprintsOutcome.status === 'fulfilled') {
+      sprintsResult = sprintsOutcome.value;
       errors.push(...sprintsResult.errors);
-    } catch (error) {
-      const msg = `Erro ao sincronizar sprints: ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
+    } else {
+      const msg = `Erro ao sincronizar sprints: ${sprintsOutcome.reason instanceof Error ? sprintsOutcome.reason.message : 'Erro desconhecido'}`;
       logger.error(msg);
       errors.push(msg);
       sprintsResult.errors.push(msg);
+    }
+
+    if (teamsOutcome.status === 'fulfilled') {
+      teamsResult = teamsOutcome.value;
+      errors.push(...teamsResult.errors);
+    } else {
+      const msg = `Erro ao sincronizar equipes: ${teamsOutcome.reason instanceof Error ? teamsOutcome.reason.message : 'Erro desconhecido'}`;
+      logger.error(msg);
+      errors.push(msg);
+      teamsResult.errors.push(msg);
     }
 
     this.emitProgress({
@@ -158,31 +189,6 @@ export class SyncService {
         total: sprintsResult.total,
       },
     });
-
-    // Step 2: Sync teams
-    this.emitProgress({
-      step: 'teams',
-      message: 'Sincronizando equipes...',
-      current: 20,
-      total: 100,
-      percentage: 20,
-    });
-
-    let teamsResult: SyncStepResult = {
-      created: 0,
-      updated: 0,
-      total: 0,
-      errors: [],
-    };
-    try {
-      teamsResult = await this.syncTeams();
-      errors.push(...teamsResult.errors);
-    } catch (error) {
-      const msg = `Erro ao sincronizar equipes: ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
-      logger.error(msg);
-      errors.push(msg);
-      teamsResult.errors.push(msg);
-    }
 
     this.emitProgress({
       step: 'teams',
@@ -212,7 +218,7 @@ export class SyncService {
     });
 
     let workItems: AzureWorkItem[] = [];
-    let workItemErrors: string[] = [];
+    const workItemErrors: string[] = [];
     try {
       workItems = await this.azureDevOpsService.fetchAllWorkItems();
       logger.info(
@@ -390,14 +396,24 @@ export class SyncService {
     // Parse into ParsedSprint[] (filters out nodes without dates)
     const parsedSprints = parseSprintMany(flatNodes);
 
-    for (const parsed of parsedSprints) {
+    // Pre-load all existing sprints once (instead of per-item)
+    const existingSprints = await this.sprintRepository.findAll();
+    const sprintMap = new Map(
+      existingSprints
+        .filter((s) => s.iterationPath)
+        .map((s) => [s.iterationPath!, s]),
+    );
+
+    for (let i = 0; i < parsedSprints.length; i++) {
       try {
-        await this.upsertSprint(parsed, result);
+        await this.upsertSprint(parsedSprints[i], result, sprintMap);
       } catch (error) {
-        const msg = `Erro ao upsert sprint "${parsed.name}": ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
+        const msg = `Erro ao upsert sprint "${parsedSprints[i].name}": ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
         logger.error(msg);
         result.errors.push(msg);
       }
+      // Yield to event loop every 10 items to keep UI responsive
+      if (i % 10 === 0) await this.yieldToEventLoop();
     }
 
     result.total = result.created + result.updated;
@@ -407,12 +423,9 @@ export class SyncService {
   private async upsertSprint(
     parsed: ParsedSprint,
     result: SyncStepResult,
+    sprintMap: Map<string, SprintEntity>,
   ): Promise<void> {
-    // Find existing sprint by iterationPath
-    const existing = await this.sprintRepository.findAll();
-    const match = existing.find(
-      (s) => s.iterationPath === parsed.iterationPath,
-    );
+    const match = sprintMap.get(parsed.iterationPath);
 
     if (match) {
       // Update existing sprint
@@ -464,14 +477,16 @@ export class SyncService {
     // Parse into ParsedTeam[]
     const parsedTeams = parseTeamMany(flatNodes);
 
-    for (const parsed of parsedTeams) {
+    for (let i = 0; i < parsedTeams.length; i++) {
       try {
-        await this.upsertTeam(parsed, result);
+        await this.upsertTeam(parsedTeams[i], result);
       } catch (error) {
-        const msg = `Erro ao upsert equipe "${parsed.name}": ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
+        const msg = `Erro ao upsert equipe "${parsedTeams[i].name}": ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
         logger.error(msg);
         result.errors.push(msg);
       }
+      // Yield to event loop every 10 items to keep UI responsive
+      if (i % 10 === 0) await this.yieldToEventLoop();
     }
 
     result.total = result.created + result.updated;
@@ -535,14 +550,16 @@ export class SyncService {
     // Parse and deduplicate by email
     const parsedMembers = deduplicateMembers(parseMemberMany(assignedToList));
 
-    for (const parsed of parsedMembers) {
+    for (let i = 0; i < parsedMembers.length; i++) {
       try {
-        await this.upsertMember(parsed, result);
+        await this.upsertMember(parsedMembers[i], result);
       } catch (error) {
-        const msg = `Erro ao upsert membro "${parsed.name}": ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
+        const msg = `Erro ao upsert membro "${parsedMembers[i].name}": ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
         logger.error(msg);
         result.errors.push(msg);
       }
+      // Yield to event loop every 10 items to keep UI responsive
+      if (i % 10 === 0) await this.yieldToEventLoop();
     }
 
     result.total = result.created + result.updated;
@@ -632,6 +649,9 @@ export class SyncService {
       );
 
       await Promise.all(batchPromises);
+
+      // Yield to event loop between batches to keep UI responsive
+      await this.yieldToEventLoop();
 
       // Emit progress for tasks
       const processed = Math.min(i + this.BATCH_SIZE, totalTasks);
@@ -983,6 +1003,8 @@ export class SyncService {
           ),
         ),
       );
+      // Yield to event loop between batches to keep UI responsive
+      await this.yieldToEventLoop();
     }
 
     logger.info('[linkTaskHierarchy] Summary:', {

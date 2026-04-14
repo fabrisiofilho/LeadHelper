@@ -78,19 +78,19 @@ export const DEFAULT_KANBAN_COLUMNS: KanbanColumn[] = [
     id: 'todo',
     title: 'To Do',
     statuses: ['New', 'To Do', 'Approved'],
-    color: '#919EAB', // grey
+    color: '#94A3B8', // grey
   },
   {
     id: 'in-progress',
     title: 'In Progress',
     statuses: ['Active', 'In Progress', 'Committed'],
-    color: '#135bec', // blue
+    color: '#3B82F6', // blue
   },
   {
     id: 'done',
     title: 'Done',
     statuses: ['Resolved', 'Done', 'Closed', 'Removed'],
-    color: '#36B37E', // green
+    color: '#16A34A', // green
   },
 ];
 
@@ -113,7 +113,7 @@ const FilterBar = styled.div`
   flex-wrap: wrap;
   gap: 1rem;
   padding: 1rem;
-  background-color: ${({ theme }) => theme.COLORS.grey_100};
+  background-color: ${({ theme }) => theme.COLORS.surfaceAlt};
   border-radius: 0.5rem;
   margin-bottom: 1rem;
   align-items: center;
@@ -157,7 +157,7 @@ const ColumnsContainer = styled.div`
 const Column = styled.div`
   display: flex;
   flex-direction: column;
-  background-color: ${({ theme }) => theme.COLORS.grey_100};
+  background-color: ${({ theme }) => theme.COLORS.surfaceAlt};
   border-radius: 0.5rem;
   min-height: 0;
   overflow: hidden;
@@ -199,13 +199,13 @@ const CardCount = styled.span<{ $color: string }>`
 // Pulse animation for drop zone highlight
 const pulseAnimation = keyframes`
   0% {
-    background-color: ${rgba('#135bec', 0.05)};
+    background-color: ${rgba('#3B82F6', 0.05)};
   }
   50% {
-    background-color: ${rgba('#135bec', 0.15)};
+    background-color: ${rgba('#3B82F6', 0.15)};
   }
   100% {
-    background-color: ${rgba('#135bec', 0.05)};
+    background-color: ${rgba('#3B82F6', 0.05)};
   }
 `;
 
@@ -224,7 +224,7 @@ const ColumnContent = styled.div<{ $isDraggingOver?: boolean }>`
     $isDraggingOver &&
     css`
       animation: ${pulseAnimation} 1s ease-in-out infinite;
-      border: 2px dashed ${rgba('#135bec', 0.5)};
+      border: 2px dashed ${rgba('#3B82F6', 0.5)};
       border-radius: 0.25rem;
     `}
 

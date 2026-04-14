@@ -279,7 +279,7 @@ export function AllocationOverview({
                 <GroupsIcon
                   fontSize="small"
                   sx={{
-                    color: isSelected ? '#fff' : 'text.secondary',
+                    color: isSelected ? 'primary.contrastText' : 'text.secondary',
                   }}
                 />
                 <Typography
@@ -288,7 +288,7 @@ export function AllocationOverview({
                   noWrap
                   sx={{
                     flex: 1,
-                    color: isSelected ? '#fff' : 'text.primary',
+                    color: isSelected ? 'primary.contrastText' : 'text.primary',
                   }}
                 >
                   {team.name}
@@ -303,7 +303,7 @@ export function AllocationOverview({
                     bgcolor: isSelected
                       ? 'rgba(255,255,255,0.25)'
                       : 'action.hover',
-                    color: isSelected ? '#fff' : 'text.secondary',
+                    color: isSelected ? 'primary.contrastText' : 'text.secondary',
                   }}
                 />
               </Stack>
@@ -324,7 +324,7 @@ export function AllocationOverview({
                         bgcolor: isSelected
                           ? 'rgba(255,255,255,0.3)'
                           : 'grey.500',
-                        color: '#fff',
+                        color: 'primary.contrastText',
                       }}
                     >
                       {alloc.teamMemberName
@@ -344,7 +344,7 @@ export function AllocationOverview({
                         ? 'primary.main'
                         : 'background.paper',
                       bgcolor: 'grey.500',
-                      color: '#fff',
+                      color: 'primary.contrastText',
                     }}
                   >
                     +{teamAllocs.length - 5}

@@ -57,29 +57,29 @@ interface TaskViewModalProps {
 }
 
 const priorityConfig = {
-  low: { label: 'Baixa', color: '#4caf50' },
-  medium: { label: 'Média', color: '#ff9800' },
-  high: { label: 'Alta', color: '#f44336' },
-  critical: { label: 'Crítica', color: '#d32f2f' },
+  low: { label: 'Baixa', color: '#16A34A' },
+  medium: { label: 'Média', color: '#D97706' },
+  high: { label: 'Alta', color: '#DC2626' },
+  critical: { label: 'Crítica', color: '#9333EA' },
 };
 
 const typeConfigMap: Record<
   string,
   { label: string; color: string; icon: typeof TaskIcon }
 > = {
-  Epic: { label: 'Epic', color: '#ff8c00', icon: EpicIcon },
-  Feature: { label: 'Feature', color: '#9c27b0', icon: FeatureIcon },
+  Epic: { label: 'Epic', color: '#EA580C', icon: EpicIcon },
+  Feature: { label: 'Feature', color: '#7C3AED', icon: FeatureIcon },
   Improvement: {
     label: 'Improvement',
-    color: '#e91e63',
+    color: '#DB2777',
     icon: ImprovementIcon,
   },
-  Rework: { label: 'Rework', color: '#d32f2f', icon: BugIcon },
-  Bug: { label: 'Bug', color: '#d32f2f', icon: BugIcon },
-  Roadmap: { label: 'Roadmap', color: '#424242', icon: RoadmapIcon },
-  Task: { label: 'Task', color: '#c8a415', icon: TaskTypeIcon },
-  Ticket: { label: 'Ticket', color: '#4caf50', icon: TicketIcon },
-  'User Story': { label: 'User Story', color: '#2196f3', icon: UserStoryIcon },
+  Rework: { label: 'Rework', color: '#DC2626', icon: BugIcon },
+  Bug: { label: 'Bug', color: '#DC2626', icon: BugIcon },
+  Roadmap: { label: 'Roadmap', color: '#475569', icon: RoadmapIcon },
+  Task: { label: 'Task', color: '#CA8A04', icon: TaskTypeIcon },
+  Ticket: { label: 'Ticket', color: '#16A34A', icon: TicketIcon },
+  'User Story': { label: 'User Story', color: '#2563EB', icon: UserStoryIcon },
 };
 
 export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
@@ -291,7 +291,7 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
   };
   const type = typeConfigMap[displayTask.type] || {
     label: displayTask.type,
-    color: '#2196f3',
+    color: '#2563EB',
     icon: TaskIcon,
   };
 

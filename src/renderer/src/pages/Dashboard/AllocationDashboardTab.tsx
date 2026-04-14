@@ -250,7 +250,7 @@ export function AllocationDashboardTab() {
                     sx={{
                       bgcolor:
                         ROLE_COLORS[member.role as keyof typeof ROLE_COLORS] ||
-                        '#9e9e9e',
+                        '#64748B',
                       width: 36,
                       height: 36,
                     }}

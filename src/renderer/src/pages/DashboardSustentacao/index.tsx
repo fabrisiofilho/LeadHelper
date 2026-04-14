@@ -59,10 +59,10 @@ const PRIO_LABEL: Record<string, string> = {
   low: 'Baixo',
 };
 const PRIO_COLOR: Record<string, string> = {
-  critical: '#d32f2f',
-  high: '#ed6c02',
-  medium: '#0288d1',
-  low: '#757575',
+  critical: '#9333EA',
+  high: '#DC2626',
+  medium: '#2563EB',
+  low: '#64748B',
 };
 const PRIO_ORDER: Record<string, number> = {
   critical: 0,
@@ -248,9 +248,9 @@ async function exportToPdf(
                 slaHtml = '<span style="color:#999;">Excluído</span>';
               } else {
                 const color = item.slaViolated
-                  ? '#d32f2f'
+                  ? '#DC2626'
                   : item.slaWarning
-                    ? '#ed6c02'
+                    ? '#D97706'
                     : '#333';
                 const weight = item.slaViolated ? 'bold' : 'normal';
                 slaHtml = `<span style="color:${color};font-weight:${weight};">${formatSlaRemaining(item.businessHoursRemaining)}</span>`;
@@ -261,10 +261,10 @@ async function exportToPdf(
               }
             }
 
-            const prioColor = PRIO_COLOR[t.priority] ?? '#757575';
-            const typeColor = isTicket ? '#4caf50' : '#e91e63';
-            const areaColor = isGestao(t.areaPath) ? '#1565c0' : '#c62828';
-            const areaBg = isGestao(t.areaPath) ? '#e3f2fd' : '#fce4ec';
+            const prioColor = PRIO_COLOR[t.priority] ?? '#64748B';
+            const typeColor = isTicket ? '#16A34A' : '#DB2777';
+            const areaColor = isGestao(t.areaPath) ? '#2563EB' : '#DC2626';
+            const areaBg = isGestao(t.areaPath) ? '#EFF6FF' : '#FEF2F2';
 
             return `<tr style="background:${bgColor};${noAssignee ? 'border-left:3px solid #ed6c02;' : ''}">
               <td style="padding:5px 8px;vertical-align:top;">
@@ -366,7 +366,7 @@ const ItemRow = memo(function ItemRow({
   const t = item.task;
   const prio = t.priority ?? 'medium';
   const prioLabel = PRIO_LABEL[prio] ?? prio;
-  const prioColor = PRIO_COLOR[prio] ?? '#757575';
+  const prioColor = PRIO_COLOR[prio] ?? '#64748B';
   const isTicket = t.type === 'Ticket';
   const noAssignee = !t.assignedToName;
 
@@ -435,8 +435,12 @@ const ItemRow = memo(function ItemRow({
                 fontWeight: 600,
                 fontSize: '0.65rem',
                 height: 18,
-                bgcolor: isGestao(t.areaPath) ? '#e3f2fd' : '#fce4ec',
-                color: isGestao(t.areaPath) ? '#1565c0' : '#c62828',
+                bgcolor: isGestao(t.areaPath)
+                  ? 'info.light'
+                  : 'error.light',
+                color: isGestao(t.areaPath)
+                  ? 'info.dark'
+                  : 'error.dark',
               }}
             />
           )}
@@ -702,7 +706,7 @@ function MetricCard({
   label,
   value,
   subtitle,
-  color = '#1976d2',
+  color = '#2563EB',
   bgColor,
   tooltip,
 }: MetricCardProps) {
@@ -1170,14 +1174,14 @@ export function DashboardSustentacaoPage() {
             icon={<TicketIcon fontSize="inherit" />}
             label="Tickets abertos"
             value={metrics.openTickets}
-            color="#4caf50"
+            color="#16A34A"
             tooltip="Tickets em Desenvolvimento ou Auditoria na área de Sustentação (exclui ocultos)."
           />
           <MetricCard
             icon={<ImprovementIcon fontSize="inherit" />}
             label="Melhorias abertas"
             value={metrics.openImprovements}
-            color="#e91e63"
+            color="#DB2777"
             tooltip="Improvements em Desenvolvimento ou Auditoria na área de Sustentação (exclui ocultos)."
           />
           <MetricCard
@@ -1185,9 +1189,9 @@ export function DashboardSustentacaoPage() {
             label="SLA estourado"
             value={metrics.slaViolatedCount}
             subtitle={`${metrics.slaViolatedPercent}% dos tickets`}
-            color="#d32f2f"
+            color="#DC2626"
             bgColor={
-              metrics.slaViolatedCount > 0 ? 'rgba(211,47,47,0.06)' : undefined
+              metrics.slaViolatedCount > 0 ? 'rgba(220,38,38,0.06)' : undefined
             }
             tooltip="Tickets cujo tempo de SLA já foi ultrapassado. Limites por prioridade: Crítica 4h, Alta 8h, Média 24h, Baixa 40h úteis."
           />
@@ -1195,9 +1199,9 @@ export function DashboardSustentacaoPage() {
             icon={<WarningIcon fontSize="inherit" />}
             label="SLA urgente (≤8h)"
             value={metrics.slaUrgentCount}
-            color="#ed6c02"
+            color="#D97706"
             bgColor={
-              metrics.slaUrgentCount > 0 ? 'rgba(237,108,2,0.06)' : undefined
+              metrics.slaUrgentCount > 0 ? 'rgba(217,119,6,0.06)' : undefined
             }
             tooltip="Tickets com 8 horas úteis ou menos para estourar o SLA (1 dia útil). Requer atenção imediata."
           />
@@ -1211,10 +1215,10 @@ export function DashboardSustentacaoPage() {
                 ? `${metrics.unassignedCount} sem resp. · ${wrongPositionCount} cargo incorreto`
                 : undefined
             }
-            color="#9c27b0"
+            color="#7C3AED"
             bgColor={
               metrics.unassignedCount + wrongPositionCount > 0
-                ? 'rgba(156,39,176,0.06)'
+                ? 'rgba(124,58,237,0.06)'
                 : undefined
             }
             tooltip="Itens sem responsável atribuído ou com responsável cujo cargo não corresponde ao status atual (ex: tarefa em Auditoria sem auditor alocado). Baseado nos cargos configurados em Cargos > Status Permitidos."
@@ -1228,14 +1232,14 @@ export function DashboardSustentacaoPage() {
                 ? `Média: ${formatBusinessHours(metrics.avgCloseTimeBusinessHours)}`
                 : undefined
             }
-            color="#2e7d32"
+            color="#15803D"
             tooltip="Tickets de Sustentação fechados nos últimos 30 dias e tempo médio entre criação e fechamento."
           />
           <MetricCard
             icon={<AvgTimeIcon fontSize="inherit" />}
             label="Idade média (Tickets)"
             value={formatBusinessHours(metrics.avgAgeBusinessHours)}
-            color="#0288d1"
+            color="#0891B2"
             tooltip="Média de horas úteis desde a criação dos Tickets abertos com SLA ativo. 1d = 8h úteis."
           />
           <MetricCard
@@ -1247,11 +1251,11 @@ export function DashboardSustentacaoPage() {
                 ? `#${metrics.oldestOpenTicketExternalId}`
                 : undefined
             }
-            color="#f57c00"
+            color="#EA580C"
             bgColor={
               metrics.oldestOpenTicketHours !== null &&
               metrics.oldestOpenTicketHours > 40
-                ? 'rgba(245,124,0,0.06)'
+                ? 'rgba(234,88,12,0.06)'
                 : undefined
             }
             tooltip="Horas úteis de SLA acumuladas desde a criação do Ticket aberto mais antigo com SLA ativo. Considera apenas horário útil (08:00–12:00, 13:30–17:30). Limites: Crítica 4h, Alta 8h (1d), Média 24h (3d), Baixa 40h (5d)."

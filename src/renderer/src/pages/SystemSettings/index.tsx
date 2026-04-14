@@ -29,28 +29,28 @@ const SYSTEM_CARDS: SystemCard[] = [
     description: 'Gerencie os cargos e funções disponíveis para os membros.',
     icon: <WorkIcon sx={{ fontSize: 32 }} />,
     path: '/panel/positions',
-    color: '#7c4dff',
+    color: '#7C3AED',
   },
   {
     label: 'Equipes',
     description: 'Cadastre e organize as equipes do projeto.',
     icon: <GroupsIcon sx={{ fontSize: 32 }} />,
     path: '/panel/teams',
-    color: '#00bcd4',
+    color: '#0891B2',
   },
   {
     label: 'Membros',
     description: 'Gerencie os membros que compõem as equipes.',
     icon: <PeopleIcon sx={{ fontSize: 32 }} />,
     path: '/panel/team-members',
-    color: '#4caf50',
+    color: '#16A34A',
   },
   {
     label: 'Azure DevOps',
     description: 'Configure a integração com o Azure DevOps.',
     icon: <CloudIcon sx={{ fontSize: 32 }} />,
     path: '/panel/azure-devops',
-    color: '#0078d4',
+    color: '#2563EB',
   },
 ];
 

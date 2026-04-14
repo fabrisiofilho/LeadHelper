@@ -14,12 +14,12 @@ export const SectionHeader = styled.div`
   border-radius: 0.25rem;
 
   &:hover {
-    background-color: ${({ theme }) => theme.COLORS.grey_100};
+    background-color: ${({ theme }) => theme.COLORS.surfaceAlt};
   }
 `;
 
 export const SectionTitle = styled(Typography)`
-  color: ${({ theme }) => theme.COLORS.grey_500};
+  color: ${({ theme }) => theme.COLORS.textSecondary};
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;

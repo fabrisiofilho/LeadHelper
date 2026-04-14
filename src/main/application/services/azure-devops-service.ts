@@ -1096,16 +1096,22 @@ export class AzureDevOpsService {
       );
 
       const BATCH_SIZE = 200;
+      const CONCURRENT_REQUESTS = 3; // Fetch up to 3 batches in parallel
       // When using $expand=relations, we cannot use the fields parameter
       // So we fetch all fields and filter later
 
       const allResults: AzureWorkItem[] = [];
+      let isFirstBatch = true;
 
+      // Split work item IDs into batches
+      const batches: number[][] = [];
       for (let i = 0; i < workItemIds.length; i += BATCH_SIZE) {
-        const batch = workItemIds.slice(i, i + BATCH_SIZE);
+        batches.push(workItemIds.slice(i, i + BATCH_SIZE));
+      }
+
+      // Helper to fetch and map a single batch
+      const fetchBatch = async (batch: number[]): Promise<AzureWorkItem[]> => {
         const idsParam = batch.join(',');
-        // Include $expand=relations to get parent/child relationships
-        // Note: Cannot use fields parameter with $expand
         const detailsUrl = `${baseUrl}/${encodeURIComponent(projectName)}/_apis/wit/workitems?ids=${idsParam}&$expand=relations&api-version=7.0`;
 
         const response = await fetch(detailsUrl, {
@@ -1138,7 +1144,8 @@ export class AzureDevOpsService {
         const mapped: AzureWorkItem[] = [];
         for (const wi of result.value) {
           // Log priority-related fields for the first work item of the first batch
-          if (i === 0 && mapped.length === 0) {
+          if (isFirstBatch && mapped.length === 0) {
+            isFirstBatch = false;
             const prioFields = Object.entries(wi.fields)
               .filter(
                 ([key]) =>
@@ -1228,7 +1235,16 @@ export class AzureDevOpsService {
           });
         }
 
-        allResults.push(...mapped);
+        return mapped;
+      };
+
+      // Process batches with limited concurrency (CONCURRENT_REQUESTS at a time)
+      for (let i = 0; i < batches.length; i += CONCURRENT_REQUESTS) {
+        const concurrentBatches = batches.slice(i, i + CONCURRENT_REQUESTS);
+        const results = await Promise.all(concurrentBatches.map(fetchBatch));
+        for (const mapped of results) {
+          allResults.push(...mapped);
+        }
       }
 
       logger.info(
@@ -1598,6 +1614,11 @@ export class AzureDevOpsService {
         continuationToken = data.isLastBatch
           ? undefined
           : data.continuationToken;
+
+        // Yield to event loop between pages to keep UI responsive
+        if (continuationToken) {
+          await new Promise<void>((resolve) => setImmediate(resolve));
+        }
       } while (continuationToken);
 
       logger.info(

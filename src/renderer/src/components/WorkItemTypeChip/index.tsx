@@ -19,19 +19,19 @@ interface TypeConfig {
 const ICON_SX = { fontSize: 14, color: '#fff !important' } as const;
 
 const TYPE_CONFIG: Record<string, TypeConfig> = {
-  Epic: { color: '#ff8c00', icon: <EpicIcon sx={ICON_SX} /> },
-  Feature: { color: '#9c27b0', icon: <FeatureIcon sx={ICON_SX} /> },
-  Improvement: { color: '#e91e63', icon: <ImprovementIcon sx={ICON_SX} /> },
-  Rework: { color: '#d32f2f', icon: <BugIcon sx={ICON_SX} /> },
-  Bug: { color: '#d32f2f', icon: <BugIcon sx={ICON_SX} /> },
-  Roadmap: { color: '#424242', icon: <RoadmapIcon sx={ICON_SX} /> },
-  Task: { color: '#c8a415', icon: <TaskIcon sx={ICON_SX} /> },
-  Ticket: { color: '#4caf50', icon: <TicketIcon sx={ICON_SX} /> },
-  'User Story': { color: '#2196f3', icon: <UserStoryIcon sx={ICON_SX} /> },
+  Epic: { color: '#EA580C', icon: <EpicIcon sx={ICON_SX} /> },
+  Feature: { color: '#7C3AED', icon: <FeatureIcon sx={ICON_SX} /> },
+  Improvement: { color: '#DB2777', icon: <ImprovementIcon sx={ICON_SX} /> },
+  Rework: { color: '#DC2626', icon: <BugIcon sx={ICON_SX} /> },
+  Bug: { color: '#DC2626', icon: <BugIcon sx={ICON_SX} /> },
+  Roadmap: { color: '#475569', icon: <RoadmapIcon sx={ICON_SX} /> },
+  Task: { color: '#CA8A04', icon: <TaskIcon sx={ICON_SX} /> },
+  Ticket: { color: '#16A34A', icon: <TicketIcon sx={ICON_SX} /> },
+  'User Story': { color: '#2563EB', icon: <UserStoryIcon sx={ICON_SX} /> },
 };
 
 const DEFAULT_CONFIG: TypeConfig = {
-  color: '#757575',
+  color: '#64748B',
   icon: <TaskIcon sx={ICON_SX} />,
 };
 

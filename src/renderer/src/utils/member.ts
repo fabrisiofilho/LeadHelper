@@ -4,17 +4,17 @@ import type { TeamMemberRole } from '@shared/interfaces/config/index.types';
  * Fixed color per role — all members with the same role share the same avatar color.
  */
 export const ROLE_COLORS: Record<TeamMemberRole, string> = {
-  developer: '#1976d2',
-  analyst: '#9c27b0',
-  qa: '#2e7d32',
-  tech_lead: '#ed6c02',
-  devops: '#0288d1',
-  designer: '#d32f2f',
-  product_owner: '#7b1fa2',
+  developer: '#2563EB',
+  analyst: '#7C3AED',
+  qa: '#16A34A',
+  tech_lead: '#D97706',
+  devops: '#0891B2',
+  designer: '#DC2626',
+  product_owner: '#6D28D9',
 };
 
 /** Fallback for unknown roles */
-const FALLBACK_COLOR = '#455a64';
+const FALLBACK_COLOR = '#64748B';
 
 export function getRoleColor(role?: string): string {
   if (!role) return FALLBACK_COLOR;

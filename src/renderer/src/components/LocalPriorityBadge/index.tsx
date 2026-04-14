@@ -31,12 +31,12 @@ interface PriorityColorConfig {
 
 const getPriorityColors = (priority: PriorityLevel): PriorityColorConfig => {
   const colorMap: Record<PriorityLevel, PriorityColorConfig> = {
-    0: { bg: 'transparent', text: '#919EAB', border: '#919EAB' }, // No priority - grey outline
-    1: { bg: '#FF5630', text: '#FFFFFF', border: '#FF5630' }, // Red - highest
-    2: { bg: '#FFAB00', text: '#7A4100', border: '#FFAB00' }, // Orange
-    3: { bg: '#FFD666', text: '#7A4100', border: '#FFD666' }, // Yellow
-    4: { bg: '#135bec', text: '#FFFFFF', border: '#135bec' }, // Blue
-    5: { bg: '#919EAB', text: '#FFFFFF', border: '#919EAB' }, // Grey - lowest
+    0: { bg: 'transparent', text: '#94A3B8', border: '#94A3B8' }, // No priority - grey outline
+    1: { bg: '#DC2626', text: '#FFFFFF', border: '#DC2626' }, // Red - highest
+    2: { bg: '#D97706', text: '#FFFFFF', border: '#D97706' }, // Orange
+    3: { bg: '#F5C842', text: '#78350F', border: '#F5C842' }, // Yellow
+    4: { bg: '#2563EB', text: '#FFFFFF', border: '#2563EB' }, // Blue
+    5: { bg: '#94A3B8', text: '#FFFFFF', border: '#94A3B8' }, // Grey - lowest
   };
   return colorMap[priority] || colorMap[0];
 };

@@ -42,7 +42,7 @@ export const DedicationProgress = styled(LinearProgress)(({ theme }) => ({
   borderRadius: 4,
   backgroundColor:
     theme.palette.mode === 'dark'
-      ? 'rgba(255,255,255,0.08)'
+      ? 'rgba(255,255,255,0.06)'
       : theme.palette.grey[200],
   '& .MuiLinearProgress-bar': {
     borderRadius: 4,

@@ -29,10 +29,10 @@ const PRIO_LABEL: Record<string, string> = {
   low: 'Baixo',
 };
 const PRIO_COLOR: Record<string, string> = {
-  critical: '#d32f2f',
-  high: '#ed6c02',
-  medium: '#0288d1',
-  low: '#757575',
+  critical: '#9333EA',
+  high: '#DC2626',
+  medium: '#2563EB',
+  low: '#64748B',
 };
 
 function formatSlaRemaining(hours: number): string {
@@ -214,7 +214,7 @@ export function SlaOrderModal({
                         size="small"
                         sx={{
                           fontWeight: 700,
-                          bgcolor: PRIO_COLOR[prio] ?? '#757575',
+                          bgcolor: PRIO_COLOR[prio] ?? '#64748B',
                           color: '#fff',
                           fontSize: '0.65rem',
                           height: 18,

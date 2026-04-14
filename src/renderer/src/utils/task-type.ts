@@ -7,11 +7,11 @@ export interface TaskTypeOption {
 }
 
 export const TASK_TYPE_OPTIONS: TaskTypeOption[] = [
-  { value: 'task', label: 'Tarefa', color: '#1976d2' },
-  { value: 'bug', label: 'Bug', color: '#f44336' },
-  { value: 'feature', label: 'Feature', color: '#4caf50' },
-  { value: 'improvement', label: 'Melhoria', color: '#ff9800' },
-  { value: 'support', label: 'Sustentação', color: '#9c27b0' },
+  { value: 'task', label: 'Tarefa', color: '#2563EB' },
+  { value: 'bug', label: 'Bug', color: '#DC2626' },
+  { value: 'feature', label: 'Feature', color: '#16A34A' },
+  { value: 'improvement', label: 'Melhoria', color: '#D97706' },
+  { value: 'support', label: 'Sustentação', color: '#7C3AED' },
 ];
 
 export function getTaskTypeOption(type?: string): TaskTypeOption {

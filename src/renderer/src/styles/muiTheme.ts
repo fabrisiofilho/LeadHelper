@@ -4,7 +4,7 @@ import formAlertIcon from '../assets/form-alert.svg';
 import { styledTheme, getStyledTheme, ThemeMode } from './styledTheme';
 
 function createMuiTheme(colors: typeof styledTheme): Theme {
-  const isDark = colors.COLORS.background !== '#f6f6f8';
+  const isDark = colors.COLORS.background !== '#F8FAFC';
 
   return createTheme({
     palette: {
@@ -68,11 +68,11 @@ function createMuiTheme(colors: typeof styledTheme): Theme {
       divider: colors.COLORS.divider,
       ...(isDark && {
         action: {
-          hover: 'rgba(255, 255, 255, 0.08)',
-          selected: 'rgba(255, 255, 255, 0.12)',
-          disabled: 'rgba(255, 255, 255, 0.26)',
-          disabledBackground: 'rgba(255, 255, 255, 0.12)',
-          focus: 'rgba(255, 255, 255, 0.12)',
+          hover: 'rgba(255, 255, 255, 0.06)',
+          selected: 'rgba(255, 255, 255, 0.10)',
+          disabled: 'rgba(255, 255, 255, 0.24)',
+          disabledBackground: 'rgba(255, 255, 255, 0.10)',
+          focus: 'rgba(255, 255, 255, 0.10)',
         },
       }),
     },
@@ -130,10 +130,10 @@ function createMuiTheme(colors: typeof styledTheme): Theme {
             },
           },
           containedSecondary: {
-            backgroundColor: rgba(colors.COLORS.primary, 0.12),
+            backgroundColor: rgba(colors.COLORS.primary, isDark ? 0.15 : 0.12),
             color: colors.COLORS.primary,
             '&:hover': {
-              backgroundColor: rgba(colors.COLORS.primary, 0.2),
+              backgroundColor: rgba(colors.COLORS.primary, isDark ? 0.25 : 0.2),
             },
             '&:disabled': {
               backgroundColor: rgba(colors.COLORS.primary, 0.06),
@@ -169,6 +169,9 @@ function createMuiTheme(colors: typeof styledTheme): Theme {
             borderRadius: '1rem',
             backgroundColor: colors.COLORS.surface,
             backgroundImage: 'none',
+            ...(isDark && {
+              border: `1px solid ${colors.COLORS.border}`,
+            }),
           },
         },
       },
@@ -398,7 +401,9 @@ function createMuiTheme(colors: typeof styledTheme): Theme {
             backgroundColor: colors.COLORS.surface,
             overflow: 'hidden',
             '&:hover': {
-              backgroundColor: colors.COLORS.surfaceAlt,
+              backgroundColor: isDark
+                ? 'rgba(255, 255, 255, 0.04)'
+                : colors.COLORS.surfaceAlt,
             },
             '& .MuiTableCell-root': {
               maxWidth: '20vw',
@@ -471,6 +476,7 @@ function createMuiTheme(colors: typeof styledTheme): Theme {
             boxShadow: colors.SHADOWS.cards,
             borderRadius: '1rem',
             backgroundColor: colors.COLORS.surface,
+            border: `1px solid ${colors.COLORS.border}`,
             '&:before': {
               display: 'none',
             },
@@ -484,6 +490,9 @@ function createMuiTheme(colors: typeof styledTheme): Theme {
           },
           outlined: {
             borderColor: colors.COLORS.border,
+            ...(isDark && {
+              backgroundColor: 'rgba(255, 255, 255, 0.04)',
+            }),
           },
         },
       },
@@ -510,10 +519,11 @@ function createMuiTheme(colors: typeof styledTheme): Theme {
       MuiTooltip: {
         styleOverrides: {
           tooltip: {
-            backgroundColor: isDark ? '#404040' : colors.COLORS.grey_800,
-            color: '#FFFFFF',
+            backgroundColor: isDark ? '#3D3D4A' : colors.COLORS.grey_800,
+            color: isDark ? '#EAEAF0' : '#FFFFFF',
             fontSize: '0.75rem',
             borderRadius: '0.375rem',
+            border: isDark ? '1px solid rgba(255,255,255,0.08)' : 'none',
           },
         },
       },
@@ -550,11 +560,13 @@ function createMuiTheme(colors: typeof styledTheme): Theme {
               color: colors.COLORS.primary,
               '& + .MuiSwitch-track': {
                 backgroundColor: colors.COLORS.primary,
+                opacity: isDark ? 0.5 : 1,
               },
             },
           },
           track: {
             backgroundColor: colors.COLORS.grey_400,
+            opacity: isDark ? 0.4 : 1,
           },
         },
       },
@@ -562,8 +574,9 @@ function createMuiTheme(colors: typeof styledTheme): Theme {
         styleOverrides: {
           root: {
             backgroundColor: isDark
-              ? 'rgba(255,255,255,0.08)'
+              ? 'rgba(255,255,255,0.06)'
               : colors.COLORS.grey_200,
+            borderRadius: 4,
           },
         },
       },

@@ -28,6 +28,7 @@ import {
   CardsGrid,
   ContentGrid,
 } from './TeamDashboard/styles';
+import { useSyncRefresh } from '@renderer/hooks/useSyncRefresh';
 
 const formatDate = (date: Date | string | undefined): string => {
   if (!date) return '-';
@@ -71,6 +72,9 @@ export function SprintDashboardTab() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Refresh data automatically when sync completes
+  useSyncRefresh(loadData);
 
   if (loading) {
     return (

@@ -30,6 +30,7 @@ import {
   CardsGrid,
   ContentGrid,
 } from './TeamDashboard/styles';
+import { useSyncRefresh } from '@renderer/hooks/useSyncRefresh';
 
 const statusLabels: Record<string, string> = {
   backlog: 'Backlog',
@@ -96,6 +97,9 @@ export function TaskManagementDashboardTab() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Refresh data automatically when sync completes
+  useSyncRefresh(loadData);
 
   if (loading) {
     return (

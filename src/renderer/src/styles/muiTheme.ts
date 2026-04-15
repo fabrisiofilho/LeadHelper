@@ -488,6 +488,19 @@ function createMuiTheme(colors: typeof styledTheme): Theme {
           root: {
             borderRadius: '0.5rem',
           },
+          sizeSmall: {
+            height: 22,
+            fontSize: '0.7rem',
+            fontWeight: 600,
+            '& .MuiChip-icon': {
+              fontSize: 14,
+              marginLeft: '4px',
+            },
+            '& .MuiChip-label': {
+              paddingLeft: '8px',
+              paddingRight: '8px',
+            },
+          },
           outlined: {
             borderColor: colors.COLORS.border,
             ...(isDark && {

@@ -106,6 +106,7 @@ export class SyncController extends BaseHandler {
     try {
       const result = await this.syncService.fullSync();
       this.lastSyncAt = new Date();
+      this.emitSyncCompleted();
       return result;
     } finally {
       this.isSyncing = false;
@@ -120,6 +121,16 @@ export class SyncController extends BaseHandler {
           this.mainWindow.webContents.send('sync:status-changed', status);
         }
       });
+    }
+  }
+
+  /**
+   * Notify the renderer that a sync cycle has finished successfully,
+   * so every visible page can refresh its data automatically.
+   */
+  private emitSyncCompleted(): void {
+    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this.mainWindow.webContents.send('sync:completed');
     }
   }
 

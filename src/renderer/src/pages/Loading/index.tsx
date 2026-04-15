@@ -1,6 +1,6 @@
 import { Stack } from '@mui/material';
 import { Loading } from '@renderer/components/Loading';
-import leadhelperLogo from '@renderer/assets/leadhelper.png';
+import leadhelperLogo from '@renderer/assets/leadhelper_logo.png';
 import { Image } from './styles';
 import { useCallback, useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '@renderer/hooks/redux';

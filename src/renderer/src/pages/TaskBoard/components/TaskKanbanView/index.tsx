@@ -159,13 +159,11 @@ export function TaskKanbanView({
                     >
                       <WorkItemTypeChip
                         type={task.type || 'Task'}
-                        sx={{ height: 18, fontSize: '0.6rem' }}
                       />
                       {task.team && (
                         <Chip
                           label={task.team.name}
                           size="small"
-                          sx={{ height: 18, fontSize: '0.6rem' }}
                         />
                       )}
                       {task.sprint && (
@@ -173,7 +171,6 @@ export function TaskKanbanView({
                           label={task.sprint.name}
                           size="small"
                           variant="outlined"
-                          sx={{ height: 18, fontSize: '0.6rem' }}
                         />
                       )}
                     </Stack>
@@ -186,9 +183,6 @@ export function TaskKanbanView({
                         variant="outlined"
                         sx={{
                           mt: 0.75,
-                          height: 22,
-                          fontSize: '0.65rem',
-                          fontWeight: 500,
                           cursor: 'default',
                         }}
                       />

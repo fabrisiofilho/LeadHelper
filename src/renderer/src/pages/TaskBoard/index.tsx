@@ -15,6 +15,7 @@ import { useTeams } from '@renderer/hooks/useTeams';
 import { useSprints } from '@renderer/hooks/useSprints';
 import { useTeamMembers } from '@renderer/hooks/useTeamMembers';
 import { TaskViewModal } from '@renderer/components/TaskViewModal';
+import { useSyncRefresh } from '@renderer/hooks/useSyncRefresh';
 import { PageContainer, ContentArea } from './styles';
 import { TeamOverview } from './components/TeamOverview';
 import {
@@ -57,6 +58,9 @@ export function TaskBoardPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Refresh data automatically when sync completes
+  useSyncRefresh(loadData);
 
   // Filtered tasks
   const filteredTasks = useMemo(() => {

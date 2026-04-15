@@ -172,7 +172,6 @@ export function NoteCardItem({
                   label={formatDateTime(noteCard.deadline)}
                   color="error"
                   size="small"
-                  sx={{ height: 20, fontSize: '0.65rem', fontWeight: 600 }}
                 />
               ) : (
                 <Typography
@@ -202,14 +201,14 @@ export function NoteCardItem({
                 size="small"
                 variant="outlined"
                 color={ENTITY_TYPE_COLORS[link.entityType] || 'primary'}
-                sx={{ height: 20, fontSize: '0.65rem', maxWidth: 160 }}
+                sx={{ maxWidth: 160 }}
               />
             ))}
             {noteCard.links.length > 4 && (
               <Chip
                 label={`+${noteCard.links.length - 4}`}
                 size="small"
-                sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700 }}
+                sx={{ fontWeight: 700 }}
               />
             )}
           </Box>

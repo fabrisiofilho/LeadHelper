@@ -26,6 +26,7 @@ import { useTeams } from '@renderer/hooks/useTeams';
 import { useSprints } from '@renderer/hooks/useSprints';
 import { useTableSort } from '@renderer/hooks/useTableSort';
 import { TaskViewModal } from '@renderer/components/TaskViewModal';
+import { useSyncRefresh } from '@renderer/hooks/useSyncRefresh';
 import {
   StandardTable,
   type StandardColumn,
@@ -138,6 +139,9 @@ export function TaskManagementPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Refresh data automatically when sync completes
+  useSyncRefresh(loadData);
 
   const handleTaskClick = useCallback((task: Task) => {
     setSelectedTask(task);

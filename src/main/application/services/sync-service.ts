@@ -41,7 +41,7 @@ import type { SprintEntity } from '../entities/sprint.entity';
 import type { TeamEntity } from '../entities/team.entity';
 
 import { logger } from '@main/infrastructure/log/logger';
-import { BrowserWindow } from 'electron';
+import { app, BrowserWindow, Notification } from 'electron';
 import {
   normalizeIterationPath as normalizeIterationPathUtil,
   resolveSprintByIterationPath as resolveSprintByIterationPathUtil,
@@ -74,6 +74,18 @@ export interface SyncProgress {
   stepErrors?: string[];
   stepResult?: { created: number; updated: number; total: number };
 }
+
+/** Tracks a status change detected during sync for notification purposes. */
+export interface StatusChange {
+  externalId: string;
+  title: string;
+  type: string;
+  oldStatus: string;
+  newStatus: string;
+}
+
+/** Work item types that are tracked for status change notifications. */
+const TRACKED_TYPES = new Set(['Ticket', 'Improvement', 'User Story']);
 
 export class SyncService {
   private mainWindow: BrowserWindow | null = null;
@@ -620,32 +632,43 @@ export class SyncService {
     const parsedTasks = parseTaskMany(workItems);
     const totalTasks = parsedTasks.length;
 
-    // Pre-load ALL existing azure_devops tasks into a Map<externalId, TaskEntity>
+    // Pre-load ALL existing azure_devops tasks into a Map<externalId, { id, status }>
     // This replaces 1788 individual SELECT queries with 1 single query
     const allExistingTasks = await this.taskRepository.find({
       where: { origin: 'azure_devops' as const },
     });
-    const existingTaskMap = new Map<string, { id: number }>();
+    const existingTaskMap = new Map<string, { id: number; status: string }>();
     for (const task of allExistingTasks) {
       if (task.externalId) {
-        existingTaskMap.set(task.externalId, { id: task.id });
+        existingTaskMap.set(task.externalId, {
+          id: task.id,
+          status: task.status,
+        });
       }
     }
     logger.info(
       `[syncTasks] Pre-loaded ${existingTaskMap.size} existing tasks into map`,
     );
 
+    // Collect status changes for notifications
+    const statusChanges: StatusChange[] = [];
+
     // FIRST PASS: Create/update all tasks without parent relationships
     for (let i = 0; i < parsedTasks.length; i += this.BATCH_SIZE) {
       const batch = parsedTasks.slice(i, i + this.BATCH_SIZE);
       const batchPromises = batch.map((parsed) =>
-        this.upsertTask(parsed, sprints, teams, result, existingTaskMap).catch(
-          (error) => {
-            const msg = `Erro ao upsert tarefa "${parsed.title}" (externalId=${parsed.externalId}): ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
-            logger.error(msg);
-            result.errors.push(msg);
-          },
-        ),
+        this.upsertTask(
+          parsed,
+          sprints,
+          teams,
+          result,
+          existingTaskMap,
+          statusChanges,
+        ).catch((error) => {
+          const msg = `Erro ao upsert tarefa "${parsed.title}" (externalId=${parsed.externalId}): ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
+          logger.error(msg);
+          result.errors.push(msg);
+        }),
       );
 
       await Promise.all(batchPromises);
@@ -676,6 +699,11 @@ export class SyncService {
 
     await this.linkTaskHierarchy(workItems);
 
+    // Send native notifications for status changes
+    if (statusChanges.length > 0) {
+      this.notifyStatusChanges(statusChanges);
+    }
+
     result.total = result.created + result.updated;
     return result;
   }
@@ -685,7 +713,8 @@ export class SyncService {
     sprints: SprintEntity[],
     teams: TeamEntity[],
     result: SyncStepResult,
-    existingTaskMap: Map<string, { id: number }>,
+    existingTaskMap: Map<string, { id: number; status: string }>,
+    statusChanges: StatusChange[],
   ): Promise<void> {
     // Resolve Task → Sprint by iterationPath
     const sprintId = this.resolveSprintByIterationPath(
@@ -746,6 +775,19 @@ export class SyncService {
     const existing = existingTaskMap.get(parsed.externalId);
 
     if (existing) {
+      // Detect status changes for tracked work item types
+      if (
+        TRACKED_TYPES.has(parsed.type) &&
+        existing.status !== parsed.status
+      ) {
+        statusChanges.push({
+          externalId: parsed.externalId,
+          title: parsed.title,
+          type: parsed.type,
+          oldStatus: existing.status,
+          newStatus: parsed.status,
+        });
+      }
       await this.taskRepository.update({ id: existing.id }, taskData);
       result.updated++;
     } else {
@@ -758,6 +800,84 @@ export class SyncService {
         teamId: teamId ?? undefined,
       });
       result.created++;
+    }
+  }
+
+  /**
+   * Sends native OS notifications and IPC events for task status changes.
+   * Groups changes by new status for cleaner notification display.
+   */
+  private notifyStatusChanges(changes: StatusChange[]): void {
+    // Always send changes to renderer for the notification center
+    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this.mainWindow.webContents.send('sync:task-status-changes', changes);
+    }
+
+    if (!Notification.isSupported()) {
+      logger.info(
+        '[SyncService] Native notifications not supported on this platform',
+      );
+      return;
+    }
+
+    // Group changes by new status
+    const grouped = new Map<string, StatusChange[]>();
+    for (const change of changes) {
+      const group = grouped.get(change.newStatus) || [];
+      group.push(change);
+      grouped.set(change.newStatus, group);
+    }
+
+    for (const [newStatus, items] of grouped) {
+      const count = items.length;
+      const title = `LeadHelper — ${count} ${count === 1 ? 'movimentação' : 'movimentações'}`;
+
+      const lines = items.slice(0, 4).map((i) => {
+        const shortTitle =
+          i.title.length > 50 ? i.title.slice(0, 47) + '...' : i.title;
+        return `#${i.externalId} → ${newStatus}\n   ${i.type}: ${shortTitle}`;
+      });
+      if (items.length > 4) {
+        lines.push(`... e mais ${items.length - 4}`);
+      }
+      const body = lines.join('\n');
+
+      const notification = new Notification({
+        title,
+        body,
+        icon: this.getNotificationIcon(),
+        silent: false,
+      });
+
+      // When clicked, show the main window and tell renderer to open the first item
+      const firstExternalId = items[0].externalId;
+      notification.on('click', () => {
+        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+          this.mainWindow.show();
+          this.mainWindow.focus();
+          this.mainWindow.webContents.send(
+            'sync:open-task',
+            firstExternalId,
+          );
+        }
+      });
+
+      notification.show();
+      logger.info(
+        `[SyncService] Notification: ${count} items → ${newStatus}`,
+      );
+    }
+  }
+
+  private getNotificationIcon(): string | undefined {
+    try {
+      const path = require('path');
+      if (app.isPackaged) {
+        return path.join(process.resourcesPath, 'build', 'icon.png');
+      }
+      return path.join(app.getAppPath(), 'build', 'icon.png');
+    } catch {
+      return undefined;
     }
   }
 

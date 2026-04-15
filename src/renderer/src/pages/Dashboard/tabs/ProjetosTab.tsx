@@ -28,6 +28,7 @@ import { Task, Sprint } from '@shared/interfaces/config/index.types';
 import { SimplifiedCard } from '@renderer/components/SimplifiedCard';
 import { KanbanBoard } from '@renderer/components/KanbanBoard';
 import { LocalPriorityBadge } from '@renderer/components/LocalPriorityBadge';
+import { useSyncRefresh } from '@renderer/hooks/useSyncRefresh';
 import { DrillDownNavigation } from '@renderer/components/DrillDownNavigation';
 import { HierarchyCharts } from '@renderer/components/HierarchyCharts';
 import { useLocalPriority } from '@renderer/hooks/useLocalPriority';
@@ -334,6 +335,9 @@ export const ProjetosTab: FC = () => {
       loadItems();
     }
   }, [selectedSprintId, loadItems]);
+
+  // Refresh data automatically when sync completes
+  useSyncRefresh(loadItems);
 
   /**
    * Convert items to Task array for KanbanBoard.

@@ -13,6 +13,7 @@ import {
   LogLevel,
 } from '@main/infrastructure/log/logger';
 import { AutoUpdaterService } from '../auto-updater/auto-updater-service';
+import { setupTray, setupMinimizeToTray } from './tray';
 
 export class AppInitializer {
   private mainWindow: BrowserWindow | null = null;
@@ -48,6 +49,10 @@ export class AppInitializer {
       loadIpcControllers();
 
       this.mainWindow = createMainWindow();
+
+      // Setup system tray and minimize-to-tray behavior
+      setupTray(() => this.mainWindow);
+      setupMinimizeToTray(this.mainWindow);
 
       // Set main window for sync progress and start auto-sync
       setSyncControllerWindow(this.mainWindow);

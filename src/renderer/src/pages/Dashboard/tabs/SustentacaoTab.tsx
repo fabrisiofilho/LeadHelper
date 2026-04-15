@@ -26,6 +26,7 @@ import { DrillDownNavigation } from '@renderer/components/DrillDownNavigation';
 import { HierarchyCharts } from '@renderer/components/HierarchyCharts';
 import { useLocalPriority } from '@renderer/hooks/useLocalPriority';
 import { EmptyListMessage } from '@renderer/components/EmptyListMessage';
+import { useSyncRefresh } from '@renderer/hooks/useSyncRefresh';
 
 /**
  * View mode for the tab.
@@ -220,6 +221,9 @@ export const SustentacaoTab: FC = () => {
   useEffect(() => {
     loadItems();
   }, [loadItems]);
+
+  // Refresh data automatically when sync completes
+  useSyncRefresh(loadItems);
 
   /**
    * Count of stale items.

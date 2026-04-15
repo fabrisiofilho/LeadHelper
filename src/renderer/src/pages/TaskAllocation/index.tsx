@@ -24,6 +24,7 @@ import { PageLayout } from '@renderer/components/PageLayout';
 import { TaskViewModal } from '@renderer/components/TaskViewModal';
 import { WorkItemTypeChip } from '@renderer/components/WorkItemTypeChip';
 import { getInitials, ROLE_COLORS } from '@renderer/utils/member';
+import { useSyncRefresh } from '@renderer/hooks/useSyncRefresh';
 import type {
   TeamMemberRole,
   Task,
@@ -92,6 +93,9 @@ export function TaskAllocationPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Refresh data automatically when sync completes
+  useSyncRefresh(fetchData);
 
   // Extract unique position names for filter
   const positionNames = useMemo(() => {
@@ -460,12 +464,9 @@ function MemberCard({
                 label={positionName || ROLE_LABELS[member.role] || member.role}
                 size="small"
                 sx={{
-                  height: 20,
-                  fontSize: '0.65rem',
                   fontWeight: 700,
                   bgcolor: roleColor + '1A',
                   color: roleColor,
-                  borderRadius: 1,
                 }}
               />
             </Stack>
@@ -572,9 +573,7 @@ function MemberCard({
                   label={group.tasks.length}
                   size="small"
                   sx={{
-                    height: 18,
                     minWidth: 24,
-                    fontSize: '0.65rem',
                     fontWeight: 700,
                     bgcolor: getAreaColor(group.area),
                     color: '#fff',
@@ -624,13 +623,12 @@ function TaskRow({ task, onClick }: { task: Task; onClick: () => void }) {
         >
           #{task.externalId ?? task.id}
         </Typography>
-        <WorkItemTypeChip type={task.type} sx={{ height: 16 }} />
+        <WorkItemTypeChip type={task.type} />
         <Box sx={{ flex: 1 }} />
         <Chip
           label={task.status}
           size="small"
           variant="outlined"
-          sx={{ height: 16, fontSize: '0.55rem', borderRadius: 1 }}
         />
       </Stack>
       <Typography

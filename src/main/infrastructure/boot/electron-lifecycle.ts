@@ -8,7 +8,9 @@ export function setupLifecycle(getWindow: () => BrowserWindow | null): void {
   app.on('window-all-closed', async () => {
     logger.info('All windows closed');
 
-    if (process.platform !== 'darwin') {
+    // On macOS, apps stay active until explicitly quit
+    // On other platforms, only quit if the app is actually quitting (not just hidden to tray)
+    if (process.platform !== 'darwin' && app.isQuitting) {
       try {
         await closeDatabase();
         logger.info('Application quitting...');
@@ -22,6 +24,7 @@ export function setupLifecycle(getWindow: () => BrowserWindow | null): void {
 
   app.on('before-quit', async (event) => {
     logger.info('Application is preparing to quit...');
+    app.isQuitting = true;
 
     if (event.defaultPrevented) {
       return;

@@ -36,37 +36,47 @@ export const Container = styled.nav.withConfig({
 
 export const LogoContainer = styled('div')`
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
   align-self: stretch;
 
   position: relative;
 
   height: 5.5rem;
-  padding-left: 1rem;
+  padding: 0 0.5rem;
 
   background-color: ${({ theme }) => theme.COLORS.surface};
 `;
 
-type LogoTextProps = {
+type LogoImageProps = {
   compacted: boolean;
 };
 
-export const LogoText = styled.span.withConfig({
+export const LogoImage = styled.img.withConfig({
   shouldForwardProp: (propName) => propName !== 'compacted',
-})<Readonly<LogoTextProps>>`
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: ${({ theme }) => theme.COLORS.primary};
+})<Readonly<LogoImageProps>>`
+  height: 4.2rem;
+  max-width: 13rem;
+  object-fit: contain;
 
-  -webkit-transition: opacity 0.2s ease-in-out;
-  -moz-transition: opacity 0.2s ease-in-out;
-  -o-transition: opacity 0.2s ease-in-out;
-  transition: opacity 0.2s ease-in-out;
+  -webkit-transition:
+    opacity 0.2s ease-in-out,
+    height 0.2s ease-in-out;
+  -moz-transition:
+    opacity 0.2s ease-in-out,
+    height 0.2s ease-in-out;
+  -o-transition:
+    opacity 0.2s ease-in-out,
+    height 0.2s ease-in-out;
+  transition:
+    opacity 0.2s ease-in-out,
+    height 0.2s ease-in-out;
 
   ${({ compacted }) =>
     compacted &&
     css`
+      height: 2.5rem;
+      max-width: 3rem;
       opacity: 0;
     `}
 `;

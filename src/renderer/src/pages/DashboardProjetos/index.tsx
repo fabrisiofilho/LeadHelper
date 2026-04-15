@@ -40,6 +40,7 @@ import {
   type StandardColumn,
 } from '@renderer/components/StandardTable';
 import { TaskViewModal } from '@renderer/components/TaskViewModal';
+import { useSyncRefresh } from '@renderer/hooks/useSyncRefresh';
 import type {
   Sprint,
   ProjetosResult,
@@ -320,8 +321,6 @@ function ChildrenTable({
                 sx={{
                   bgcolor: getStatusColor(child.status),
                   color: '#fff',
-                  fontWeight: 600,
-                  fontSize: '0.65rem',
                 }}
               />
             ),
@@ -578,6 +577,9 @@ export function DashboardProjetosPage() {
   useEffect(() => {
     if (selectedSprintId) loadData();
   }, [selectedSprintId, loadData]);
+
+  // Refresh data automatically when sync completes
+  useSyncRefresh(loadData);
 
   const handleSprintChange = (event: SelectChangeEvent<number | ''>) => {
     setSelectedSprintId(event.target.value as number | '');

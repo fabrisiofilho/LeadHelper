@@ -3,6 +3,8 @@ import { ConfirmModalProvider } from './confirmModal';
 import { LogoutLoadingProvider } from './logoutLoading';
 import { UpdateModalProvider } from './updateModal';
 import { useIpcToastHandler } from './ipcToastHandler';
+import { SyncRefreshProvider } from './useSyncRefresh';
+import { NotificationCenterProvider } from './useNotificationCenter';
 
 // Team Management Hooks
 export { useTeamMembers } from './useTeamMembers';
@@ -18,12 +20,16 @@ function IpcToastHandler({ children }: PropsWithChildren) {
 
 export function WithHooks({ children }: PropsWithChildren) {
   return (
-    <UpdateModalProvider>
-      <ConfirmModalProvider>
-        <LogoutLoadingProvider>
-          <IpcToastHandler>{children}</IpcToastHandler>
-        </LogoutLoadingProvider>
-      </ConfirmModalProvider>
-    </UpdateModalProvider>
+    <SyncRefreshProvider>
+      <NotificationCenterProvider>
+        <UpdateModalProvider>
+          <ConfirmModalProvider>
+            <LogoutLoadingProvider>
+              <IpcToastHandler>{children}</IpcToastHandler>
+            </LogoutLoadingProvider>
+          </ConfirmModalProvider>
+        </UpdateModalProvider>
+      </NotificationCenterProvider>
+    </SyncRefreshProvider>
   );
 }

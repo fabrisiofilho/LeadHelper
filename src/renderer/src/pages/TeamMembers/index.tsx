@@ -28,6 +28,7 @@ import { Modal } from '@renderer/components/Modal';
 import { useTeamMembers } from '@renderer/hooks/useTeamMembers';
 import { usePositions } from '@renderer/hooks/usePositions';
 import { useTableSort } from '@renderer/hooks/useTableSort';
+import { useSyncRefresh } from '@renderer/hooks/useSyncRefresh';
 import {
   StandardTable,
   type StandardColumn,
@@ -146,6 +147,9 @@ export function TeamMembersPage() {
   useEffect(() => {
     loadTeamMembers();
   }, [loadTeamMembers]);
+
+  // Refresh data automatically when sync completes
+  useSyncRefresh(loadTeamMembers);
 
   // Filter members by search term (client-side)
   const filteredMembersRaw = teamMembers.filter((member) => {

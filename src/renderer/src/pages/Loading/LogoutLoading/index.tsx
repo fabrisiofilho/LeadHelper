@@ -1,7 +1,7 @@
 import { Box, CircularProgress, Stack, Typography } from '@mui/material';
 import { useEffect, useState } from 'react';
 import { Container, MessageContainer } from './styles';
-import leadhelperLogo from '@renderer/assets/leadhelper.png';
+import leadhelperLogo from '@renderer/assets/leadhelper_logo.png';
 const LOGOUT_MESSAGES = [
   'Finalizando sessão...',
   'Desconectando das controladoras...',

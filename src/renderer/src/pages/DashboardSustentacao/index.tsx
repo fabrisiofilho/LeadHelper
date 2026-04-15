@@ -44,6 +44,7 @@ import { PageLayout } from '@renderer/components/PageLayout';
 import { TaskViewModal } from '@renderer/components/TaskViewModal';
 import { WorkItemTypeChip } from '@renderer/components/WorkItemTypeChip';
 import { SlaOrderModal } from '@renderer/components/SlaOrderModal';
+import { useSyncRefresh } from '@renderer/hooks/useSyncRefresh';
 import type {
   SustentacaoItemWithSLA,
   SustentacaoMetrics,
@@ -102,23 +103,6 @@ const ANALYSIS_STATUSES = new Set([
   'Em validação',
   'Em Validação',
 ]);
-
-const STATE_ORDER: Record<string, number> = {
-  'Em Desenvolvimento': 0,
-  'Em Andamento': 1,
-  Active: 2,
-  'In Progress': 3,
-  'Preparando para Dev': 4,
-  'Em Auditoria': 5,
-  'Aguardando Auditoria': 6,
-  'Em Homologação': 7,
-  'Aguardando Validação': 8,
-  'Aguardando Implantação': 9,
-  Novo: 10,
-  New: 11,
-  'Em Levantamento': 12,
-  'Backlog (sem atribuição)': 99,
-};
 
 // ── helpers ──
 
@@ -425,22 +409,15 @@ const ItemRow = memo(function ItemRow({
               </Typography>
             )}
           </Stack>
-          <WorkItemTypeChip type={t.type} sx={{ height: 18 }} />
+          <WorkItemTypeChip type={t.type} />
           {showAreaColumn && (
             <Chip
               label={areaLabel(t.areaPath)}
               size="small"
               variant="filled"
               sx={{
-                fontWeight: 600,
-                fontSize: '0.65rem',
-                height: 18,
-                bgcolor: isGestao(t.areaPath)
-                  ? 'info.light'
-                  : 'error.light',
-                color: isGestao(t.areaPath)
-                  ? 'info.dark'
-                  : 'error.dark',
+                bgcolor: isGestao(t.areaPath) ? 'info.light' : 'error.light',
+                color: isGestao(t.areaPath) ? 'info.dark' : 'error.dark',
               }}
             />
           )}
@@ -452,8 +429,6 @@ const ItemRow = memo(function ItemRow({
                 fontWeight: 700,
                 bgcolor: prioColor,
                 color: '#fff',
-                fontSize: '0.65rem',
-                height: 18,
               }}
             />
           </Tooltip>
@@ -920,6 +895,9 @@ export function DashboardSustentacaoPage() {
     fetchData();
   }, [fetchData]);
 
+  // Refresh data automatically when sync completes
+  useSyncRefresh(refreshData);
+
   // When includeAnalysis changes, only reload metrics (not the whole page)
   const isFirstRender = useMemo(() => ({ current: true }), []);
   useEffect(() => {
@@ -1362,58 +1340,56 @@ export function DashboardSustentacaoPage() {
         </Box>
 
         {/* Análise */}
-        {analysisItems.length > 0 && (
-          <Box>
-            <Stack direction="row" alignItems="center" spacing={1} mb={1}>
-              <Typography variant="h6">Análise</Typography>
-              <Chip
-                label={
-                  analysisItems.filter((i) => showHidden || !i.isHidden).length
-                }
-                size="small"
-              />
-              <Tooltip title="Ordem de prioridade SLA">
-                <IconButton
-                  size="small"
-                  onClick={() =>
-                    setSlaOrderModal({
-                      open: true,
-                      title: 'Análise',
-                      items: analysisItems,
-                    })
-                  }
-                >
-                  <SlaOrderIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Exportar PDF">
-                <IconButton
-                  size="small"
-                  onClick={() =>
-                    exportToPdf(
-                      analysisItems,
-                      'Análise - Sustentação',
-                      showHidden,
-                    )
-                  }
-                >
-                  <PdfIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            </Stack>
-            <ItemTable
-              items={analysisItems}
-              showAreaColumn
-              showHidden={showHidden}
-              onToggleSla={handleToggleSla}
-              onToggleHidden={handleToggleHidden}
-              onCopyLink={handleCopyLink}
-              onRowClick={handleRowClick}
-              positionMap={positionMap}
-              busyItems={busyItems}
+        <Box>
+          <Stack direction="row" alignItems="center" spacing={1} mb={1}>
+            <Typography variant="h6">Análise</Typography>
+            <Chip
+              label={
+                analysisItems.filter((i) => showHidden || !i.isHidden).length
+              }
+              size="small"
             />
-          </Box>
-        )}
+            <Tooltip title="Ordem de prioridade SLA">
+              <IconButton
+                size="small"
+                onClick={() =>
+                  setSlaOrderModal({
+                    open: true,
+                    title: 'Análise',
+                    items: analysisItems,
+                  })
+                }
+              >
+                <SlaOrderIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Exportar PDF">
+              <IconButton
+                size="small"
+                onClick={() =>
+                  exportToPdf(
+                    analysisItems,
+                    'Análise - Sustentação',
+                    showHidden,
+                  )
+                }
+              >
+                <PdfIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Stack>
+          <ItemTable
+            items={analysisItems}
+            showAreaColumn
+            showHidden={showHidden}
+            onToggleSla={handleToggleSla}
+            onToggleHidden={handleToggleHidden}
+            onCopyLink={handleCopyLink}
+            onRowClick={handleRowClick}
+            positionMap={positionMap}
+            busyItems={busyItems}
+          />
+        </Box>
       </Stack>
 
       <SlaOrderModal

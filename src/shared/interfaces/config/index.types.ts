@@ -1108,6 +1108,15 @@ export interface SyncStatus {
   isConfigured: boolean;
 }
 
+/** Represents a task status change detected during sync. */
+export interface TaskStatusChange {
+  externalId: string;
+  title: string;
+  type: string;
+  oldStatus: string;
+  newStatus: string;
+}
+
 export interface ISyncController {
   getStatus(): Promise<ApiResponse<SyncStatus>>;
 }
@@ -1157,4 +1166,9 @@ export interface CustomElectronAPI {
   onSyncProgress: (callback: (event: any, progress: any) => void) => () => void;
   offSyncProgress?: (callback: (event: any, progress: any) => void) => void;
   onSyncStatusChanged: (callback: (status: SyncStatus) => void) => () => void;
+  onSyncCompleted: (callback: () => void) => () => void;
+  onSyncTaskStatusChanges: (
+    callback: (changes: TaskStatusChange[]) => void,
+  ) => () => void;
+  onSyncOpenTask: (callback: (externalId: string) => void) => () => void;
 }

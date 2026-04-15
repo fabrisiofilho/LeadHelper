@@ -39,6 +39,7 @@ import { useAllocations } from '@renderer/hooks/useAllocations';
 import { useSprints } from '@renderer/hooks/useSprints';
 import { useTeams } from '@renderer/hooks/useTeams';
 import { GanttChart } from '@renderer/components/GanttChart';
+import { useSyncRefresh } from '@renderer/hooks/useSyncRefresh';
 import {
   PageContainer,
   PlaceholderContent,
@@ -140,6 +141,9 @@ export function GanttPage() {
   useEffect(() => {
     loadGanttData();
   }, [loadGanttData]);
+
+  // Refresh data automatically when sync completes
+  useSyncRefresh(loadGanttData);
 
   const handleThisWeek = () => {
     const { start, end } = getThisWeek();

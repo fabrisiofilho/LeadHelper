@@ -26,6 +26,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { Modal } from '@renderer/components/Modal';
 import { useTeams } from '@renderer/hooks/useTeams';
 import { useTableSort } from '@renderer/hooks/useTableSort';
+import { useSyncRefresh } from '@renderer/hooks/useSyncRefresh';
 import {
   StandardTable,
   type StandardColumn,
@@ -104,6 +105,9 @@ export function TeamsPage() {
   useEffect(() => {
     loadTeams();
   }, [loadTeams]);
+
+  // Refresh data automatically when sync completes
+  useSyncRefresh(loadTeams);
 
   const filteredTeamsRaw = teams.filter((team) => {
     if (!searchTerm) return true;

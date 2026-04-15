@@ -33,6 +33,7 @@ import {
 } from './TeamDashboard/styles';
 import { getInitials, ROLE_COLORS } from '@renderer/utils/member';
 import { GanttPage } from '@renderer/pages/Gantt';
+import { useSyncRefresh } from '@renderer/hooks/useSyncRefresh';
 
 export function AllocationDashboardTab() {
   const [data, setData] = useState<AllocationDashboard | null>(null);
@@ -71,6 +72,9 @@ export function AllocationDashboardTab() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Refresh data automatically when sync completes
+  useSyncRefresh(loadData);
 
   if (loading) {
     return (

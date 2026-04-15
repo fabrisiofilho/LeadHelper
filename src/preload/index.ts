@@ -210,6 +210,41 @@ const api: CustomElectronAPI = {
       ipcRenderer.removeListener('sync:status-changed', handler);
     };
   },
+
+  onSyncCompleted: (callback: () => void): (() => void) => {
+    const handler = () => {
+      callback();
+    };
+    ipcRenderer.on('sync:completed', handler);
+    return () => {
+      ipcRenderer.removeListener('sync:completed', handler);
+    };
+  },
+
+  onSyncTaskStatusChanges: (
+    callback: (changes: any[]) => void,
+  ): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, changes: any[]) => {
+      callback(changes);
+    };
+    ipcRenderer.on('sync:task-status-changes', handler);
+    return () => {
+      ipcRenderer.removeListener('sync:task-status-changes', handler);
+    };
+  },
+
+  onSyncOpenTask: (callback: (externalId: string) => void): (() => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      externalId: string,
+    ) => {
+      callback(externalId);
+    };
+    ipcRenderer.on('sync:open-task', handler);
+    return () => {
+      ipcRenderer.removeListener('sync:open-task', handler);
+    };
+  },
 };
 
 if (process.contextIsolated) {

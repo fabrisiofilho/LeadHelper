@@ -100,9 +100,6 @@ export function TeamOverview({
           label={`${tasks.length} tarefas`}
           size="small"
           sx={{
-            height: 20,
-            fontSize: '0.65rem',
-            fontWeight: 600,
             bgcolor:
               selectedTeam === null
                 ? 'rgba(255,255,255,0.25)'
@@ -169,9 +166,6 @@ export function TeamOverview({
               label={`${count} tarefas`}
               size="small"
               sx={{
-                height: 20,
-                fontSize: '0.65rem',
-                fontWeight: 600,
                 bgcolor: isSelected
                   ? 'rgba(255,255,255,0.25)'
                   : 'action.selected',

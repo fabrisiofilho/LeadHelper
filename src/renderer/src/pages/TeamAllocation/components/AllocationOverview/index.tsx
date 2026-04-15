@@ -95,9 +95,6 @@ function UnallocatedMembersByRole({
                 label={`${roleLabels[role]}: ${roleMembers.length}`}
                 size="small"
                 sx={{
-                  height: 20,
-                  fontSize: '0.65rem',
-                  fontWeight: 600,
                   bgcolor: colors[role] + '15',
                   color: colors[role],
                   border: '1px solid',
@@ -152,9 +149,6 @@ function UnallocatedMembersByRole({
                   label={roleMembers.length}
                   size="small"
                   sx={{
-                    height: 18,
-                    fontSize: '0.65rem',
-                    fontWeight: 600,
                     bgcolor: colors[role] + '20',
                     color: colors[role],
                   }}

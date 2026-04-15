@@ -57,9 +57,6 @@ export const WorkItemTypeChip: FC<WorkItemTypeChipProps> = ({
       label={type}
       size={size}
       sx={{
-        fontWeight: 600,
-        fontSize: '0.65rem',
-        height: 20,
         bgcolor: config.color,
         color: '#fff',
         ...sx,

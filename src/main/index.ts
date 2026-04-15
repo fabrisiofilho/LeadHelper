@@ -55,6 +55,7 @@ if (!gotTheLock) {
     const mainWindow = initializer.getWindow();
 
     if (mainWindow) {
+      mainWindow.show();
       if (mainWindow.isMinimized()) {
         mainWindow.restore();
       }
@@ -128,7 +129,11 @@ if (!gotTheLock) {
 
   app.on('activate', () => {
     logger.info('App activated');
-    if (!initializer.getWindow()) {
+    const win = initializer.getWindow();
+    if (win) {
+      win.show();
+      win.focus();
+    } else {
       logger.info('No window exists, reinitializing...');
       initializer.init().catch((error) => {
         console.error('Failed to reinitialize:', error);
@@ -138,6 +143,7 @@ if (!gotTheLock) {
   });
 
   app.on('before-quit', () => {
+    app.isQuitting = true;
     logger.info('Application is quitting...');
   });
 

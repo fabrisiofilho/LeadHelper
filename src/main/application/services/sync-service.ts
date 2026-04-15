@@ -847,18 +847,30 @@ export class SyncService {
         body,
         icon: this.getNotificationIcon(),
         silent: false,
+        urgency: 'normal',
       });
 
       // When clicked, show the main window and tell renderer to open the first item
       const firstExternalId = items[0].externalId;
+      const mainWin = this.mainWindow;
       notification.on('click', () => {
-        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-          this.mainWindow.show();
-          this.mainWindow.focus();
-          this.mainWindow.webContents.send(
-            'sync:open-task',
-            firstExternalId,
-          );
+        logger.info(
+          `[SyncService] Notification clicked, opening task #${firstExternalId}`,
+        );
+        if (mainWin && !mainWin.isDestroyed()) {
+          if (!mainWin.isVisible()) {
+            mainWin.show();
+          }
+          if (mainWin.isMinimized()) {
+            mainWin.restore();
+          }
+          mainWin.focus();
+          // Small delay to ensure the window is visible before sending IPC
+          setTimeout(() => {
+            if (!mainWin.isDestroyed()) {
+              mainWin.webContents.send('sync:open-task', firstExternalId);
+            }
+          }, 300);
         }
       });
 

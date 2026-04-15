@@ -8,6 +8,15 @@ import { setupLifecycle } from './infrastructure/boot/electron-lifecycle';
 
 dotenv.config();
 
+// Set the app name so native notifications show "LeadHelper" instead of "electron" or "Electron"
+app.setName('LeadHelper');
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.electron.leadhelper');
+}
+if (process.platform === 'linux') {
+  app.setDesktopName('LeadHelper');
+}
+
 logger.info('Starting application initialization...');
 logger.info('Platform:', process.platform);
 logger.info('Environment:', process.env.NODE_ENV || 'production');

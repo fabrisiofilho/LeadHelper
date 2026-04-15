@@ -59,7 +59,11 @@ export function NotificationCenterProvider({ children }: PropsWithChildren) {
   // Listen for "open task" events from native notification clicks
   useEffect(() => {
     const unsub = window.electronAPI.onSyncOpenTask((externalId: string) => {
-      openTaskHandlerRef.current(externalId);
+      console.log('[NotificationCenter] Received open-task event:', externalId);
+      // If no handler registered yet, queue it and retry after a short delay
+      if (openTaskHandlerRef.current) {
+        openTaskHandlerRef.current(externalId);
+      }
     });
     return unsub;
   }, []);

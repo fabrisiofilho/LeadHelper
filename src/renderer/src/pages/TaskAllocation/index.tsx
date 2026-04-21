@@ -19,6 +19,7 @@ import {
   WarningAmber as WarningIcon,
   CheckCircleOutline as OkIcon,
   PersonOff as NoTaskIcon,
+  CopyAll as CopyAllIcon,
 } from '@mui/icons-material';
 import { PageLayout } from '@renderer/components/PageLayout';
 import { TaskViewModal } from '@renderer/components/TaskViewModal';
@@ -407,6 +408,68 @@ function MemberCard({
   const roleColor = ROLE_COLORS[member.role] ?? '#64748B';
   const borderColor = isOk ? 'success.main' : 'warning.main';
 
+  const handleCopyMemberTasks = useCallback(() => {
+    const buildUrl = (id: string | number) =>
+      `https://dev.azure.com/senaisc-solucoes-digitais/Tribo%20SEIF/_workitems/edit/${id}/`;
+
+    const htmlLines: string[] = [];
+    const textLines: string[] = [];
+
+    htmlLines.push(`<b>${member.name}</b><br/>`);
+    textLines.push(member.name);
+
+    if (positionName) {
+      htmlLines.push(`${positionName}<br/><br/>`);
+      textLines.push(positionName, '');
+    } else {
+      htmlLines.push('<br/>');
+      textLines.push('');
+    }
+
+    if (taskGroups.length === 0) {
+      htmlLines.push(
+        '<span style="color:#64748B;">Nenhuma tarefa atribuída.</span>',
+      );
+      textLines.push('Nenhuma tarefa atribuída.');
+    } else {
+      let counter = 0;
+      for (const group of taskGroups) {
+        htmlLines.push(`<b>${group.area} (${group.tasks.length})</b><br/>`);
+        textLines.push(`${group.area} (${group.tasks.length})`);
+
+        for (const task of group.tasks) {
+          const id = task.externalId ?? String(task.id);
+          const url = buildUrl(id);
+          const prio = PRIO_LABEL[task.priority] ?? task.priority;
+
+          htmlLines.push(
+            `${counter + 1}. <b><a href="${url}">#${id}</a></b> - ${task.type} | ${prio} | ${task.status}<br/>`,
+          );
+          textLines.push(
+            `${counter + 1}. #${id} (${url}) - ${task.type} | ${prio} | ${task.status}`,
+          );
+          counter++;
+        }
+
+        htmlLines.push('<br/>');
+        textLines.push('');
+      }
+    }
+
+    const html = htmlLines.join('');
+    const text = textLines.join('\n');
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const textBlob = new Blob([text], { type: 'text/plain' });
+    const clipItem = new ClipboardItem({
+      'text/html': blob,
+      'text/plain': textBlob,
+    });
+    navigator.clipboard.write([clipItem]).catch(() => {
+      navigator.clipboard.writeText(text).catch(() => {});
+    });
+  }, [member.name, positionName, taskGroups]);
+
   return (
     <Paper
       variant="outlined"
@@ -472,6 +535,18 @@ function MemberCard({
             </Stack>
           </Box>
           {/* Status badge */}
+          <Tooltip title="Copiar tarefas">
+            <IconButton
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleCopyMemberTasks();
+              }}
+              sx={{ p: 0.5 }}
+            >
+              <CopyAllIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
           <Box
             sx={{
               display: 'flex',

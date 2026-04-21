@@ -19,6 +19,8 @@ import {
   FormControlLabel,
   TextField,
   InputAdornment,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import { Search as SearchIcon } from '@mui/icons-material';
 import {
@@ -28,6 +30,7 @@ import {
   VisibilityOff as HideIcon,
   Visibility as ShowIcon,
   ContentCopy as CopyIcon,
+  CopyAll as CopyAllIcon,
   WarningAmber as WarningIcon,
   PictureAsPdf as PdfIcon,
   ConfirmationNumber as TicketIcon,
@@ -190,6 +193,7 @@ async function exportToPdf(
   items: SustentacaoItemWithSLA[],
   title: string,
   showHidden: boolean,
+  positionMap: Map<string, string[]>,
 ) {
   const { default: jsPDF } = await import('jspdf');
   const { default: html2canvas } = await import('html2canvas');
@@ -197,127 +201,268 @@ async function exportToPdf(
   const visible = showHidden ? items : items.filter((i) => !i.isHidden);
   if (visible.length === 0) return;
 
-  // Build an off-screen container with a simplified table
+  // Group by area
+  const gestaoItems = visible.filter((i) => isGestao(i.task.areaPath));
+  const ctItems = visible.filter((i) => !isGestao(i.task.areaPath));
+
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('pt-BR');
+  const timeStr = now.toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  // ── Build row HTML for a single item ──
+  const buildRow = (item: SustentacaoItemWithSLA, idx: number) => {
+    const t = item.task;
+    // Priority always in Portuguese
+    const prio = PRIO_LABEL[t.priority] ?? t.priority;
+    const prioColor = PRIO_COLOR[t.priority] ?? '#64748B';
+    const isTicket = t.type === 'Ticket';
+
+    // Check if assignee has wrong position for this status
+    const isWrongPosition = (() => {
+      if (!t.assignedToName || !t.assignedToEmail || !t.status) return false;
+      const allowed = positionMap.get(t.assignedToEmail.toLowerCase());
+      if (!allowed || allowed.length === 0) return false;
+      return !allowed.includes(t.status.toLowerCase());
+    })();
+    const noAssignee = !t.assignedToName || isWrongPosition;
+
+    let slaHtml = '<span style="color:#94A3B8;">—</span>';
+    if (isTicket) {
+      if (item.slaExcluded) {
+        slaHtml = '<span style="color:#94A3B8;font-size:9px;">Excluído</span>';
+      } else if (item.slaViolated) {
+        slaHtml = `<span style="color:#DC2626;font-weight:700;font-size:10px;">${formatSlaDelay(item.businessHoursRemaining)}</span>`;
+        if (item.expirationDate) {
+          const d = new Date(item.expirationDate);
+          slaHtml += `<br/><span style="font-size:8px;color:#DC2626;">${d.toLocaleDateString('pt-BR')} ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>`;
+        }
+      } else {
+        const slaColor = item.slaWarning ? '#D97706' : '#16A34A';
+        slaHtml = `<span style="color:${slaColor};font-weight:600;font-size:10px;">${formatSlaRemaining(item.businessHoursRemaining)}</span>`;
+        if (item.expirationDate) {
+          const d = new Date(item.expirationDate);
+          slaHtml += `<br/><span style="font-size:8px;color:${slaColor};">${d.toLocaleDateString('pt-BR')} ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>`;
+        }
+      }
+    }
+
+    const typeColor = isTicket ? '#16A34A' : '#7C3AED';
+    const bgColor = idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC';
+
+    return `<tr style="background:${bgColor};">
+      <td style="padding:8px 12px;vertical-align:middle;text-align:center;font-weight:700;color:#94A3B8;font-size:10px;width:32px;">${idx + 1}</td>
+      <td style="padding:8px 10px;vertical-align:middle;width:70px;">
+        <span style="color:#0F172A;font-weight:700;font-size:11px;">#${t.externalId ?? t.id}</span>
+      </td>
+      <td style="padding:8px 10px;vertical-align:middle;text-align:center;width:90px;">
+        <span style="display:inline-block;padding:3px 10px;background:${typeColor};color:#fff;border-radius:10px;font-size:9px;font-weight:700;letter-spacing:0.3px;line-height:14px;">${t.type}</span>
+      </td>
+      <td style="padding:8px 10px;vertical-align:middle;text-align:center;width:70px;">
+        <span style="display:inline-block;padding:3px 10px;background:${prioColor};color:#fff;border-radius:10px;font-size:9px;font-weight:700;line-height:14px;">${prio}</span>
+      </td>
+      <td style="padding:8px 10px;vertical-align:middle;">
+        <span style="font-size:10px;color:#1E293B;line-height:1.4;">${t.title}</span>
+      </td>
+      <td style="padding:8px 10px;vertical-align:middle;text-align:center;width:120px;">
+        <span style="display:inline-block;padding:3px 10px;background:#F1F5F9;border-radius:10px;font-size:9px;color:#334155;font-weight:600;line-height:14px;">${t.status}</span>
+      </td>
+      <td style="padding:8px 10px;vertical-align:middle;width:140px;${noAssignee ? 'color:#D97706;font-weight:700;' : 'color:#334155;'}font-size:10px;">
+        ${noAssignee ? 'Sem responsável' : t.assignedToName}
+      </td>
+      <td style="padding:8px 10px;vertical-align:middle;width:90px;text-align:center;">${slaHtml}</td>
+    </tr>`;
+  };
+
+  // ── Build section HTML for an area group ──
+  const buildSection = (
+    sectionTitle: string,
+    sectionItems: SustentacaoItemWithSLA[],
+    accentColor: string,
+    bgTint: string,
+    startIdx: number,
+  ) => {
+    if (sectionItems.length === 0) return '';
+
+    const ticketCount = sectionItems.filter(
+      (i) => i.task.type === 'Ticket',
+    ).length;
+    const improvementCount = sectionItems.length - ticketCount;
+    const violatedCount = sectionItems.filter(
+      (i) => i.task.type === 'Ticket' && !i.slaExcluded && i.slaViolated,
+    ).length;
+
+    return `
+      <div style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;padding:10px 16px;background:${bgTint};border-left:4px solid ${accentColor};border-radius:0 8px 8px 0;">
+          <span style="font-size:13px;font-weight:700;color:${accentColor};">${sectionTitle}</span>
+          <span style="font-size:10px;color:#64748B;font-weight:600;">${sectionItems.length} itens</span>
+          <span style="font-size:9px;padding:3px 10px;background:#16A34A;color:#fff;border-radius:10px;font-weight:600;">${ticketCount} Tickets</span>
+          <span style="font-size:9px;padding:3px 10px;background:#7C3AED;color:#fff;border-radius:10px;font-weight:600;">${improvementCount} Improvements</span>
+          ${violatedCount > 0 ? `<span style="font-size:9px;padding:3px 10px;background:#DC2626;color:#fff;border-radius:10px;font-weight:700;">${violatedCount} SLA estourado</span>` : ''}
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:11px;font-family:Montserrat,Roboto,Arial,sans-serif;">
+          <thead>
+            <tr>
+              <th style="padding:8px 12px;text-align:center;font-size:8px;color:#94A3B8;font-weight:700;width:32px;text-transform:uppercase;letter-spacing:0.5px;">#</th>
+              <th style="padding:8px 10px;text-align:left;font-size:8px;color:#94A3B8;font-weight:700;width:70px;text-transform:uppercase;letter-spacing:0.5px;">Item</th>
+              <th style="padding:8px 10px;text-align:center;font-size:8px;color:#94A3B8;font-weight:700;width:90px;text-transform:uppercase;letter-spacing:0.5px;">Tipo</th>
+              <th style="padding:8px 10px;text-align:center;font-size:8px;color:#94A3B8;font-weight:700;width:70px;text-transform:uppercase;letter-spacing:0.5px;">Prioridade</th>
+              <th style="padding:8px 10px;text-align:left;font-size:8px;color:#94A3B8;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Título</th>
+              <th style="padding:8px 10px;text-align:center;font-size:8px;color:#94A3B8;font-weight:700;width:120px;text-transform:uppercase;letter-spacing:0.5px;">Status</th>
+              <th style="padding:8px 10px;text-align:left;font-size:8px;color:#94A3B8;font-weight:700;width:140px;text-transform:uppercase;letter-spacing:0.5px;">Responsável</th>
+              <th style="padding:8px 10px;text-align:center;font-size:8px;color:#94A3B8;font-weight:700;width:90px;text-transform:uppercase;letter-spacing:0.5px;">SLA</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${sectionItems.map((item, idx) => buildRow(item, startIdx + idx)).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  };
+
+  // ── Assemble full document ──
   const container = document.createElement('div');
   container.style.cssText =
-    'position:fixed;left:-9999px;top:0;width:1100px;background:#fff;padding:16px;font-family:Roboto,Arial,sans-serif;';
+    'position:fixed;left:-9999px;top:0;width:1120px;background:#fff;padding:0;font-family:Montserrat,Roboto,Arial,sans-serif;';
 
-  const now = new Date().toLocaleString('pt-BR');
+  const totalTickets = visible.filter((i) => i.task.type === 'Ticket').length;
+  const totalImprovements = visible.length - totalTickets;
+  const totalViolated = visible.filter(
+    (i) => i.task.type === 'Ticket' && !i.slaExcluded && i.slaViolated,
+  ).length;
+  const totalWarning = visible.filter(
+    (i) =>
+      i.task.type === 'Ticket' &&
+      !i.slaExcluded &&
+      !i.slaViolated &&
+      i.slaWarning,
+  ).length;
+
   container.innerHTML = `
-    <h2 style="margin:0 0 4px;font-size:16px;color:#1976d2;">${title}</h2>
-    <p style="margin:0 0 12px;font-size:10px;color:#888;">Gerado em: ${now}</p>
-    <table style="width:100%;border-collapse:collapse;font-size:11px;">
-      <thead>
-        <tr style="background:#1976d2;color:#fff;">
-          <th style="padding:6px 8px;text-align:left;width:160px;">Item</th>
-          <th style="padding:6px 8px;text-align:left;">Título</th>
-          <th style="padding:6px 8px;text-align:left;width:140px;">Status</th>
-          <th style="padding:6px 8px;text-align:left;width:160px;">Responsável</th>
-          <th style="padding:6px 8px;text-align:left;width:120px;">SLA</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${visible
-          .map((item, idx) => {
-            const t = item.task;
-            const prio = PRIO_LABEL[t.priority] ?? t.priority;
-            const area = areaLabel(t.areaPath);
-            const isTicket = t.type === 'Ticket';
-            const bgColor = idx % 2 === 0 ? '#fff' : '#f5f5f5';
-            const noAssignee = !t.assignedToName;
+    <div style="padding:12px 16px 8px;">
+      <!-- Header -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:10px;">
+        <div>
+          <div style="font-size:20px;font-weight:800;color:#0F172A;letter-spacing:-0.3px;">${title}</div>
+          <div style="font-size:10px;color:#94A3B8;margin-top:4px;">Gerado em ${dateStr} às ${timeStr} — Ordem de prioridade</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div style="text-align:center;padding:8px 16px;background:#F8FAFC;border-radius:10px;">
+            <div style="font-size:18px;font-weight:800;color:#0F172A;">${visible.length}</div>
+            <div style="font-size:7px;color:#94A3B8;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Total</div>
+          </div>
+          <div style="text-align:center;padding:8px 16px;background:#F0FDF4;border-radius:10px;">
+            <div style="font-size:18px;font-weight:800;color:#16A34A;">${totalTickets}</div>
+            <div style="font-size:7px;color:#16A34A;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Tickets</div>
+          </div>
+          <div style="text-align:center;padding:8px 16px;background:#F5F3FF;border-radius:10px;">
+            <div style="font-size:18px;font-weight:800;color:#7C3AED;">${totalImprovements}</div>
+            <div style="font-size:7px;color:#7C3AED;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Improvements</div>
+          </div>
+          ${
+            totalViolated > 0
+              ? `<div style="text-align:center;padding:8px 16px;background:#FEF2F2;border-radius:10px;">
+            <div style="font-size:18px;font-weight:800;color:#DC2626;">${totalViolated}</div>
+            <div style="font-size:7px;color:#DC2626;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Estourados</div>
+          </div>`
+              : ''
+          }
+          ${
+            totalWarning > 0
+              ? `<div style="text-align:center;padding:8px 16px;background:#FFFBEB;border-radius:10px;">
+            <div style="font-size:18px;font-weight:800;color:#D97706;">${totalWarning}</div>
+            <div style="font-size:7px;color:#D97706;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Atenção</div>
+          </div>`
+              : ''
+          }
+        </div>
+      </div>
 
-            let slaHtml = '<span style="color:#999;">—</span>';
-            if (isTicket) {
-              if (item.slaExcluded) {
-                slaHtml = '<span style="color:#999;">Excluído</span>';
-              } else {
-                const color = item.slaViolated
-                  ? '#DC2626'
-                  : item.slaWarning
-                    ? '#D97706'
-                    : '#333';
-                const weight = item.slaViolated ? 'bold' : 'normal';
-                slaHtml = `<span style="color:${color};font-weight:${weight};">${formatSlaRemaining(item.businessHoursRemaining)}</span>`;
-                if (item.expirationDate) {
-                  const d = new Date(item.expirationDate);
-                  slaHtml += `<br/><span style="font-size:9px;color:${color};">${d.toLocaleDateString('pt-BR')} ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>`;
-                }
-              }
-            }
-
-            const prioColor = PRIO_COLOR[t.priority] ?? '#64748B';
-            const typeColor = isTicket ? '#16A34A' : '#DB2777';
-            const areaColor = isGestao(t.areaPath) ? '#2563EB' : '#DC2626';
-            const areaBg = isGestao(t.areaPath) ? '#EFF6FF' : '#FEF2F2';
-
-            return `<tr style="background:${bgColor};${noAssignee ? 'border-left:3px solid #ed6c02;' : ''}">
-              <td style="padding:5px 8px;vertical-align:top;">
-                <span style="color:#666;font-weight:600;font-size:10px;">#${t.externalId ?? t.id}</span><br/>
-                <span style="display:inline-block;padding:1px 6px;background:${typeColor};color:#fff;border-radius:10px;font-size:9px;font-weight:600;">${t.type}</span>
-                <span style="display:inline-block;padding:1px 6px;background:${areaBg};color:${areaColor};border-radius:10px;font-size:9px;font-weight:600;">${area}</span>
-                <span style="display:inline-block;padding:1px 6px;background:${prioColor};color:#fff;border-radius:10px;font-size:9px;font-weight:700;">${prio}</span>
-              </td>
-              <td style="padding:5px 8px;vertical-align:top;">${t.title}</td>
-              <td style="padding:5px 8px;vertical-align:top;"><span style="display:inline-block;padding:1px 8px;border:1px solid #ccc;border-radius:10px;font-size:10px;">${t.status}</span></td>
-              <td style="padding:5px 8px;vertical-align:top;${noAssignee ? 'color:#ed6c02;font-weight:600;' : ''}">${t.assignedToName || 'Sem responsável'}</td>
-              <td style="padding:5px 8px;vertical-align:top;">${slaHtml}</td>
-            </tr>`;
-          })
-          .join('')}
-      </tbody>
-    </table>
+      <!-- Sections by area -->
+      ${buildSection('Gestão de Terceiros', gestaoItems, '#2563EB', '#EFF6FF', 0)}
+      ${buildSection('Chamada Tecnológica', ctItems, '#DC2626', '#FEF2F2', gestaoItems.length)}
+    </div>
   `;
 
   document.body.appendChild(container);
 
   try {
-    const canvas = await html2canvas(container, { scale: 2, useCORS: true });
+    const canvas = await html2canvas(container, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#FFFFFF',
+    });
     const imgData = canvas.toDataURL('image/png');
-    const imgWidth = 277; // A4 landscape width in mm minus margins
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
     const doc = new jsPDF({
       orientation: 'landscape',
       unit: 'mm',
       format: 'a4',
     });
-    const pageHeight = 190; // usable height in mm
-    let yOffset = 0;
 
-    while (yOffset < imgHeight) {
-      if (yOffset > 0) doc.addPage();
-      doc.addImage(
-        imgData,
-        'PNG',
-        10,
-        5,
-        imgWidth,
-        imgHeight,
-        undefined,
-        'FAST',
-        0,
-      );
-      // Shift the image up for next page
-      if (yOffset + pageHeight < imgHeight) {
-        doc.addPage();
-        yOffset += pageHeight;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 2;
+    const usableWidth = pageWidth - margin * 2;
+    const usableHeight = pageHeight - margin * 2;
+
+    const imgWidth = usableWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+    if (imgHeight <= usableHeight) {
+      doc.addImage(imgData, 'PNG', margin, margin, imgWidth, imgHeight);
+    } else {
+      // Multi-page: slice the canvas
+      const pageCanvasHeight = (usableHeight / imgHeight) * canvas.height;
+      let srcY = 0;
+      let page = 0;
+
+      while (srcY < canvas.height) {
+        if (page > 0) doc.addPage();
+
+        const sliceHeight = Math.min(pageCanvasHeight, canvas.height - srcY);
+        const sliceCanvas = document.createElement('canvas');
+        sliceCanvas.width = canvas.width;
+        sliceCanvas.height = sliceHeight;
+        const ctx = sliceCanvas.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+          ctx.drawImage(
+            canvas,
+            0,
+            srcY,
+            canvas.width,
+            sliceHeight,
+            0,
+            0,
+            canvas.width,
+            sliceHeight,
+          );
+        }
+
+        const sliceData = sliceCanvas.toDataURL('image/png');
+        const sliceImgHeight = (sliceHeight * imgWidth) / canvas.width;
         doc.addImage(
-          imgData,
+          sliceData,
           'PNG',
-          10,
-          5 - yOffset,
+          margin,
+          margin,
           imgWidth,
-          imgHeight,
-          undefined,
-          'FAST',
-          0,
+          sliceImgHeight,
         );
+
+        srcY += pageCanvasHeight;
+        page++;
       }
-      break;
     }
 
     doc.save(
-      `${title.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`,
+      `${title.replace(/\s+/g, '_')}_${now.toISOString().slice(0, 10)}.pdf`,
     );
   } finally {
     document.body.removeChild(container);
@@ -377,7 +522,7 @@ const ItemRow = memo(function ItemRow({
         bgcolor: noAssignee
           ? 'rgba(255,152,0,0.06)'
           : wrongPosition
-            ? 'rgba(211,47,47,0.06)'
+            ? 'rgba(255,152,0,0.06)'
             : undefined,
         cursor: 'pointer',
         '&:hover': { bgcolor: 'action.hover' },
@@ -463,8 +608,15 @@ const ItemRow = memo(function ItemRow({
               <WarningIcon sx={{ fontSize: 16, color: 'error.main' }} />
             </Tooltip>
           )}
-          <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
-            {t.assignedToName || '—'}
+          <Typography
+            variant="body2"
+            sx={{
+              wordBreak: 'break-word',
+              color: noAssignee || wrongPosition ? 'warning.main' : undefined,
+              fontWeight: noAssignee || wrongPosition ? 700 : undefined,
+            }}
+          >
+            {noAssignee || wrongPosition ? 'Sem responsável' : t.assignedToName}
           </Typography>
         </Stack>
       </TableCell>
@@ -602,6 +754,8 @@ interface ItemTableProps {
   busyItems: Set<string>;
 }
 
+const INITIAL_RENDER_COUNT = 30;
+
 const ItemTable = memo(function ItemTable({
   items,
   showAreaColumn,
@@ -614,6 +768,21 @@ const ItemTable = memo(function ItemTable({
   busyItems,
 }: ItemTableProps) {
   const visible = showHidden ? items : items.filter((i) => !i.isHidden);
+  const [renderCount, setRenderCount] = useState(INITIAL_RENDER_COUNT);
+
+  // Reset render count when items change
+  useEffect(() => {
+    setRenderCount(INITIAL_RENDER_COUNT);
+  }, [visible.length]);
+
+  // Progressively render remaining items
+  useEffect(() => {
+    if (renderCount >= visible.length) return;
+    const timer = requestAnimationFrame(() => {
+      setRenderCount((prev) => Math.min(prev + 30, visible.length));
+    });
+    return () => cancelAnimationFrame(timer);
+  }, [renderCount, visible.length]);
 
   if (visible.length === 0) {
     return (
@@ -645,7 +814,7 @@ const ItemTable = memo(function ItemTable({
           </TableRow>
         </TableHead>
         <TableBody>
-          {visible.map((item) => (
+          {visible.slice(0, renderCount).map((item) => (
             <ItemRow
               key={item.task.externalId ?? item.task.id}
               item={item}
@@ -658,6 +827,13 @@ const ItemTable = memo(function ItemTable({
               isBusy={busyItems.has(item.task.externalId ?? '')}
             />
           ))}
+          {renderCount < visible.length && (
+            <TableRow>
+              <TableCell colSpan={6} sx={{ textAlign: 'center', py: 1.5 }}>
+                <CircularProgress size={20} />
+              </TableCell>
+            </TableRow>
+          )}
         </TableBody>
       </Table>
     </TableContainer>
@@ -788,6 +964,7 @@ export function DashboardSustentacaoPage() {
   const [busyItems, setBusyItems] = useState<Set<string>>(new Set());
   const [metricsLoading, setMetricsLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
+  const [activeTab, setActiveTab] = useState(0);
   const [slaOrderModal, setSlaOrderModal] = useState<{
     open: boolean;
     title: string;
@@ -985,6 +1162,133 @@ export function DashboardSustentacaoPage() {
     const url = `https://dev.azure.com/senaisc-solucoes-digitais/Tribo%20SEIF/_workitems/edit/${externalId}/`;
     navigator.clipboard.writeText(url).catch(() => {});
   }, []);
+
+  const handleCopyPriorityList = useCallback(
+    (sectionItems: SustentacaoItemWithSLA[], sectionTitle: string) => {
+      const visible = showHidden
+        ? sectionItems
+        : sectionItems.filter((i) => !i.isHidden);
+
+      if (visible.length === 0) {
+        const html = `<b>${sectionTitle}</b><br/><br/><span style="color:#64748B;">Nenhuma tarefa encontrada nesta etapa.</span>`;
+        const text = `${sectionTitle}\n\nNenhuma tarefa encontrada nesta etapa.`;
+        const blob = new Blob([html], { type: 'text/html' });
+        const textBlob = new Blob([text], { type: 'text/plain' });
+        const emptyItem = new ClipboardItem({
+          'text/html': blob,
+          'text/plain': textBlob,
+        });
+        navigator.clipboard.write([emptyItem]).catch(() => {
+          navigator.clipboard.writeText(text).catch(() => {});
+        });
+        return;
+      }
+
+      const buildUrl = (id: string | number) =>
+        `https://dev.azure.com/senaisc-solucoes-digitais/Tribo%20SEIF/_workitems/edit/${id}/`;
+
+      const gestaoItems = visible.filter((i) => isGestao(i.task.areaPath));
+      const ctItems = visible.filter((i) => !isGestao(i.task.areaPath));
+
+      const isWrongPosition = (t: Task) => {
+        if (!t.assignedToName || !t.assignedToEmail || !t.status) return false;
+        const allowed = positionMap.get(t.assignedToEmail.toLowerCase());
+        if (!allowed || allowed.length === 0) return false;
+        return !allowed.includes(t.status.toLowerCase());
+      };
+
+      const formatItemHtml = (item: SustentacaoItemWithSLA, idx: number) => {
+        const t = item.task;
+        const id = t.externalId ?? String(t.id);
+        const url = buildUrl(id);
+        const prio = PRIO_LABEL[t.priority] ?? t.priority;
+        const responsavel =
+          !t.assignedToName || isWrongPosition(t)
+            ? 'Sem responsável'
+            : t.assignedToName;
+
+        let sla = '';
+        if (t.type === 'Ticket' && !item.slaExcluded) {
+          if (item.slaViolated) {
+            sla = ` | SLA: ${formatSlaDelay(item.businessHoursRemaining)}`;
+          } else {
+            sla = ` | SLA: ${formatSlaRemaining(item.businessHoursRemaining)} restante`;
+          }
+        }
+
+        return `${idx + 1}. <b><a href="${url}">#${id}</a></b> - ${t.type} | ${prio} | ${responsavel}${sla}`;
+      };
+
+      const formatItemText = (item: SustentacaoItemWithSLA, idx: number) => {
+        const t = item.task;
+        const id = t.externalId ?? String(t.id);
+        const url = buildUrl(id);
+        const prio = PRIO_LABEL[t.priority] ?? t.priority;
+        const responsavel =
+          !t.assignedToName || isWrongPosition(t)
+            ? 'Sem responsável'
+            : t.assignedToName;
+
+        let sla = '';
+        if (t.type === 'Ticket' && !item.slaExcluded) {
+          if (item.slaViolated) {
+            sla = ` | SLA: ${formatSlaDelay(item.businessHoursRemaining)}`;
+          } else {
+            sla = ` | SLA: ${formatSlaRemaining(item.businessHoursRemaining)} restante`;
+          }
+        }
+
+        return `${idx + 1}. #${id} (${url}) - ${t.type} | ${prio} | ${responsavel}${sla}`;
+      };
+
+      const htmlLines: string[] = [];
+      const textLines: string[] = [];
+
+      htmlLines.push(`<b>${sectionTitle} - Ordem de Prioridade</b><br/><br/>`);
+      textLines.push(`${sectionTitle} - Ordem de Prioridade`, '');
+
+      let counter = 0;
+
+      if (gestaoItems.length > 0) {
+        htmlLines.push(
+          `<b>Gestão de Terceiros (${gestaoItems.length})</b><br/>`,
+        );
+        textLines.push(`Gestão de Terceiros (${gestaoItems.length})`);
+        gestaoItems.forEach((item) => {
+          htmlLines.push(formatItemHtml(item, counter) + '<br/>');
+          textLines.push(formatItemText(item, counter));
+          counter++;
+        });
+        htmlLines.push('<br/>');
+        textLines.push('');
+      }
+
+      if (ctItems.length > 0) {
+        htmlLines.push(`<b>Chamada Tecnológica (${ctItems.length})</b><br/>`);
+        textLines.push(`Chamada Tecnológica (${ctItems.length})`);
+        ctItems.forEach((item) => {
+          htmlLines.push(formatItemHtml(item, counter) + '<br/>');
+          textLines.push(formatItemText(item, counter));
+          counter++;
+        });
+      }
+
+      const html = htmlLines.join('');
+      const text = textLines.join('\n');
+
+      const blob = new Blob([html], { type: 'text/html' });
+      const textBlob = new Blob([text], { type: 'text/plain' });
+      const item = new ClipboardItem({
+        'text/html': blob,
+        'text/plain': textBlob,
+      });
+      navigator.clipboard.write([item]).catch(() => {
+        // Fallback: copia só texto puro
+        navigator.clipboard.writeText(text).catch(() => {});
+      });
+    },
+    [showHidden, positionMap],
+  );
 
   const handleRowClick = useCallback((task: Task) => {
     setSelectedTask(task);
@@ -1241,124 +1545,90 @@ export function DashboardSustentacaoPage() {
         </Box>
       )}
 
-      {/* Content */}
-      <Stack spacing={3}>
-        {/* Desenvolvimento */}
-        <Box>
-          <Stack direction="row" alignItems="center" spacing={1} mb={1}>
-            <Typography variant="h6">Desenvolvimento</Typography>
-            <Chip
-              label={devItems.filter((i) => showHidden || !i.isHidden).length}
-              size="small"
-            />
-            <Tooltip title="Ordem de prioridade SLA">
-              <IconButton
-                size="small"
-                onClick={() =>
-                  setSlaOrderModal({
-                    open: true,
-                    title: 'Desenvolvimento',
-                    items: devItems,
-                  })
-                }
-              >
-                <SlaOrderIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Exportar PDF">
-              <IconButton
-                size="small"
-                onClick={() =>
-                  exportToPdf(
-                    devItems,
-                    'Desenvolvimento - Sustentação',
-                    showHidden,
-                  )
-                }
-              >
-                <PdfIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </Stack>
-          <ItemTable
-            items={devItems}
-            showAreaColumn
-            showHidden={showHidden}
-            onToggleSla={handleToggleSla}
-            onToggleHidden={handleToggleHidden}
-            onCopyLink={handleCopyLink}
-            onRowClick={handleRowClick}
-            positionMap={positionMap}
-            busyItems={busyItems}
-          />
-        </Box>
-
-        {/* Auditoria */}
-        <Box>
-          <Stack direction="row" alignItems="center" spacing={1} mb={1}>
-            <Typography variant="h6">Auditoria</Typography>
-            <Chip
-              label={auditItems.filter((i) => showHidden || !i.isHidden).length}
-              size="small"
-            />
-            <Tooltip title="Ordem de prioridade SLA">
-              <IconButton
-                size="small"
-                onClick={() =>
-                  setSlaOrderModal({
-                    open: true,
-                    title: 'Auditoria',
-                    items: auditItems,
-                  })
-                }
-              >
-                <SlaOrderIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Exportar PDF">
-              <IconButton
-                size="small"
-                onClick={() =>
-                  exportToPdf(auditItems, 'Auditoria - Sustentação', showHidden)
-                }
-              >
-                <PdfIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </Stack>
-          <ItemTable
-            items={auditItems}
-            showAreaColumn
-            showHidden={showHidden}
-            onToggleSla={handleToggleSla}
-            onToggleHidden={handleToggleHidden}
-            onCopyLink={handleCopyLink}
-            onRowClick={handleRowClick}
-            positionMap={positionMap}
-            busyItems={busyItems}
-          />
-        </Box>
-
-        {/* Análise */}
-        <Box>
-          <Stack direction="row" alignItems="center" spacing={1} mb={1}>
-            <Typography variant="h6">Análise</Typography>
-            <Chip
+      {/* Tabs */}
+      <Box>
+        <Stack
+          direction="row"
+          alignItems="center"
+          justifyContent="space-between"
+          sx={{ mb: 1 }}
+        >
+          <Tabs
+            value={activeTab}
+            onChange={(_, v) => setActiveTab(v)}
+            sx={{ minHeight: 40 }}
+          >
+            <Tab
               label={
-                analysisItems.filter((i) => showHidden || !i.isHidden).length
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  <span>Desenvolvimento</span>
+                  <Chip
+                    label={
+                      devItems.filter((i) => showHidden || !i.isHidden).length
+                    }
+                    size="small"
+                    color="primary"
+                    variant={activeTab === 0 ? 'filled' : 'outlined'}
+                    sx={{ height: 20, fontSize: '0.7rem' }}
+                  />
+                </Stack>
               }
-              size="small"
+              sx={{ minHeight: 40, textTransform: 'none', fontWeight: 600 }}
             />
+            <Tab
+              label={
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  <span>Auditoria</span>
+                  <Chip
+                    label={
+                      auditItems.filter((i) => showHidden || !i.isHidden).length
+                    }
+                    size="small"
+                    color="primary"
+                    variant={activeTab === 1 ? 'filled' : 'outlined'}
+                    sx={{ height: 20, fontSize: '0.7rem' }}
+                  />
+                </Stack>
+              }
+              sx={{ minHeight: 40, textTransform: 'none', fontWeight: 600 }}
+            />
+            <Tab
+              label={
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  <span>Análise</span>
+                  <Chip
+                    label={
+                      analysisItems.filter((i) => showHidden || !i.isHidden)
+                        .length
+                    }
+                    size="small"
+                    color="primary"
+                    variant={activeTab === 2 ? 'filled' : 'outlined'}
+                    sx={{ height: 20, fontSize: '0.7rem' }}
+                  />
+                </Stack>
+              }
+              sx={{ minHeight: 40, textTransform: 'none', fontWeight: 600 }}
+            />
+          </Tabs>
+
+          <Stack direction="row" spacing={0.5} alignItems="center">
             <Tooltip title="Ordem de prioridade SLA">
               <IconButton
                 size="small"
-                onClick={() =>
+                onClick={() => {
+                  const titles = [
+                    'Desenvolvimento',
+                    'Auditoria',
+                    'Análise',
+                  ];
+                  const itemSets = [devItems, auditItems, analysisItems];
                   setSlaOrderModal({
                     open: true,
-                    title: 'Análise',
-                    items: analysisItems,
-                  })
-                }
+                    title: titles[activeTab],
+                    items: itemSets[activeTab],
+                  });
+                }}
               >
                 <SlaOrderIcon fontSize="small" />
               </IconButton>
@@ -1366,31 +1636,65 @@ export function DashboardSustentacaoPage() {
             <Tooltip title="Exportar PDF">
               <IconButton
                 size="small"
-                onClick={() =>
-                  exportToPdf(
-                    analysisItems,
+                onClick={() => {
+                  const titles = [
+                    'Desenvolvimento - Sustentação',
+                    'Auditoria - Sustentação',
                     'Análise - Sustentação',
+                  ];
+                  const itemSets = [devItems, auditItems, analysisItems];
+                  exportToPdf(
+                    itemSets[activeTab],
+                    titles[activeTab],
                     showHidden,
-                  )
-                }
+                    positionMap,
+                  );
+                }}
               >
                 <PdfIcon fontSize="small" />
               </IconButton>
             </Tooltip>
+            <Tooltip title="Copiar lista de prioridade">
+              <IconButton
+                size="small"
+                onClick={() => {
+                  const titles = [
+                    'Desenvolvimento',
+                    'Auditoria',
+                    'Análise',
+                  ];
+                  const itemSets = [devItems, auditItems, analysisItems];
+                  handleCopyPriorityList(
+                    itemSets[activeTab],
+                    titles[activeTab],
+                  );
+                }}
+              >
+                <CopyAllIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
           </Stack>
-          <ItemTable
-            items={analysisItems}
-            showAreaColumn
-            showHidden={showHidden}
-            onToggleSla={handleToggleSla}
-            onToggleHidden={handleToggleHidden}
-            onCopyLink={handleCopyLink}
-            onRowClick={handleRowClick}
-            positionMap={positionMap}
-            busyItems={busyItems}
-          />
-        </Box>
-      </Stack>
+        </Stack>
+
+        {[devItems, auditItems, analysisItems].map((tabItems, idx) => (
+          <Box
+            key={idx}
+            sx={{ display: activeTab === idx ? 'block' : 'none' }}
+          >
+            <ItemTable
+              items={tabItems}
+              showAreaColumn
+              showHidden={showHidden}
+              onToggleSla={handleToggleSla}
+              onToggleHidden={handleToggleHidden}
+              onCopyLink={handleCopyLink}
+              onRowClick={handleRowClick}
+              positionMap={positionMap}
+              busyItems={busyItems}
+            />
+          </Box>
+        ))}
+      </Box>
 
       <SlaOrderModal
         open={slaOrderModal.open}

@@ -31,6 +31,12 @@ function formatPeriod(period: ReportPeriod): string {
   return `${start} - ${end}`;
 }
 
+// Project colors
+const PRIMARY = [37, 99, 235]; // #2563EB
+const TEXT_DARK = [15, 23, 42]; // #0F172A
+const TEXT_MUTED = [148, 163, 184]; // #94A3B8
+const ROW_ALT = [248, 250, 252]; // #F8FAFC
+
 export class ReportExporter {
   async exportPdf(
     items: ReportItem[],
@@ -53,12 +59,21 @@ export class ReportExporter {
         format: 'a4',
       });
 
-      doc.setFontSize(16);
+      // Header
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...TEXT_DARK);
       doc.text('Relatório Azure DevOps', 14, 15);
 
-      doc.setFontSize(10);
-      doc.text(`Período: ${formatPeriod(period)}`, 14, 22);
-      doc.text(`Total de itens: ${items.length}`, 14, 28);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...TEXT_MUTED);
+      doc.text(`Período: ${formatPeriod(period)}`, 14, 21);
+      doc.text(
+        `Total de itens: ${items.length}  ·  Gerado em ${new Date().toLocaleDateString('pt-BR')}`,
+        14,
+        26,
+      );
 
       const tableHead = [PDF_COLUMNS];
       const tableBody = items.map((item) => [
@@ -74,14 +89,27 @@ export class ReportExporter {
       autoTable(doc, {
         head: tableHead,
         body: tableBody,
-        startY: 33,
-        styles: { fontSize: 7, cellPadding: 1.5 },
-        headStyles: {
-          fillColor: [41, 128, 185],
-          textColor: 255,
-          fontStyle: 'bold',
+        startY: 31,
+        styles: {
+          fontSize: 7.5,
+          cellPadding: 2.5,
+          lineWidth: 0,
+          textColor: TEXT_DARK,
         },
-        alternateRowStyles: { fillColor: [245, 245, 245] },
+        headStyles: {
+          fillColor: PRIMARY,
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+          fontSize: 7,
+          cellPadding: 3,
+        },
+        alternateRowStyles: { fillColor: ROW_ALT },
+        tableLineWidth: 0,
+        theme: 'plain',
+        didParseCell: (data) => {
+          // Remove all borders
+          data.cell.styles.lineWidth = 0;
+        },
       });
 
       const pdfBuffer = doc.output('arraybuffer');

@@ -119,6 +119,7 @@ export const CONTROLLER_CONFIG = {
       'getSlaExclusions',
       'hideItem',
       'unhideItem',
+      'invalidateCache',
     ] as const,
   },
   azureDevOps: {

@@ -93,6 +93,47 @@ const HEAD_CELLS: StandardColumn[] = [
 // Status color mapping
 import { getStatusColor } from '@shared/constants/status-colors';
 
+/**
+ * Normalizes an Azure DevOps state string into a simplified status category.
+ * Mirrors the logic from work-item-type-mapper.ts so the filter works with
+ * the raw Azure state stored in task.status.
+ */
+function normalizeStatus(state: string): string {
+  const s = state.toLowerCase();
+
+  if (s === 'done' || s === 'closed' || s === 'resolved' || s === 'finalizado' || s === 'completed') {
+    return 'completed';
+  }
+
+  if (
+    s === 'active' ||
+    s === 'in progress' ||
+    s === 'committed' ||
+    s === 'in_progress' ||
+    s === 'em andamento' ||
+    s === 'em desenvolvimento' ||
+    s === 'em auditoria' ||
+    s === 'em homologação' ||
+    s === 'aguardando auditoria' ||
+    s === 'aguardando validação' ||
+    s === 'aguardando implantação' ||
+    s === 'aguardando homologação' ||
+    s === 'em implantação' ||
+    s === 'em validação' ||
+    s === 'em classificação' ||
+    s === 'preparando para dev' ||
+    s === 'aguardando desenvolvimento'
+  ) {
+    return 'in_progress';
+  }
+
+  if (s === 'removed' || s === 'cut' || s === 'cancelado' || s === 'cancelled') {
+    return 'cancelled';
+  }
+
+  return 'pending';
+}
+
 // Type color mapping
 const getTypeColor = (type: string): string => {
   const typeColors: Record<string, string> = {
@@ -171,7 +212,7 @@ export function TaskManagementPage() {
 
     // Status filter (Property 16)
     if (filters.status !== 'all') {
-      result = result.filter((t) => t.status === filters.status);
+      result = result.filter((t) => normalizeStatus(t.status) === filters.status);
     }
 
     // Type filter - Azure DevOps work item type

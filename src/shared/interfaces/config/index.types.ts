@@ -706,6 +706,7 @@ export interface IDashboardController {
   getSlaExclusions(): Promise<ApiResponse<string[]>>;
   hideItem(externalId: string, reason?: string): Promise<ApiResponse<void>>;
   unhideItem(externalId: string): Promise<ApiResponse<void>>;
+  invalidateCache(): Promise<ApiResponse<void>>;
 }
 
 export interface FullSyncResult {
@@ -949,6 +950,11 @@ export interface SustentacaoItemWithSLA extends SustentacaoItem {
   // expired = já estourou, critical = 1 dia, warning = 2 dias, attention = 3 dias
   slaExcluded?: boolean; // SLA removido manualmente pelo usuário
   isHidden?: boolean; // Item oculto/desativado pelo usuário
+  // Local priority SLA fields (calculated from prioritization note)
+  localPriorityDeadline?: string | null; // deadline da nota de priorização
+  localPriorityCreatedAt?: string | null; // quando a priorização foi criada
+  localPriorityHoursRemaining?: number | null; // horas restantes até estourar (negativo se estourado)
+  localPriorityExpired?: boolean; // se a priorização já estourou
 }
 
 /**

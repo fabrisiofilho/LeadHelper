@@ -54,6 +54,7 @@ const AVAILABLE_STATUSES = [
   'Backlog Comprometido',
   'Em levantamento',
   'Preparando para Dev',
+  'Aguardando desenvolvimento',
   'Aguardando validação',
   'Em validação',
   'Em desenvolvimento',

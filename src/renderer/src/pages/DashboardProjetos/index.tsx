@@ -96,6 +96,7 @@ function categorizeStatus(
     'Em validação',
     'Em classificação',
     'Preparando para Dev',
+    'Aguardando desenvolvimento',
   ];
   if (completed.includes(status)) return 'completed';
   if (cancelled.includes(status)) return 'cancelled';
@@ -147,6 +148,7 @@ function categorizeStatusDetailed(status: string): DetailedCategory {
     'Em Desenvolvimento',
     'Em desenvolvimento',
     'Preparando para Dev',
+    'Aguardando desenvolvimento',
     'Em classificação',
     'Backlog Comprometido',
   ];

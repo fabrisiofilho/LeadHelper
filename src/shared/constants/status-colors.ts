@@ -4,7 +4,7 @@
  * Colors follow the development lifecycle progression:
  *
  *   🔵 Planejamento (blues)        — Novo, Em classificação, Backlog Comprometido, Em levantamento
- *   🟡 Preparação (amber/yellow)   — Preparando para Dev, Aguardando validação, Em validação
+ *   🟡 Preparação (amber/yellow)   — Aguardando desenvolvimento, Preparando para Dev, Aguardando validação, Em validação
  *   🟠 Desenvolvimento (orange)    — Em desenvolvimento, Em andamento
  *   🟣 Qualidade (purples)         — Aguardando auditoria, Em auditoria
  *   💜 Homologação (deep purple)   — Aguardando homologação, Em homologação
@@ -24,7 +24,8 @@ export const STATUS_COLORS: Record<string, string> = {
   'Em levantamento': '#29B6F6', // light blue 400
 
   // ── Preparação (amber / yellow) ──
-  'Preparando para Dev': '#FFA726', // orange 400
+  'Aguardando desenvolvimento': '#FFA726', // orange 400
+  'Preparando para Dev': '#FFA726', // orange 400 (legacy)
   'Aguardando validação': '#FFCA28', // amber 400
   'Em validação': '#FFB300', // amber 600
 

@@ -204,6 +204,12 @@ export class DashboardController extends BaseHandler {
     }
   }
 
+  @IpcMethod('dashboard:invalidateCache')
+  async invalidateCache(): Promise<ApiResponse<void>> {
+    this.service.invalidateSustentacaoCache();
+    return { success: true };
+  }
+
   @IpcMethod('dashboard:getSustentacaoMetrics')
   async getSustentacaoMetrics(
     statuses?: string[],

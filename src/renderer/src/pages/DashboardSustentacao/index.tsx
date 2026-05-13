@@ -42,11 +42,13 @@ import {
   HourglassTop as OldestIcon,
   InfoOutlined as InfoIcon,
   FormatListNumbered as SlaOrderIcon,
+  PriorityHigh as PriorityHighIcon,
 } from '@mui/icons-material';
 import { PageLayout } from '@renderer/components/PageLayout';
 import { TaskViewModal } from '@renderer/components/TaskViewModal';
 import { WorkItemTypeChip } from '@renderer/components/WorkItemTypeChip';
 import { SlaOrderModal } from '@renderer/components/SlaOrderModal';
+import { PrioritizeItemModal } from '@renderer/components/PrioritizeItemModal';
 import { useSyncRefresh } from '@renderer/hooks/useSyncRefresh';
 import type {
   SustentacaoItemWithSLA,
@@ -83,6 +85,8 @@ const DEV_STATUSES = new Set([
   'Em desenvolvimento',
   'Preparando para Dev',
   'Preparando para dev',
+  'Aguardando desenvolvimento',
+  'Aguardando Desenvolvimento',
 ]);
 
 /** Statuses that belong to the "Auditoria" lane */
@@ -130,6 +134,11 @@ function dashboardSort(
   a: SustentacaoItemWithSLA,
   b: SustentacaoItemWithSLA,
 ): number {
+  // 0. Items with local priority always come first (higher localPriority = more urgent)
+  const aLocal = a.localPriority ?? 0;
+  const bLocal = b.localPriority ?? 0;
+  if (aLocal !== bLocal) return bLocal - aLocal; // DESC: higher priority first
+
   const aIsTicket = a.task.type === 'Ticket';
   const bIsTicket = b.task.type === 'Ticket';
   const aHasActiveSla = aIsTicket && !a.slaExcluded;
@@ -170,6 +179,22 @@ function formatSlaDelay(hours: number): string {
   if (d > 0 && h > 0) return `${d}d ${h}h atraso`;
   if (d > 0) return `${d}d atraso`;
   return `${h}h atraso`;
+}
+
+function formatLocalPrioRemaining(hours: number): string {
+  if (hours <= 0) {
+    const overdue = Math.abs(hours);
+    const d = Math.floor(overdue / 8);
+    const h = Math.round(overdue % 8);
+    if (d > 0 && h > 0) return `${d}d ${h}h atraso`;
+    if (d > 0) return `${d}d atraso`;
+    return `${h}h atraso`;
+  }
+  const d = Math.floor(hours / 8);
+  const h = Math.round(hours % 8);
+  if (d > 0 && h > 0) return `${d}d ${h}h`;
+  if (d > 0) return `${d}d`;
+  return `${h}h`;
 }
 
 function slaChipColor(
@@ -477,6 +502,7 @@ interface ItemRowProps {
   onToggleSla: (externalId: string, excluded: boolean) => void;
   onToggleHidden: (externalId: string, hidden: boolean) => void;
   onCopyLink: (externalId: string) => void;
+  onPrioritize: (item: SustentacaoItemWithSLA) => void;
   onRowClick: (task: Task) => void;
   positionMap: Map<string, string[]>;
   isBusy: boolean;
@@ -488,6 +514,7 @@ const ItemRow = memo(function ItemRow({
   onToggleSla,
   onToggleHidden,
   onCopyLink,
+  onPrioritize,
   onRowClick,
   positionMap,
   isBusy,
@@ -621,71 +648,128 @@ const ItemRow = memo(function ItemRow({
         </Stack>
       </TableCell>
 
-      {/* SLA */}
+      {/* SLA / Priorização */}
       <TableCell sx={{ verticalAlign: 'middle', py: 1, whiteSpace: 'nowrap' }}>
-        {isTicket ? (
-          item.slaExcluded ? (
-            <Chip label="Excluído" size="small" variant="outlined" />
-          ) : (
-            <Stack spacing={0.3}>
-              <Stack direction="row" alignItems="center" spacing={0.5}>
-                <Chip
-                  icon={item.slaViolated ? <TimerOffIcon /> : <TimerIcon />}
-                  label={
-                    item.slaViolated
-                      ? formatSlaDelay(item.businessHoursRemaining)
-                      : formatSlaRemaining(item.businessHoursRemaining)
-                  }
-                  size="small"
-                  color={slaChipColor(item)}
-                  variant={item.slaViolated ? 'filled' : 'outlined'}
-                />
-                {!item.slaViolated &&
-                  item.businessHoursRemaining > 0 &&
-                  item.businessHoursRemaining <= 8 && (
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        color: 'warning.dark',
-                        fontWeight: 700,
-                        fontSize: '0.65rem',
-                        lineHeight: 1,
-                      }}
-                    >
-                      ⚠ Urgente
-                    </Typography>
-                  )}
+        <Stack spacing={0.5}>
+          {/* SLA row (Tickets only) */}
+          {isTicket ? (
+            item.slaExcluded ? (
+              <Chip label="SLA Excluído" size="small" variant="outlined" />
+            ) : (
+              <Stack spacing={0.3}>
+                <Stack direction="row" alignItems="center" spacing={0.5}>
+                  <Chip
+                    icon={item.slaViolated ? <TimerOffIcon /> : <TimerIcon />}
+                    label={
+                      item.slaViolated
+                        ? formatSlaDelay(item.businessHoursRemaining)
+                        : formatSlaRemaining(item.businessHoursRemaining)
+                    }
+                    size="small"
+                    color={slaChipColor(item)}
+                    variant={item.slaViolated ? 'filled' : 'outlined'}
+                  />
+                  {!item.slaViolated &&
+                    item.businessHoursRemaining > 0 &&
+                    item.businessHoursRemaining <= 8 && (
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color: 'warning.dark',
+                          fontWeight: 700,
+                          fontSize: '0.65rem',
+                          lineHeight: 1,
+                        }}
+                      >
+                        ⚠ Urgente
+                      </Typography>
+                    )}
+                </Stack>
+                {item.expirationDate && (
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: item.slaViolated
+                        ? 'error.main'
+                        : item.slaWarning
+                          ? 'warning.main'
+                          : 'text.secondary',
+                      fontWeight: item.slaViolated ? 700 : 400,
+                      fontSize: '0.7rem',
+                    }}
+                  >
+                    {item.slaViolated ? 'Limite: ' : ''}
+                    {new Date(item.expirationDate).toLocaleDateString(
+                      'pt-BR',
+                    )}{' '}
+                    {new Date(item.expirationDate).toLocaleTimeString('pt-BR', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </Typography>
+                )}
               </Stack>
-              {item.expirationDate && (
+            )
+          ) : (
+            <Typography variant="caption" color="text.disabled">
+              —
+            </Typography>
+          )}
+
+          {/* Local priority row */}
+          {item.localPriority > 0 && (
+            <Stack spacing={0.3}>
+              <Chip
+                icon={
+                  <PriorityHighIcon
+                    sx={{ fontSize: 14, color: '#fff !important' }}
+                  />
+                }
+                label={
+                  item.localPriorityHoursRemaining != null
+                    ? item.localPriorityExpired
+                      ? formatLocalPrioRemaining(
+                          item.localPriorityHoursRemaining,
+                        )
+                      : formatLocalPrioRemaining(
+                          item.localPriorityHoursRemaining,
+                        )
+                    : `Prioridade ${item.localPriority}`
+                }
+                size="small"
+                sx={{
+                  fontWeight: 700,
+                  bgcolor: item.localPriorityExpired ? '#DC2626' : '#F59E0B',
+                  color: '#fff',
+                  fontSize: '0.7rem',
+                  '& .MuiChip-icon': { color: '#fff' },
+                }}
+                variant="filled"
+              />
+              {item.localPriorityDeadline && (
                 <Typography
                   variant="caption"
                   sx={{
-                    color: item.slaViolated
+                    color: item.localPriorityExpired
                       ? 'error.main'
-                      : item.slaWarning
-                        ? 'warning.main'
-                        : 'text.secondary',
-                    fontWeight: item.slaViolated ? 700 : 400,
+                      : '#B45309',
+                    fontWeight: item.localPriorityExpired ? 700 : 400,
                     fontSize: '0.7rem',
                   }}
                 >
-                  {item.slaViolated ? 'Limite: ' : ''}
-                  {new Date(item.expirationDate).toLocaleDateString(
+                  {item.localPriorityExpired ? 'Prazo: ' : ''}
+                  {new Date(item.localPriorityDeadline).toLocaleDateString(
                     'pt-BR',
                   )}{' '}
-                  {new Date(item.expirationDate).toLocaleTimeString('pt-BR', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
+                  {new Date(item.localPriorityDeadline).toLocaleTimeString(
+                    'pt-BR',
+                    { hour: '2-digit', minute: '2-digit' },
+                  )}
                 </Typography>
               )}
             </Stack>
-          )
-        ) : (
-          <Typography variant="caption" color="text.disabled">
-            —
-          </Typography>
-        )}
+          )}
+        </Stack>
       </TableCell>
 
       {/* Ações */}
@@ -696,7 +780,7 @@ const ItemRow = memo(function ItemRow({
         {isBusy ? (
           <CircularProgress size={20} sx={{ mx: 1 }} />
         ) : (
-          <>
+          <Stack direction="row" spacing={0.5} alignItems="center">
             {isTicket && (
               <Tooltip
                 title={item.slaExcluded ? 'Restaurar SLA' : 'Excluir SLA'}
@@ -713,6 +797,31 @@ const ItemRow = memo(function ItemRow({
                 </IconButton>
               </Tooltip>
             )}
+            <Tooltip
+              title={
+                item.localPriority > 0
+                  ? 'Alterar prioridade local'
+                  : 'Priorizar item'
+              }
+            >
+              <IconButton
+                size="small"
+                onClick={() => onPrioritize(item)}
+                sx={{
+                  color: item.localPriority > 0 ? '#F59E0B' : undefined,
+                }}
+              >
+                <PriorityHighIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Copiar link Azure">
+              <IconButton
+                size="small"
+                onClick={() => onCopyLink(t.externalId!)}
+              >
+                <CopyIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
             <Tooltip title={item.isHidden ? 'Mostrar item' : 'Ocultar item'}>
               <IconButton
                 size="small"
@@ -725,15 +834,7 @@ const ItemRow = memo(function ItemRow({
                 )}
               </IconButton>
             </Tooltip>
-            <Tooltip title="Copiar link Azure">
-              <IconButton
-                size="small"
-                onClick={() => onCopyLink(t.externalId!)}
-              >
-                <CopyIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </>
+          </Stack>
         )}
       </TableCell>
     </TableRow>
@@ -749,6 +850,7 @@ interface ItemTableProps {
   onToggleSla: (externalId: string, excluded: boolean) => void;
   onToggleHidden: (externalId: string, hidden: boolean) => void;
   onCopyLink: (externalId: string) => void;
+  onPrioritize: (item: SustentacaoItemWithSLA) => void;
   onRowClick: (task: Task) => void;
   positionMap: Map<string, string[]>;
   busyItems: Set<string>;
@@ -763,6 +865,7 @@ const ItemTable = memo(function ItemTable({
   onToggleSla,
   onToggleHidden,
   onCopyLink,
+  onPrioritize,
   onRowClick,
   positionMap,
   busyItems,
@@ -809,7 +912,7 @@ const ItemTable = memo(function ItemTable({
             <TableCell>Título</TableCell>
             <TableCell>Status</TableCell>
             <TableCell>Responsável</TableCell>
-            <TableCell>SLA</TableCell>
+            <TableCell>SLA / Priorização</TableCell>
             <TableCell>Ações</TableCell>
           </TableRow>
         </TableHead>
@@ -822,6 +925,7 @@ const ItemTable = memo(function ItemTable({
               onToggleSla={onToggleSla}
               onToggleHidden={onToggleHidden}
               onCopyLink={onCopyLink}
+              onPrioritize={onPrioritize}
               onRowClick={onRowClick}
               positionMap={positionMap}
               isBusy={busyItems.has(item.task.externalId ?? '')}
@@ -974,6 +1078,8 @@ export function DashboardSustentacaoPage() {
     title: '',
     items: [],
   });
+  const [prioritizeItem, setPrioritizeItem] =
+    useState<SustentacaoItemWithSLA | null>(null);
 
   const api = (
     window as unknown as {
@@ -1300,6 +1406,17 @@ export function DashboardSustentacaoPage() {
     setSelectedTask(null);
   }, []);
 
+  const handlePrioritize = useCallback((item: SustentacaoItemWithSLA) => {
+    setPrioritizeItem(item);
+  }, []);
+
+  const handlePrioritizeSaved = useCallback(async () => {
+    setPrioritizeItem(null);
+    // Invalidate backend cache so refreshData gets fresh data
+    await api.dashboard.invalidateCache();
+    refreshData();
+  }, [refreshData, api]);
+
   // ── derived data ──
 
   const filteredItems = useMemo(() => {
@@ -1617,11 +1734,7 @@ export function DashboardSustentacaoPage() {
               <IconButton
                 size="small"
                 onClick={() => {
-                  const titles = [
-                    'Desenvolvimento',
-                    'Auditoria',
-                    'Análise',
-                  ];
+                  const titles = ['Desenvolvimento', 'Auditoria', 'Análise'];
                   const itemSets = [devItems, auditItems, analysisItems];
                   setSlaOrderModal({
                     open: true,
@@ -1658,11 +1771,7 @@ export function DashboardSustentacaoPage() {
               <IconButton
                 size="small"
                 onClick={() => {
-                  const titles = [
-                    'Desenvolvimento',
-                    'Auditoria',
-                    'Análise',
-                  ];
+                  const titles = ['Desenvolvimento', 'Auditoria', 'Análise'];
                   const itemSets = [devItems, auditItems, analysisItems];
                   handleCopyPriorityList(
                     itemSets[activeTab],
@@ -1677,10 +1786,7 @@ export function DashboardSustentacaoPage() {
         </Stack>
 
         {[devItems, auditItems, analysisItems].map((tabItems, idx) => (
-          <Box
-            key={idx}
-            sx={{ display: activeTab === idx ? 'block' : 'none' }}
-          >
+          <Box key={idx} sx={{ display: activeTab === idx ? 'block' : 'none' }}>
             <ItemTable
               items={tabItems}
               showAreaColumn
@@ -1688,6 +1794,7 @@ export function DashboardSustentacaoPage() {
               onToggleSla={handleToggleSla}
               onToggleHidden={handleToggleHidden}
               onCopyLink={handleCopyLink}
+              onPrioritize={handlePrioritize}
               onRowClick={handleRowClick}
               positionMap={positionMap}
               busyItems={busyItems}
@@ -1709,6 +1816,13 @@ export function DashboardSustentacaoPage() {
         open={isTaskModalOpen}
         task={selectedTask}
         onClose={handleCloseTaskModal}
+      />
+
+      <PrioritizeItemModal
+        open={prioritizeItem !== null}
+        item={prioritizeItem}
+        onClose={() => setPrioritizeItem(null)}
+        onSaved={handlePrioritizeSaved}
       />
     </PageLayout>
   );

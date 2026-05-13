@@ -24,6 +24,7 @@ import { getStatusColor as _getStatusColor } from '@shared/constants/status-colo
 
 import { TaskSlaExclusionRepository } from '../repositories/task-sla-exclusion-repository';
 import { TaskHiddenRepository } from '../repositories/task-hidden-repository';
+import { NoteCardRepository } from '../repositories/note-card-repository';
 
 export interface DashboardPeriod {
   startDate: Date;
@@ -313,6 +314,7 @@ const IN_PROGRESS_STATUSES = [
   'Em validação',
   'Em classificação',
   'Preparando para Dev',
+  'Aguardando desenvolvimento',
 ];
 
 /**
@@ -476,6 +478,7 @@ export class DashboardService {
   private taskUpdateRepository: TaskUpdateRepository;
   private slaExclusionRepository: TaskSlaExclusionRepository;
   private hiddenRepository: TaskHiddenRepository;
+  private noteCardRepository: NoteCardRepository;
 
   // Short-lived cache for getSustentacaoItems (avoids double calculation when metrics are fetched right after items)
   private _sustentacaoCache: {
@@ -512,6 +515,7 @@ export class DashboardService {
     this.slaExclusionRepository =
       slaExclusionRepository ?? new TaskSlaExclusionRepository();
     this.hiddenRepository = hiddenRepository ?? new TaskHiddenRepository();
+    this.noteCardRepository = new NoteCardRepository();
   }
 
   // Reserved for future use - suppress unused warning
@@ -827,6 +831,40 @@ export class DashboardService {
     const hiddenItems =
       await this.hiddenRepository.findByExternalIds(externalIds);
 
+    // Get active prioritization notes to calculate local priority SLA
+    // Build a map: taskInternalId -> { deadline, createdAt, localPriority }
+    const prioNoteMap = new Map<
+      number,
+      { deadline?: Date; createdAt: Date; localPriority: number }
+    >();
+    try {
+      const activeNotes = await this.noteCardRepository.findAllActive();
+      for (const note of activeNotes) {
+        if (!note.title.startsWith('Priorização #')) continue;
+        const taskLinks = (note.links ?? []).filter(
+          (l) => l.entityType === 'task',
+        );
+        for (const link of taskLinks) {
+          // Find the localPriority for this task
+          const task = filteredTasks.find((t) => t.id === link.entityId);
+          if (!task?.externalId) continue;
+          const lp = priorityMap.get(task.externalId) ?? 0;
+          if (lp > 0) {
+            prioNoteMap.set(link.entityId, {
+              deadline: note.deadline ?? undefined,
+              createdAt: note.createdAt ?? new Date(),
+              localPriority: lp,
+            });
+          }
+        }
+      }
+    } catch (error) {
+      logger.warning(
+        'Failed to load prioritization notes for SLA calculation',
+        error,
+      );
+    }
+
     const now = new Date();
     const HOURS_PER_DAY = 8;
 
@@ -900,6 +938,48 @@ export class DashboardService {
         }
       }
 
+      // Local priority SLA calculation
+      // If deadline is set: remaining = deadline - now
+      // If no deadline: remaining = priorityHours - elapsed since note creation
+      const PRIO_HOURS: Record<number, number> = {
+        4: 4,
+        3: 8,
+        2: 24,
+        1: 40,
+      };
+      const prioNote = prioNoteMap.get(task.id);
+      let localPriorityDeadline: string | null = null;
+      let localPriorityCreatedAt: string | null = null;
+      let localPriorityHoursRemaining: number | null = null;
+      let localPriorityExpired = false;
+
+      if (prioNote && localPriority > 0) {
+        localPriorityCreatedAt = prioNote.createdAt.toISOString();
+        if (prioNote.deadline) {
+          // Deadline-based: calculate hours remaining until deadline
+          localPriorityDeadline = prioNote.deadline.toISOString();
+          const hoursToDeadline = calculateBusinessHours(
+            now,
+            prioNote.deadline,
+          );
+          // If deadline is in the past, hoursToDeadline will be 0 or we need to negate
+          if (prioNote.deadline <= now) {
+            const overdue = calculateBusinessHours(prioNote.deadline, now);
+            localPriorityHoursRemaining = -overdue;
+            localPriorityExpired = true;
+          } else {
+            localPriorityHoursRemaining = hoursToDeadline;
+            localPriorityExpired = false;
+          }
+        } else {
+          // Priority-based: createdAt + priorityHours
+          const prioLimit = PRIO_HOURS[localPriority] ?? 24;
+          const elapsed = calculateBusinessHours(prioNote.createdAt, now);
+          localPriorityHoursRemaining = prioLimit - elapsed;
+          localPriorityExpired = localPriorityHoursRemaining <= 0;
+        }
+      }
+
       return {
         task,
         localPriority,
@@ -917,10 +997,14 @@ export class DashboardService {
         expirationAlert,
         slaExcluded: isSlaExcluded,
         isHidden,
+        localPriorityDeadline,
+        localPriorityCreatedAt,
+        localPriorityHoursRemaining,
+        localPriorityExpired,
       };
     });
 
-    // Sort: priority (critical first), then hours remaining ASC
+    // Sort: local priority first (higher = more urgent), then azure priority, then hours remaining ASC
     const priorityOrder: Record<string, number> = {
       critical: 0,
       high: 1,
@@ -928,6 +1012,9 @@ export class DashboardService {
       low: 3,
     };
     items.sort((a, b) => {
+      // Items with local priority come first (higher localPriority = more urgent)
+      if (a.localPriority !== b.localPriority)
+        return b.localPriority - a.localPriority;
       const aPrio = priorityOrder[a.task.priority] ?? 99;
       const bPrio = priorityOrder[b.task.priority] ?? 99;
       if (aPrio !== bPrio) return aPrio - bPrio;
@@ -936,6 +1023,15 @@ export class DashboardService {
 
     this._sustentacaoCache = { data: items, ts: Date.now() };
     return items;
+  }
+
+  /**
+   * Invalidate the Sustentação items cache.
+   * Should be called when local priority, SLA exclusion, or hidden status changes.
+   */
+  invalidateSustentacaoCache(): void {
+    this._sustentacaoCache = null;
+    logger.debug('[DashboardService] Sustentação cache invalidated');
   }
 
   /**
@@ -1852,6 +1948,7 @@ export class DashboardService {
       'Em Desenvolvimento',
       'Em desenvolvimento',
       'Preparando para Dev',
+      'Aguardando desenvolvimento',
       'Em classificação',
       'Backlog Comprometido',
       'Aguardando Auditoria',

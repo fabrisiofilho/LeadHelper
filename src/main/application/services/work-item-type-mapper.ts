@@ -41,7 +41,8 @@ export function mapWorkItemStateToTaskStatus(state: string): TaskStatus {
     normalizedState === 'aguardando auditoria' ||
     normalizedState === 'aguardando validação' ||
     normalizedState === 'aguardando implantação' ||
-    normalizedState === 'preparando para dev'
+    normalizedState === 'preparando para dev' ||
+    normalizedState === 'aguardando desenvolvimento'
   ) {
     return 'in_progress';
   }

@@ -6,6 +6,7 @@ import { TeamMemberRepository } from '../repositories/team-member-repository';
 import { TeamRepository } from '../repositories/team-repository';
 import { PositionRepository } from '../repositories/position-repository';
 import { TaskRepository } from '../repositories/task-repository';
+import { TaskLocalPriorityRepository } from '../repositories/task-local-priority-repository';
 import { logger } from '@main/infrastructure/log/logger';
 import type {
   NoteCard,
@@ -14,6 +15,9 @@ import type {
   UpdateNoteCardInput,
 } from '@shared/interfaces/config/index.types';
 
+/** Prefix used to identify prioritization notes created from the Dashboard Sustentação */
+const PRIO_NOTE_PREFIX = 'Priorização #';
+
 export class NoteCardService {
   private noteCardRepository: NoteCardRepository;
   private noteLinkRepository: NoteLinkRepository;
@@ -21,6 +25,7 @@ export class NoteCardService {
   private teamRepository: TeamRepository;
   private positionRepository: PositionRepository;
   private taskRepository: TaskRepository;
+  private taskLocalPriorityRepository: TaskLocalPriorityRepository;
 
   constructor(
     noteCardRepository?: NoteCardRepository,
@@ -32,6 +37,7 @@ export class NoteCardService {
     this.teamRepository = new TeamRepository();
     this.positionRepository = new PositionRepository();
     this.taskRepository = new TaskRepository();
+    this.taskLocalPriorityRepository = new TaskLocalPriorityRepository();
   }
 
   async create(input: CreateNoteCardInput): Promise<NoteCard> {
@@ -116,6 +122,9 @@ export class NoteCardService {
     entity.completedAt = new Date();
     await this.noteCardRepository.save(entity);
 
+    // If this is a prioritization note, remove the local priority from the linked task
+    await this.removePriorityIfPrioritizationNote(entity);
+
     const completed = await this.noteCardRepository.findByIdWithLinks(id);
     return this.mapToDto(completed!);
   }
@@ -142,10 +151,13 @@ export class NoteCardService {
   async delete(id: number): Promise<void> {
     logger.info('Deleting note card', { id });
 
-    const entity = await this.noteCardRepository.findOneBy({ id });
+    const entity = await this.noteCardRepository.findByIdWithLinks(id);
     if (!entity) {
       throw new Error('Nota não encontrada');
     }
+
+    // If this is a prioritization note, remove the local priority from the linked task
+    await this.removePriorityIfPrioritizationNote(entity);
 
     await this.noteLinkRepository.deleteByNoteCardId(id);
     await this.noteCardRepository.delete({ id } as any);
@@ -165,6 +177,44 @@ export class NoteCardService {
     const entity = await this.noteCardRepository.findByIdWithLinks(id);
     if (!entity) return null;
     return this.mapToDto(entity);
+  }
+
+  // ── Priority cleanup for prioritization notes ───────────────
+
+  /**
+   * If the note is a prioritization note (title starts with "Priorização #"),
+   * find the linked task and remove its local priority.
+   * This ensures that completing or deleting a prioritization note from the
+   * Notes Board also clears the priority from the Dashboard Sustentação.
+   */
+  private async removePriorityIfPrioritizationNote(
+    entity: NoteCardEntity,
+  ): Promise<void> {
+    if (!entity.title.startsWith(PRIO_NOTE_PREFIX)) return;
+
+    const links = entity.links ?? [];
+    const taskLinks = links.filter((l) => l.entityType === 'task');
+
+    for (const link of taskLinks) {
+      try {
+        const task = await this.taskRepository.findOne({
+          where: { id: link.entityId },
+        });
+        if (task?.externalId) {
+          logger.info(
+            `Removing local priority for task ${task.externalId} (prioritization note ${entity.id} completed/deleted)`,
+          );
+          await this.taskLocalPriorityRepository.deleteByExternalId(
+            task.externalId,
+          );
+        }
+      } catch (error) {
+        logger.warning(
+          `Failed to remove local priority for task link ${link.entityId}`,
+          error,
+        );
+      }
+    }
   }
 
   // ── Validation ──────────────────────────────────────────────

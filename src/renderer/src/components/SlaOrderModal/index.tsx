@@ -222,49 +222,67 @@ export function SlaOrderModal({
                       />
                     </TableCell>
                     <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      <Stack spacing={0.3}>
+                      {!item.expirationDate ? (
                         <Chip
-                          icon={
-                            item.slaViolated ? <TimerOffIcon /> : <TimerIcon />
-                          }
-                          label={
-                            item.slaViolated
-                              ? formatSlaDelay(item.businessHoursRemaining)
-                              : formatSlaRemaining(item.businessHoursRemaining)
-                          }
+                          label="Sem SLA"
                           size="small"
-                          color={
-                            item.slaViolated
-                              ? 'error'
-                              : item.slaWarning
-                                ? 'warning'
-                                : 'info'
-                          }
-                          variant={item.slaViolated ? 'filled' : 'outlined'}
+                          variant="outlined"
+                          sx={{
+                            color: 'text.disabled',
+                            borderColor: 'divider',
+                          }}
                         />
-                        {item.expirationDate && (
-                          <Typography
-                            variant="caption"
-                            sx={{
-                              color: item.slaViolated
-                                ? 'error.main'
-                                : 'text.secondary',
-                              fontSize: '0.7rem',
-                            }}
-                          >
-                            {new Date(item.expirationDate).toLocaleDateString(
-                              'pt-BR',
-                            )}{' '}
-                            {new Date(item.expirationDate).toLocaleTimeString(
-                              'pt-BR',
-                              {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              },
-                            )}
-                          </Typography>
-                        )}
-                      </Stack>
+                      ) : (
+                        <Stack spacing={0.3}>
+                          <Chip
+                            icon={
+                              item.slaViolated ? (
+                                <TimerOffIcon />
+                              ) : (
+                                <TimerIcon />
+                              )
+                            }
+                            label={
+                              item.slaViolated
+                                ? formatSlaDelay(item.businessHoursRemaining)
+                                : formatSlaRemaining(
+                                    item.businessHoursRemaining,
+                                  )
+                            }
+                            size="small"
+                            color={
+                              item.slaViolated
+                                ? 'error'
+                                : item.slaWarning
+                                  ? 'warning'
+                                  : 'info'
+                            }
+                            variant={item.slaViolated ? 'filled' : 'outlined'}
+                          />
+                          {item.expirationDate && (
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: item.slaViolated
+                                  ? 'error.main'
+                                  : 'text.secondary',
+                                fontSize: '0.7rem',
+                              }}
+                            >
+                              {new Date(item.expirationDate).toLocaleDateString(
+                                'pt-BR',
+                              )}{' '}
+                              {new Date(item.expirationDate).toLocaleTimeString(
+                                'pt-BR',
+                                {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                },
+                              )}
+                            </Typography>
+                          )}
+                        </Stack>
+                      )}
                     </TableCell>
                   </TableRow>
                 );

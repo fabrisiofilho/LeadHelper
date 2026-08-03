@@ -2,13 +2,15 @@ import { styled, Box } from '@mui/material';
 
 export const PageContainer = styled(Box)(({ theme }) => ({
   padding: theme.spacing(3),
-  maxWidth: 1600,
+  maxWidth: 1440,
   margin: '0 auto',
   width: '100%',
   height: '100%',
   display: 'flex',
   flexDirection: 'column',
-  overflow: 'hidden',
+  [theme.breakpoints.down('sm')]: {
+    padding: theme.spacing(2),
+  },
 }));
 
 export const ContentArea = styled(Box)(({ theme }) => ({

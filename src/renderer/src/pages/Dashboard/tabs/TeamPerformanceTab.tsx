@@ -20,11 +20,12 @@ import { useTeamMembers } from '@renderer/hooks/useTeamMembers';
 import type { DashboardPeriod } from '@shared/interfaces/config/index.types';
 import { getInitials, ROLE_COLORS } from '@renderer/utils/member';
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept for interface compatibility
 interface TeamPerformanceTabProps {
   period: DashboardPeriod;
 }
 
-export function TeamPerformanceTab({ period }: TeamPerformanceTabProps) {
+export function TeamPerformanceTab() {
   const { sprints } = useSprints();
   const { tasks } = useTasks();
   const { teamMembers } = useTeamMembers();

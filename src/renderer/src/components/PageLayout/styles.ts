@@ -4,7 +4,7 @@ import { Box } from '@mui/material';
 export const PageContainer = styled(Box)`
   padding: 1.5rem;
   min-height: 100%;
-  max-width: 1400px;
+  max-width: 1440px;
   margin: 0 auto;
   width: 100%;
   background-color: ${({ theme }) => theme.COLORS.background};

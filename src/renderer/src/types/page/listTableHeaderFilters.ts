@@ -10,7 +10,7 @@ export interface IListTableFilterItem {
 export type GetPaginatedFilterItemsFunction<T, P> = AsyncThunk<
   IPage<T> | null,
   IPageRequestParams & P,
-  {}
+  object
 >;
 
 export interface IListTableFilterPaginated {

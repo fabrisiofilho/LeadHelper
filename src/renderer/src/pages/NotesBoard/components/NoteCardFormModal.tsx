@@ -8,11 +8,19 @@ import {
   Box,
   Grid,
   CircularProgress,
+  ToggleButtonGroup,
+  ToggleButton,
+  FormControlLabel,
+  Switch,
+  Alert,
 } from '@mui/material';
 import {
   Link as LinkIcon,
   Notes as NotesIcon,
   Schedule as ScheduleIcon,
+  Event as SingleDayIcon,
+  DateRange as PeriodIcon,
+  NotInterested as NoDayIcon,
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { TimePicker } from '@mui/x-date-pickers/TimePicker';
@@ -36,6 +44,9 @@ import type {
 // Types
 // ============================================================================
 
+/** How the user has configured the date for this note */
+type DateMode = 'none' | 'single' | 'period';
+
 interface LinkOption {
   id: number;
   label: string;
@@ -45,8 +56,17 @@ interface LinkOption {
 interface NoteCardFormData {
   title: string;
   body: string;
-  deadlineDate: Date | null;
-  deadlineTime: Date | null;
+  dateMode: DateMode;
+  /** Start date only (day-level) */
+  startDate: Date | null;
+  /** Start time — only used when allDay is false */
+  startTime: Date | null;
+  /** End date only — only used in 'period' mode */
+  endDate: Date | null;
+  /** End time — only used in 'period' mode when allDay is false */
+  endTime: Date | null;
+  /** When true, only dates are shown (no time) */
+  allDay: boolean;
   memberLinks: LinkOption[];
   teamLinks: LinkOption[];
   positionLinks: LinkOption[];
@@ -70,13 +90,84 @@ export interface NoteCardFormModalProps {
 // Helpers
 // ============================================================================
 
-function isBodyEmpty(html: string): boolean {
-  return (
-    html
-      .replace(/<[^>]*>/g, '')
-      .replace(/&nbsp;/g, ' ')
-      .trim().length === 0
-  );
+/** Derive the DateMode from an existing NoteCard — uses stored value first, falls back to inference */
+function deriveDateMode(noteCard: NoteCard | null | undefined): DateMode {
+  if (!noteCard) return 'none';
+  // Use stored dateMode if present (new notes after migration 009)
+  if (noteCard.dateMode && noteCard.dateMode !== 'none')
+    return noteCard.dateMode;
+  if (noteCard.dateMode === 'none') return 'none';
+  // Fallback inference for legacy notes without dateMode
+  if (noteCard.startDate && noteCard.deadline) return 'period';
+  if (noteCard.startDate || noteCard.deadline) return 'single';
+  return 'none';
+}
+
+/** Parse a NoteCard's dates into separate date + time form values */
+function parseDates(
+  noteCard: NoteCard | null | undefined,
+  mode: DateMode,
+): {
+  startDate: Date | null;
+  startTime: Date | null;
+  endDate: Date | null;
+  endTime: Date | null;
+  allDay: boolean;
+} {
+  if (!noteCard)
+    return {
+      startDate: null,
+      startTime: null,
+      endDate: null,
+      endTime: null,
+      allDay: true,
+    };
+  const allDay = noteCard.allDay !== false;
+
+  const extractTime = (iso: string | null | undefined): Date | null => {
+    if (!iso || allDay) return null;
+    const d = new Date(iso);
+    const t = new Date();
+    t.setHours(d.getHours(), d.getMinutes(), 0, 0);
+    return t;
+  };
+
+  const extractDate = (iso: string | null | undefined): Date | null => {
+    if (!iso) return null;
+    const d = new Date(iso);
+    const dateOnly = new Date(d);
+    dateOnly.setHours(0, 0, 0, 0);
+    return dateOnly;
+  };
+
+  if (mode === 'single') {
+    const raw = noteCard.startDate ?? noteCard.deadline;
+    return {
+      startDate: extractDate(raw),
+      startTime: extractTime(raw),
+      endDate: null,
+      endTime: null,
+      allDay,
+    };
+  }
+
+  if (mode === 'period') {
+    return {
+      startDate: extractDate(noteCard.startDate),
+      startTime: extractTime(noteCard.startDate),
+      endDate: extractDate(noteCard.deadline),
+      endTime: extractTime(noteCard.deadline),
+      allDay,
+    };
+  }
+
+  return {
+    startDate: null,
+    startTime: null,
+    endDate: null,
+    endTime: null,
+    allDay,
+  };
 }
 
 function toMemberOptions(members: TeamMember[]): LinkOption[] {
@@ -113,29 +204,51 @@ function toTaskOptions(tasks: Task[]): LinkOption[] {
   }));
 }
 
-/** Combine a date and a time into a single ISO string. Time defaults to 23:59 if not set. */
-function combineDeadline(date: Date | null, time: Date | null): string | null {
+/**
+ * Combine a date-only value + optional time value into an ISO string.
+ * When allDay=true, time is ignored — start is set to 00:00, end to 23:59.
+ */
+function toIso(
+  date: Date | null,
+  time: Date | null,
+  allDay: boolean,
+  isEndDate = false,
+): string | null {
   if (!date) return null;
   const d = new Date(date);
-  if (time) {
+  if (allDay) {
+    if (isEndDate) {
+      d.setHours(23, 59, 59, 0);
+    } else {
+      d.setHours(0, 0, 0, 0);
+    }
+  } else if (time) {
     d.setHours(time.getHours(), time.getMinutes(), 0, 0);
   } else {
-    d.setHours(23, 59, 0, 0);
+    d.setHours(0, 0, 0, 0);
   }
   return d.toISOString();
 }
 
-/** Split an ISO deadline string into separate date and time Date objects. */
-function splitDeadline(deadline: string | null | undefined): {
-  date: Date | null;
-  time: Date | null;
-} {
-  if (!deadline) return { date: null, time: null };
-  const d = new Date(deadline);
-  if (isNaN(d.getTime())) return { date: null, time: null };
-  const dateOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const timeOnly = new Date(2000, 0, 1, d.getHours(), d.getMinutes());
-  return { date: dateOnly, time: timeOnly };
+/** Returns true if the given time is outside business hours (08:00–17:30) */
+function isOutsideBusinessHours(time: Date | null): boolean {
+  if (!time) return false;
+  const h = time.getHours();
+  const m = time.getMinutes();
+  const totalMinutes = h * 60 + m;
+  return totalMinutes < 8 * 60 || totalMinutes > 17 * 60 + 30;
+}
+
+/** Merge a date-only field with a time field into a single Date for min/max constraints */
+function mergeDateAndTime(date: Date | null, time: Date | null): Date | null {
+  if (!date) return null;
+  const merged = new Date(date);
+  if (time) {
+    merged.setHours(time.getHours(), time.getMinutes(), 0, 0);
+  } else {
+    merged.setHours(0, 0, 0, 0);
+  }
+  return merged;
 }
 
 function resolveLinksFromNoteCard(
@@ -247,8 +360,12 @@ export function NoteCardFormModal({
     defaultValues: {
       title: '',
       body: '',
-      deadlineDate: null,
-      deadlineTime: null,
+      dateMode: 'none',
+      startDate: null,
+      startTime: null,
+      endDate: null,
+      endTime: null,
+      allDay: true,
       memberLinks: [],
       teamLinks: [],
       positionLinks: [],
@@ -256,7 +373,12 @@ export function NoteCardFormModal({
     },
   });
 
-  const deadlineDateValue = watch('deadlineDate');
+  const dateModeValue = watch('dateMode');
+  const allDayValue = watch('allDay');
+  const startDateValue = watch('startDate');
+  const startTimeValue = watch('startTime');
+  const endDateValue = watch('endDate');
+  const endTimeValue = watch('endTime');
 
   // ── Async task search ──
   const [taskSearchOptions, setTaskSearchOptions] = useState<LinkOption[]>([]);
@@ -301,20 +423,32 @@ export function NoteCardFormModal({
           positions,
           tasks,
         );
-        const { date, time } = splitDeadline(noteCard.deadline);
+        const dateMode = deriveDateMode(noteCard);
+        const { startDate, startTime, endDate, endTime, allDay } = parseDates(
+          noteCard,
+          dateMode,
+        );
         reset({
           title: noteCard.title,
           body: noteCard.body,
-          deadlineDate: date,
-          deadlineTime: time,
+          dateMode,
+          startDate,
+          startTime,
+          endDate,
+          endTime,
+          allDay,
           ...resolved,
         });
       } else {
         reset({
           title: '',
           body: '',
-          deadlineDate: null,
-          deadlineTime: null,
+          dateMode: 'none',
+          startDate: null,
+          startTime: null,
+          endDate: null,
+          endTime: null,
+          allDay: true,
           memberLinks: [],
           teamLinks: [],
           positionLinks: [],
@@ -350,11 +484,26 @@ export function NoteCardFormModal({
         entityId: l.id,
       })),
     ];
-    const deadline = combineDeadline(data.deadlineDate, data.deadlineTime);
+
+    let startDate: string | null = null;
+    let deadline: string | null = null;
+    const allDay = data.allDay;
+
+    if (data.dateMode === 'single') {
+      startDate = toIso(data.startDate, data.startTime, allDay, false);
+      deadline = toIso(data.startDate, data.startTime, allDay, allDay);
+    } else if (data.dateMode === 'period') {
+      startDate = toIso(data.startDate, data.startTime, allDay, false);
+      deadline = toIso(data.endDate, data.endTime, allDay, allDay);
+    }
+
     await onSubmit({
       title: data.title,
-      body: data.body,
+      body: data.body || '',
+      dateMode: data.dateMode,
+      startDate,
       deadline,
+      allDay,
       links,
     } as CreateNoteCardInput);
   };
@@ -395,11 +544,16 @@ export function NoteCardFormModal({
           </Typography>
         )}
 
-        <Grid container spacing={3} sx={{ flex: 1, minHeight: 0 }}>
+        <Grid container spacing={3} sx={{ height: '100%', minHeight: 0 }}>
           {/* ── Left: Conteúdo ── */}
           <Grid
             size={{ xs: 12, md: 7 }}
-            sx={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: 0,
+              height: '100%',
+            }}
           >
             <SectionHeader
               icon={<NotesIcon fontSize="small" />}
@@ -426,82 +580,259 @@ export function NoteCardFormModal({
                 )}
               />
 
-              {/* Deadline: Date + Time */}
+              {/* ── Date / Period section ── */}
               <Box>
                 <SectionHeader
                   icon={<ScheduleIcon fontSize="small" />}
-                  label="Prazo"
+                  label="Data / Período"
                 />
-                <Grid container spacing={1.5}>
-                  <Grid size={{ xs: 7 }}>
+
+                {/* Date mode selector */}
+                <Controller
+                  name="dateMode"
+                  control={control}
+                  render={({ field }) => (
+                    <ToggleButtonGroup
+                      value={field.value}
+                      exclusive
+                      onChange={(_, v) => {
+                        if (v) {
+                          field.onChange(v);
+                          if (v === 'none') {
+                            setValue('startDate', null);
+                            setValue('startTime', null);
+                            setValue('endDate', null);
+                            setValue('endTime', null);
+                          }
+                        }
+                      }}
+                      size="small"
+                      sx={{ mb: 1.5 }}
+                    >
+                      <ToggleButton value="none">
+                        <NoDayIcon fontSize="small" sx={{ mr: 0.5 }} />
+                        Sem data
+                      </ToggleButton>
+                      <ToggleButton value="single">
+                        <SingleDayIcon fontSize="small" sx={{ mr: 0.5 }} />
+                        Data única
+                      </ToggleButton>
+                      <ToggleButton value="period">
+                        <PeriodIcon fontSize="small" sx={{ mr: 0.5 }} />
+                        Período
+                      </ToggleButton>
+                    </ToggleButtonGroup>
+                  )}
+                />
+
+                {dateModeValue !== 'none' && (
+                  <Stack spacing={1.5}>
+                    {/* All-day toggle */}
                     <Controller
-                      name="deadlineDate"
+                      name="allDay"
                       control={control}
                       render={({ field }) => (
-                        <DatePicker
-                          label="Data"
-                          value={field.value}
-                          onChange={(v) => {
-                            field.onChange(v);
-                            if (!v) setValue('deadlineTime', null);
-                          }}
-                          disabled={loading}
-                          slotProps={{
-                            textField: {
-                              fullWidth: true,
-                              size: 'small',
-                              placeholder: 'dd/mm/aaaa',
-                            },
-                            field: { clearable: true },
-                          }}
+                        <FormControlLabel
+                          control={
+                            <Switch
+                              checked={field.value}
+                              onChange={(e) => {
+                                field.onChange(e.target.checked);
+                                if (e.target.checked) {
+                                  // Clear times when switching to all-day
+                                  setValue('startTime', null);
+                                  setValue('endTime', null);
+                                }
+                              }}
+                              size="small"
+                            />
+                          }
+                          label={
+                            <Typography variant="body2">
+                              Dia inteiro (sem horário)
+                            </Typography>
+                          }
                         />
                       )}
                     />
-                  </Grid>
-                  <Grid size={{ xs: 5 }}>
-                    <Controller
-                      name="deadlineTime"
-                      control={control}
-                      render={({ field }) => (
-                        <TimePicker
-                          label="Hora"
-                          value={field.value}
-                          onChange={field.onChange}
-                          disabled={loading || !deadlineDateValue}
-                          ampm={false}
-                          slotProps={{
-                            textField: {
-                              fullWidth: true,
-                              size: 'small',
-                              placeholder: 'HH:mm',
-                            },
-                          }}
-                        />
+
+                    {/* ── Start date row ── */}
+                    <Box>
+                      {dateModeValue === 'period' && (
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ mb: 0.5, display: 'block', fontWeight: 600 }}
+                        >
+                          Início
+                        </Typography>
                       )}
-                    />
-                  </Grid>
-                </Grid>
-                <Typography
-                  variant="caption"
-                  color="text.disabled"
-                  sx={{ mt: 0.5, display: 'block' }}
-                >
-                  {!deadlineDateValue
-                    ? 'Opcional — selecione uma data para definir o prazo'
-                    : !watch('deadlineTime')
-                      ? 'Hora padrão: 23:59'
-                      : ''}
-                </Typography>
+                      <Stack direction="row" spacing={1.5}>
+                        <Controller
+                          name="startDate"
+                          control={control}
+                          render={({ field }) => (
+                            <DatePicker
+                              label={
+                                dateModeValue === 'period'
+                                  ? 'Data início'
+                                  : 'Data'
+                              }
+                              value={field.value}
+                              onChange={(v) => {
+                                field.onChange(v);
+                                // If end date is before new start date, clear it
+                                if (dateModeValue === 'period' && v) {
+                                  const currentEnd = watch('endDate');
+                                  if (currentEnd && currentEnd < v) {
+                                    setValue('endDate', null);
+                                    setValue('endTime', null);
+                                  }
+                                }
+                              }}
+                              disabled={loading}
+                              slotProps={{
+                                textField: {
+                                  fullWidth: true,
+                                  size: 'small',
+                                  placeholder: 'dd/mm/aaaa',
+                                },
+                                field: { clearable: true },
+                              }}
+                              sx={{ flex: 7 }}
+                            />
+                          )}
+                        />
+                        {!allDayValue && (
+                          <Controller
+                            name="startTime"
+                            control={control}
+                            render={({ field }) => (
+                              <TimePicker
+                                label="Hora"
+                                value={field.value}
+                                onChange={field.onChange}
+                                disabled={loading || !startDateValue}
+                                ampm={false}
+                                slotProps={{
+                                  textField: {
+                                    fullWidth: true,
+                                    size: 'small',
+                                    placeholder: 'HH:mm',
+                                  },
+                                }}
+                                sx={{ flex: 5 }}
+                              />
+                            )}
+                          />
+                        )}
+                      </Stack>
+                      {/* Business hours alert for start time */}
+                      {!allDayValue &&
+                        isOutsideBusinessHours(startTimeValue) && (
+                          <Alert
+                            severity="warning"
+                            sx={{ mt: 0.75, py: 0.25, fontSize: '0.75rem' }}
+                          >
+                            Horário fora do expediente (08h–17h30)
+                          </Alert>
+                        )}
+                    </Box>
+
+                    {/* ── End date row — period only ── */}
+                    {dateModeValue === 'period' && (
+                      <Box>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ mb: 0.5, display: 'block', fontWeight: 600 }}
+                        >
+                          Fim
+                        </Typography>
+                        <Stack direction="row" spacing={1.5}>
+                          <Controller
+                            name="endDate"
+                            control={control}
+                            render={({ field }) => (
+                              <DatePicker
+                                label="Data fim"
+                                value={field.value}
+                                onChange={field.onChange}
+                                disabled={loading}
+                                // End date must be >= start date
+                                minDate={startDateValue ?? undefined}
+                                slotProps={{
+                                  textField: {
+                                    fullWidth: true,
+                                    size: 'small',
+                                    placeholder: 'dd/mm/aaaa',
+                                  },
+                                  field: { clearable: true },
+                                }}
+                                sx={{ flex: 7 }}
+                              />
+                            )}
+                          />
+                          {!allDayValue && (
+                            <Controller
+                              name="endTime"
+                              control={control}
+                              render={({ field }) => {
+                                const endTimeVal = field.value;
+                                // If same day as start, end time must be after start time
+                                const isSameDay =
+                                  startDateValue &&
+                                  endDateValue &&
+                                  startDateValue.toDateString() ===
+                                    endDateValue.toDateString();
+                                const minTime = isSameDay
+                                  ? mergeDateAndTime(
+                                      startDateValue,
+                                      startTimeValue,
+                                    )
+                                  : undefined;
+                                return (
+                                  <TimePicker
+                                    label="Hora"
+                                    value={endTimeVal}
+                                    onChange={field.onChange}
+                                    disabled={loading || !endDateValue}
+                                    ampm={false}
+                                    minTime={minTime ?? undefined}
+                                    slotProps={{
+                                      textField: {
+                                        fullWidth: true,
+                                        size: 'small',
+                                        placeholder: 'HH:mm',
+                                      },
+                                    }}
+                                    sx={{ flex: 5 }}
+                                  />
+                                );
+                              }}
+                            />
+                          )}
+                        </Stack>
+                        {/* Business hours alert for end time */}
+                        {!allDayValue &&
+                          isOutsideBusinessHours(endTimeValue) && (
+                            <Alert
+                              severity="warning"
+                              sx={{ mt: 0.75, py: 0.25, fontSize: '0.75rem' }}
+                            >
+                              Horário fora do expediente (08h–17h30)
+                            </Alert>
+                          )}
+                      </Box>
+                    )}
+                  </Stack>
+                )}
               </Box>
 
               {/* Body */}
               <Controller
                 name="body"
                 control={control}
-                rules={{
-                  validate: (v) =>
-                    !v || isBodyEmpty(v) ? 'Corpo é obrigatório' : true,
-                }}
                 render={({ field }) => (
                   <Box
                     sx={{
@@ -517,18 +848,14 @@ export function NoteCardFormModal({
                       mb={0.5}
                       display="block"
                     >
-                      Corpo *
+                      Corpo
                     </Typography>
                     <Box
                       sx={{
                         flex: 1,
-                        minHeight: 180,
-                        '& > div': {
-                          height: '100%',
-                          display: 'flex',
-                          flexDirection: 'column',
-                        },
-                        '& .tiptap': { flex: 1, overflow: 'auto' },
+                        minHeight: 0,
+                        display: 'flex',
+                        flexDirection: 'column',
                       }}
                     >
                       <RichTextEditor
@@ -555,7 +882,7 @@ export function NoteCardFormModal({
             sx={{
               display: 'flex',
               flexDirection: 'column',
-              minHeight: 0,
+              height: '100%',
               borderLeft: { md: '1px solid' },
               borderColor: { md: 'divider' },
               pl: { md: 3 },
@@ -566,10 +893,7 @@ export function NoteCardFormModal({
               label="Vínculos"
             />
 
-            <Stack
-              spacing={2}
-              sx={{ flex: 1, minHeight: 0, overflow: 'auto', pr: 0.5 }}
-            >
+            <Stack spacing={2} sx={{ flex: 1, pr: 0.5 }}>
               {[
                 {
                   name: 'memberLinks' as const,

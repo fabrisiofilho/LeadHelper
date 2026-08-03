@@ -16,6 +16,8 @@ import {
   ReportItem,
   ReportPeriod,
   WorkItemUpdate,
+  AzureDevOpsProjectConfig,
+  AzureDevOpsProjectInput,
 } from '@shared/interfaces/config/index.types';
 
 // Default Area Paths for Sustentação and Projetos (Property 25)
@@ -186,9 +188,14 @@ export class AzureDevOpsService {
     }
   }
 
-  async getConfig(includePat = false): Promise<AzureDevOpsConfig | null> {
+  async getConfig(
+    includePat = false,
+    configId?: number,
+  ): Promise<AzureDevOpsConfig | null> {
     const repository = this.getRepository();
-    const config = await repository.findOne({ where: {} });
+    const config = configId
+      ? await repository.findOne({ where: { id: configId } })
+      : await repository.findOne({ where: {} });
 
     if (!config) {
       return null;
@@ -210,82 +217,35 @@ export class AzureDevOpsService {
         result.pat = decryptPat(config.patEncrypted);
       } catch (error) {
         logger.error('Error decrypting PAT:', error);
-        // Don't include PAT if decryption fails
       }
     }
 
     return result;
   }
 
-  async testConnection(): Promise<boolean> {
+  /**
+   * Returns the decrypted PAT for a specific project.
+   * Used by the UI to let users reveal the saved token.
+   */
+  async getProjectPat(id: number): Promise<string> {
     const repository = this.getRepository();
-    const config = await repository.findOne({ where: {} });
+    const config = await repository.findOne({ where: { id } });
+    if (!config) throw new Error('Projeto não encontrado');
+    return decryptPat(config.patEncrypted);
+  }
 
-    if (!config) {
+  async testConnection(): Promise<boolean> {
+    const fullConfig = await this.getFullConfig();
+
+    if (!fullConfig) {
       throw new Error('Configuração do Azure DevOps não encontrada');
     }
 
-    // Decrypt the PAT
-    const pat = decryptPat(config.patEncrypted);
-
-    // Build the API URL to get project info
-    // Correct endpoint: {org}/_apis/projects/{project}
-    const baseUrl = config.organizationUrl.replace(/\/$/, '');
-    const apiUrl = `${baseUrl}/_apis/projects/${encodeURIComponent(config.projectName)}?api-version=7.0`;
-
-    logger.info('Testing Azure DevOps connection...');
-    logger.debug('API URL:', apiUrl);
-
-    try {
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-        headers: {
-          Authorization: `Basic ${Buffer.from(`:${pat}`).toString('base64')}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        logger.info('Azure DevOps connection successful');
-        return true;
-      }
-
-      if (response.status === 401) {
-        logger.error('Azure DevOps auth failed: 401 Unauthorized');
-        throw new Error('Token de acesso inválido ou expirado');
-      }
-
-      if (response.status === 404) {
-        logger.error('Azure DevOps project not found: 404');
-        throw new Error(
-          `Projeto "${config.projectName}" não encontrado. Verifique o nome do projeto.`,
-        );
-      }
-
-      const errorText = await response.text();
-      logger.error(
-        `Azure DevOps connection failed: ${response.status}`,
-        errorText,
-      );
-      throw new Error(
-        `Falha na conexão com Azure DevOps: ${response.status} - ${errorText}`,
-      );
-    } catch (error) {
-      if (error instanceof Error) {
-        // Re-throw known errors
-        if (
-          error.message.includes('Token de acesso') ||
-          error.message.includes('Projeto') ||
-          error.message.includes('Falha na conexão')
-        ) {
-          throw error;
-        }
-        // Network or other errors
-        logger.error('Azure DevOps connection error:', error.message);
-        throw new Error(`Falha na conexão com Azure DevOps: ${error.message}`);
-      }
-      throw new Error('Falha na conexão com Azure DevOps');
-    }
+    return this.testConnectionWithCredentials(
+      fullConfig.organizationUrl,
+      fullConfig.projectName,
+      fullConfig.pat,
+    );
   }
 
   // Internal method to get decrypted PAT for other service methods
@@ -301,23 +261,177 @@ export class AzureDevOpsService {
   }
 
   // Internal method to get full config with decrypted PAT for API calls
-  async getFullConfig(): Promise<{
+  async getFullConfig(configId?: number): Promise<{
     organizationUrl: string;
     projectName: string;
     pat: string;
+    id: number;
   } | null> {
     const repository = this.getRepository();
-    const config = await repository.findOne({ where: {} });
+    const config = configId
+      ? await repository.findOne({ where: { id: configId } })
+      : await repository.findOne({ where: { isActive: true } });
 
     if (!config) {
       return null;
     }
 
     return {
+      id: config.id,
       organizationUrl: config.organizationUrl,
       projectName: config.projectName,
       pat: decryptPat(config.patEncrypted),
     };
+  }
+
+  // ── Multi-project methods ─────────────────────────────────
+
+  /**
+   * Returns all project configurations (without PAT).
+   */
+  async listProjects(): Promise<AzureDevOpsProjectConfig[]> {
+    const repository = this.getRepository();
+    const configs = await repository.find({ order: { id: 'ASC' } });
+    return configs.map((c) => this.mapToProjectConfig(c));
+  }
+
+  /**
+   * Creates or updates an Azure DevOps project configuration.
+   * On update: PAT is kept if not provided; displayName/org/project validated for uniqueness.
+   */
+  async saveProject(
+    input: AzureDevOpsProjectInput,
+  ): Promise<AzureDevOpsProjectConfig> {
+    const repository = this.getRepository();
+
+    const orgUrl = input.organizationUrl?.trim();
+    const projectName = input.projectName?.trim();
+    const displayName = input.displayName?.trim();
+
+    if (!orgUrl) throw new Error('URL da organização é obrigatória');
+    if (!projectName) throw new Error('Nome do projeto é obrigatório');
+    if (!displayName) throw new Error('Nome de exibição é obrigatório');
+    try {
+      new URL(orgUrl);
+    } catch {
+      throw new Error('URL da organização inválida');
+    }
+
+    // Uniqueness: displayName
+    const dupName = await repository
+      .createQueryBuilder('c')
+      .where('LOWER(c.display_name) = LOWER(:name)', { name: displayName })
+      .andWhere(input.id ? 'c.id != :id' : '1=1', { id: input.id })
+      .getOne();
+    if (dupName)
+      throw new Error(`Nome de exibição "${displayName}" já está em uso`);
+
+    // Uniqueness: org + project
+    const dupProject = await repository
+      .createQueryBuilder('c')
+      .where('LOWER(c.organization_url) = LOWER(:org)', { org: orgUrl })
+      .andWhere('LOWER(c.project_name) = LOWER(:proj)', { proj: projectName })
+      .andWhere(input.id ? 'c.id != :id' : '1=1', { id: input.id })
+      .getOne();
+    if (dupProject)
+      throw new Error(
+        `Projeto "${projectName}" já está cadastrado para esta organização`,
+      );
+
+    let entity: AzureDevOpsConfigEntity;
+
+    if (input.id) {
+      const existing = await repository.findOne({ where: { id: input.id } });
+      if (!existing) throw new Error('Configuração de projeto não encontrada');
+      existing.displayName = displayName;
+      existing.organizationUrl = orgUrl;
+      existing.projectName = projectName;
+      if (input.pat?.trim()) {
+        existing.patEncrypted = encryptPat(input.pat.trim());
+      }
+      existing.sustentacaoAreaPath =
+        input.sustentacaoAreaPath?.trim() || undefined;
+      existing.projetosAreaPath = input.projetosAreaPath?.trim() || undefined;
+      entity = await repository.save(existing);
+    } else {
+      if (!input.pat?.trim())
+        throw new Error('Personal Access Token é obrigatório');
+      entity = repository.create({
+        displayName,
+        organizationUrl: orgUrl,
+        projectName,
+        patEncrypted: encryptPat(input.pat.trim()),
+        sustentacaoAreaPath: input.sustentacaoAreaPath?.trim() || undefined,
+        projetosAreaPath: input.projetosAreaPath?.trim() || undefined,
+        isActive: true,
+      });
+      entity = await repository.save(entity);
+    }
+
+    return this.mapToProjectConfig(entity);
+  }
+
+  /**
+   * Deletes an Azure DevOps project configuration.
+   * Tasks/sprints are kept with azure_devops_config_id set to NULL (ON DELETE SET NULL).
+   */
+  async deleteProject(id: number): Promise<void> {
+    const repository = this.getRepository();
+    const existing = await repository.findOne({ where: { id } });
+    if (!existing) throw new Error('Configuração de projeto não encontrada');
+    await repository.remove(existing);
+  }
+
+  /**
+   * Tests connection for a specific project by id.
+   */
+  async testConnectionById(id: number): Promise<boolean> {
+    const fullConfig = await this.getFullConfig(id);
+    if (!fullConfig) throw new Error('Configuração de projeto não encontrada');
+    return this.testConnectionWithCredentials(
+      fullConfig.organizationUrl,
+      fullConfig.projectName,
+      fullConfig.pat,
+    );
+  }
+
+  private mapToProjectConfig(
+    c: AzureDevOpsConfigEntity,
+  ): AzureDevOpsProjectConfig {
+    return {
+      id: c.id,
+      displayName: c.displayName || c.projectName,
+      organizationUrl: c.organizationUrl,
+      projectName: c.projectName,
+      isConfigured: true,
+      isActive: c.isActive ?? true,
+      sustentacaoAreaPath: c.sustentacaoAreaPath,
+      projetosAreaPath: c.projetosAreaPath,
+    };
+  }
+
+  private async testConnectionWithCredentials(
+    organizationUrl: string,
+    projectName: string,
+    pat: string,
+  ): Promise<boolean> {
+    const baseUrl = organizationUrl.replace(/\/$/, '');
+    const apiUrl = `${baseUrl}/_apis/projects/${encodeURIComponent(projectName)}?api-version=7.0`;
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        Authorization: `Basic ${Buffer.from(`:${pat}`).toString('base64')}`,
+        'Content-Type': 'application/json',
+      },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (response.ok) return true;
+    if (response.status === 401)
+      throw new Error('Token de acesso inválido ou expirado');
+    if (response.status === 404)
+      throw new Error(`Projeto "${projectName}" não encontrado`);
+    const errorText = await response.text();
+    throw new Error(`Falha na conexão: ${response.status} - ${errorText}`);
   }
 
   /**
@@ -432,7 +546,7 @@ export class AzureDevOpsService {
     }
 
     const fields =
-      'System.Id,System.Title,System.WorkItemType,System.State,System.Description,System.AssignedTo,System.CreatedDate,System.ChangedDate,System.AreaPath,System.IterationPath,System.Tags,Microsoft.VSTS.Scheduling.StoryPoints,Microsoft.VSTS.Common.Priority';
+      'System.Id,System.Title,System.WorkItemType,System.State,System.Description,System.AssignedTo,System.CreatedDate,System.ChangedDate,System.AreaPath,System.IterationPath,System.Tags,Microsoft.VSTS.Scheduling.StoryPoints,Microsoft.VSTS.Common.Priority,Microsoft.VSTS.Scheduling.StartDate,Microsoft.VSTS.Scheduling.FinishDate,Microsoft.VSTS.Scheduling.TargetDate,Custom.Prioridade,Custom.Impedimento,Custom.MotivoImpedimento,Custom.MotivosImpedimento';
 
     // Azure DevOps API accepts max 200 IDs per request — batch accordingly
     const BATCH_SIZE = 200;
@@ -565,21 +679,14 @@ export class AzureDevOpsService {
         teamsWithAreaPath,
       );
 
-      // Extract parent ID from relations if exists
-      let parentExternalId: string | undefined;
+      // Extract parent ID from relations if exists (used in second pass via workItemRelations JSON)
       if (workItem.relations) {
-        const parentRelation = workItem.relations.find(
+        workItem.relations.find(
           (r) =>
-            r.rel === 'System.LinkTypes.Hierarchy-Reverse' || // Child -> Parent
-            r.rel === 'System.LinkTypes.Hierarchy-Forward', // Parent -> Child (we want reverse)
+            r.rel === 'System.LinkTypes.Hierarchy-Reverse' ||
+            r.rel === 'System.LinkTypes.Hierarchy-Forward',
         );
-        if (parentRelation && parentRelation.url) {
-          // Extract work item ID from URL (e.g., "https://dev.azure.com/org/project/_apis/wit/workItems/123")
-          const match = parentRelation.url.match(/workItems\/(\d+)$/);
-          if (match) {
-            parentExternalId = match[1];
-          }
-        }
+        // parent extraction happens in the second pass via workItemRelations
       }
 
       // Serialize relations as JSON for storage
@@ -614,7 +721,8 @@ export class AzureDevOpsService {
         try {
           const relations = JSON.parse(task.workItemRelations);
           const parentRelation = relations.find(
-            (r: any) => r.rel === 'System.LinkTypes.Hierarchy-Reverse',
+            (r: { rel: string; url: string }) =>
+              r.rel === 'System.LinkTypes.Hierarchy-Reverse',
           );
           if (parentRelation && parentRelation.url) {
             const match = parentRelation.url.match(/workItems\/(\d+)$/);
@@ -886,9 +994,9 @@ export class AzureDevOpsService {
    * preserving attributes (startDate, finishDate) needed by the SprintParser.
    * Returns AzureIterationNode[] with full attribute data.
    */
-  async fetchIterationNodes(): Promise<AzureIterationNode[]> {
+  async fetchIterationNodes(configId?: number): Promise<AzureIterationNode[]> {
     try {
-      const fullConfig = await this.getFullConfig();
+      const fullConfig = await this.getFullConfig(configId);
 
       if (!fullConfig) {
         logger.info(
@@ -979,9 +1087,9 @@ export class AzureDevOpsService {
    * GET {org}/{project}/_apis/wit/classificationnodes/Areas?$depth=10&api-version=7.0
    * @returns AzureAreaNode[] — flat children of the root area node
    */
-  async fetchAreaPaths(): Promise<AzureAreaNode[]> {
+  async fetchAreaPaths(configId?: number): Promise<AzureAreaNode[]> {
     try {
-      const fullConfig = await this.getFullConfig();
+      const fullConfig = await this.getFullConfig(configId);
 
       if (!fullConfig) {
         logger.info(
@@ -1043,12 +1151,10 @@ export class AzureDevOpsService {
 
   /**
    * Fetch ALL work items from the Azure DevOps project via WIQL.
-   * Executes a WIQL query without specific ID filters to get every work item,
-   * then fetches details in batches of 200 IDs.
-   * @returns AzureWorkItem[] — all work items with full field details
+   * @param configId Optional project config id; uses first active config if omitted.
    */
-  async fetchAllWorkItems(): Promise<AzureWorkItem[]> {
-    const fullConfig = await this.getFullConfig();
+  async fetchAllWorkItems(configId?: number): Promise<AzureWorkItem[]> {
+    const fullConfig = await this.getFullConfig(configId);
 
     if (!fullConfig) {
       throw new Error('Configuração do Azure DevOps não encontrada');
@@ -1195,6 +1301,41 @@ export class AzureDevOpsService {
             | string
             | undefined;
 
+          // Dynamically find Impedimento field — field name may vary per organization
+          let impedimentoRaw: unknown = wi.fields['Custom.Impedimento'];
+          // Try both singular and plural forms for the reason field
+          let motivoImpedimentoRaw: unknown =
+            wi.fields['Custom.MotivoImpedimento'] ??
+            wi.fields['Custom.MotivosImpedimento'];
+          if (impedimentoRaw == null) {
+            // Search for any field containing 'impedimento' in the key name (not motivo)
+            for (const [key, val] of Object.entries(wi.fields)) {
+              const k = key.toLowerCase();
+              if (k.includes('impedimento') && !k.includes('motivo')) {
+                impedimentoRaw = val;
+                logger.debug(
+                  `[fetchAllWorkItems] Found Impedimento field: ${key}=${val}`,
+                );
+                break;
+              }
+            }
+          }
+          if (motivoImpedimentoRaw == null) {
+            for (const [key, val] of Object.entries(wi.fields)) {
+              const k = key.toLowerCase();
+              if (
+                k.includes('impedimento') &&
+                (k.includes('motivo') || k.includes('motivos'))
+              ) {
+                motivoImpedimentoRaw = val;
+                logger.debug(
+                  `[fetchAllWorkItems] Found MotivoImpedimento field: ${key}=${val}`,
+                );
+                break;
+              }
+            }
+          }
+
           mapped.push({
             id: wi.id,
             fields: {
@@ -1228,6 +1369,19 @@ export class AzureDevOpsService {
                 | string
                 | undefined,
               'System.ChangedDate': wi.fields['System.ChangedDate'] as
+                | string
+                | undefined,
+              'Microsoft.VSTS.Scheduling.StartDate': wi.fields[
+                'Microsoft.VSTS.Scheduling.StartDate'
+              ] as string | undefined,
+              'Microsoft.VSTS.Scheduling.FinishDate': wi.fields[
+                'Microsoft.VSTS.Scheduling.FinishDate'
+              ] as string | undefined,
+              'Microsoft.VSTS.Scheduling.TargetDate': wi.fields[
+                'Microsoft.VSTS.Scheduling.TargetDate'
+              ] as string | undefined,
+              'Custom.Impedimento': impedimentoRaw,
+              'Custom.MotivoImpedimento': motivoImpedimentoRaw as
                 | string
                 | undefined,
             },

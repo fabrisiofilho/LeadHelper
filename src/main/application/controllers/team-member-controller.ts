@@ -159,4 +159,75 @@ export class TeamMemberController extends BaseHandler {
       return { success: false, error: message };
     }
   }
+
+  /**
+   * Import positions from CSV and deactivate members whose emails are NOT
+   * present in the CSV list (i.e. they have left the team).
+   *
+   * @param rows        - Pairs of { email, positionId } from the CSV
+   * @param allCsvEmails - All email addresses present in the CSV file
+   *                      (used to determine who should be deactivated)
+   */
+  @IpcMethod('team-member:importPositionsWithDeactivation')
+  async importPositionsWithDeactivation(
+    rows: Array<{ email: string; positionId: number }>,
+    allCsvEmails: string[],
+  ): Promise<
+    ApiResponse<{ updated: number; deactivated: number; errors: string[] }>
+  > {
+    try {
+      let updated = 0;
+      let deactivated = 0;
+      const errors: string[] = [];
+
+      // 1. Update positions for members in the CSV
+      for (const row of rows) {
+        try {
+          const member = await this.service.findByEmail(row.email);
+          if (!member) {
+            errors.push(`Membro com email "${row.email}" não encontrado`);
+            continue;
+          }
+          await this.service.update(member.id, { positionId: row.positionId });
+          updated++;
+        } catch (err) {
+          errors.push(
+            `Erro ao atualizar "${row.email}": ${err instanceof Error ? err.message : 'Erro desconhecido'}`,
+          );
+        }
+      }
+
+      // 2. Deactivate active members whose emails are NOT in the CSV
+      const csvEmailsLower = new Set(
+        allCsvEmails.map((e) => e.trim().toLowerCase()),
+      );
+      const allActiveMembers = await this.service.findAll({ isActive: true });
+
+      for (const member of allActiveMembers) {
+        if (!member.email) continue;
+        if (!csvEmailsLower.has(member.email.toLowerCase())) {
+          try {
+            await this.service.deactivate(member.id);
+            deactivated++;
+          } catch (err) {
+            errors.push(
+              `Erro ao inativar "${member.email}": ${err instanceof Error ? err.message : 'Erro desconhecido'}`,
+            );
+          }
+        }
+      }
+
+      return { success: true, data: { updated, deactivated, errors } };
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Erro ao importar cargos com inativação';
+      logger.error(
+        'TeamMemberController.importPositionsWithDeactivation error:',
+        error,
+      );
+      return { success: false, error: message };
+    }
+  }
 }

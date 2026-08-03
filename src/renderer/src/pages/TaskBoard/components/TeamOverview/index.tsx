@@ -1,14 +1,6 @@
 import { useMemo } from 'react';
-import {
-  Typography,
-  Stack,
-  Box,
-  Chip,
-  Paper,
-  Tooltip,
-  Badge,
-} from '@mui/material';
-import { Groups as GroupsIcon, Add as AddIcon } from '@mui/icons-material';
+import { Typography, Stack, Box, Chip, Paper, Tooltip } from '@mui/material';
+import { Groups as GroupsIcon } from '@mui/icons-material';
 import type { Team, Task } from '@shared/interfaces/config/index.types';
 
 interface TeamOverviewProps {
@@ -82,7 +74,12 @@ export function TeamOverview({
         <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
           <GroupsIcon
             fontSize="small"
-            sx={{ color: selectedTeam === null ? 'primary.contrastText' : 'text.secondary' }}
+            sx={{
+              color:
+                selectedTeam === null
+                  ? 'primary.contrastText'
+                  : 'text.secondary',
+            }}
           />
           <Typography
             variant="subtitle2"
@@ -90,7 +87,8 @@ export function TeamOverview({
             noWrap
             sx={{
               flex: 1,
-              color: selectedTeam === null ? 'primary.contrastText' : 'text.primary',
+              color:
+                selectedTeam === null ? 'primary.contrastText' : 'text.primary',
             }}
           >
             Todas
@@ -104,7 +102,8 @@ export function TeamOverview({
               selectedTeam === null
                 ? 'rgba(255,255,255,0.25)'
                 : 'action.selected',
-            color: selectedTeam === null ? 'primary.contrastText' : 'text.secondary',
+            color:
+              selectedTeam === null ? 'primary.contrastText' : 'text.secondary',
           }}
         />
       </Paper>
@@ -149,7 +148,9 @@ export function TeamOverview({
                   width: 10,
                   height: 10,
                   borderRadius: '50%',
-                  bgcolor: isSelected ? 'primary.contrastText' : team.color || 'primary.main',
+                  bgcolor: isSelected
+                    ? 'primary.contrastText'
+                    : team.color || 'primary.main',
                   flexShrink: 0,
                 }}
               />
@@ -157,7 +158,10 @@ export function TeamOverview({
                 variant="subtitle2"
                 fontWeight={600}
                 noWrap
-                sx={{ flex: 1, color: isSelected ? 'primary.contrastText' : 'text.primary' }}
+                sx={{
+                  flex: 1,
+                  color: isSelected ? 'primary.contrastText' : 'text.primary',
+                }}
               >
                 {team.name}
               </Typography>

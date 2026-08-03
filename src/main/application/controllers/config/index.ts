@@ -1,4 +1,5 @@
 import { logger } from '@main/infrastructure/log/logger';
+import { BrowserWindow } from 'electron';
 import { TeamMemberController } from '../team-member-controller';
 import { TaskController } from '../task-controller';
 import { DashboardController } from '../dashboard-controller';
@@ -15,6 +16,7 @@ import { TaskLocalPriorityController } from '../task-local-priority-controller';
 import { TaskLocalKanbanController } from '../task-local-kanban-controller';
 import { HierarchyController } from '../hierarchy-controller';
 import { registerNoteCardController } from '../note-card-controller';
+import { SlaConfigController } from '../sla-config-controller';
 
 // Controllers:
 // - TeamMemberController ✓
@@ -54,11 +56,12 @@ export function loadIpcControllers() {
   new TaskLocalKanbanController();
   new HierarchyController();
   registerNoteCardController();
+  new SlaConfigController();
 
   logger.info('All IPC controllers loaded successfully');
 }
 
-export function setSyncControllerWindow(window: any) {
+export function setSyncControllerWindow(window: BrowserWindow) {
   SyncController.getInstance().setMainWindow(window);
 }
 

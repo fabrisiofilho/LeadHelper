@@ -5,11 +5,11 @@ import {
   Button,
   IconButton,
   Tooltip,
-  CircularProgress,
   Stack,
   TextField,
   Chip,
   InputAdornment,
+  Skeleton,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -18,10 +18,10 @@ import {
   Warning as WarningIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  Search as SearchIcon,
   ToggleOff as ToggleOffIcon,
   ToggleOn as ToggleOnIcon,
 } from '@mui/icons-material';
+import { DebouncedSearchInput } from '@renderer/components/DebouncedSearchInput';
 import { useForm, Controller } from 'react-hook-form';
 import { Modal } from '@renderer/components/Modal';
 import { useTeams } from '@renderer/hooks/useTeams';
@@ -36,7 +36,6 @@ import {
   PlaceholderContent,
   FiltersContainer,
   FormContainer,
-  MembersChipContainer,
 } from './styles';
 import type {
   Team,
@@ -254,12 +253,52 @@ export function TeamsPage() {
   if (loading && teams.length === 0) {
     return (
       <PageContainer>
-        <Stack alignItems="center" justifyContent="center" minHeight="60vh">
-          <CircularProgress size={48} />
-          <Typography variant="body1" color="text.secondary" mt={2}>
-            Carregando equipes...
-          </Typography>
+        <Stack
+          direction="row"
+          justifyContent="space-between"
+          alignItems="center"
+          mb={3}
+        >
+          <Stack spacing={0.5}>
+            <Skeleton
+              variant="text"
+              width={120}
+              height={40}
+              sx={{ borderRadius: 1 }}
+            />
+            <Skeleton
+              variant="text"
+              width={260}
+              height={22}
+              sx={{ borderRadius: 1 }}
+            />
+          </Stack>
+          <Skeleton
+            variant="rounded"
+            width={140}
+            height={36}
+            sx={{ borderRadius: 1 }}
+          />
         </Stack>
+        <Skeleton
+          variant="rounded"
+          width={300}
+          height={40}
+          sx={{ mb: 2, borderRadius: 1 }}
+        />
+        <Skeleton
+          variant="rounded"
+          height={48}
+          sx={{ borderRadius: '4px 4px 0 0' }}
+        />
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Skeleton
+            key={i}
+            variant="rounded"
+            height={52}
+            sx={{ borderRadius: 0, mt: '1px' }}
+          />
+        ))}
       </PageContainer>
     );
   }
@@ -286,10 +325,10 @@ export function TeamsPage() {
         direction="row"
         justifyContent="space-between"
         alignItems="center"
-        mb={3}
+        mb={2.5}
       >
         <Box>
-          <Typography variant="h4" fontWeight={700}>
+          <Typography variant="h5" fontWeight={700}>
             Equipes
           </Typography>
           <Typography variant="body2" color="text.secondary">
@@ -314,22 +353,11 @@ export function TeamsPage() {
       </Stack>
 
       <FiltersContainer>
-        <TextField
-          size="small"
+        <DebouncedSearchInput
           placeholder="Buscar por nome ou descrição..."
-          value={searchTerm}
-          onChange={(e) => {
-            setSearchTerm(e.target.value);
+          onSearch={(v) => {
+            setSearchTerm(v);
             setPage(0);
-          }}
-          slotProps={{
-            input: {
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" color="action" />
-                </InputAdornment>
-              ),
-            },
           }}
           sx={{ minWidth: 300 }}
         />

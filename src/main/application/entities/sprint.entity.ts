@@ -41,6 +41,9 @@ export class SprintEntity extends AuditableEntity {
   @Column({ name: 'iteration_path', type: 'text', nullable: true })
   iterationPath?: string;
 
+  @Column({ name: 'azure_devops_config_id', type: 'integer', nullable: true })
+  azureDevOpsConfigId?: number | null;
+
   @OneToMany('TaskEntity', 'sprint')
   tasks?: TaskEntity[];
 }

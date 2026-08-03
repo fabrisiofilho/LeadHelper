@@ -6,6 +6,9 @@ export class AzureDevOpsConfigEntity extends AuditableEntity {
   @PrimaryGeneratedColumn()
   id!: number;
 
+  @Column({ name: 'display_name', type: 'text', nullable: true })
+  displayName?: string;
+
   @Column({ name: 'organization_url', type: 'text' })
   organizationUrl!: string;
 
@@ -20,4 +23,7 @@ export class AzureDevOpsConfigEntity extends AuditableEntity {
 
   @Column({ name: 'projetos_area_path', type: 'text', nullable: true })
   projetosAreaPath?: string;
+
+  @Column({ name: 'is_active', type: 'boolean', default: true })
+  isActive!: boolean;
 }

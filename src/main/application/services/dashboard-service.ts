@@ -6,6 +6,12 @@ import { TeamMemberAllocationRepository } from '../repositories/team-member-allo
 import { TeamMemberAllocationService } from './team-member-allocation-service';
 import { TaskLocalPriorityRepository } from '../repositories/task-local-priority-repository';
 import { TaskUpdateRepository } from '../repositories/task-update-repository';
+import {
+  AzureDevOpsService,
+  DEFAULT_SUSTENTACAO_AREA_PATH,
+  DEFAULT_PROJETOS_AREA_PATH,
+} from './azure-devops-service';
+import { SlaConfigService } from './sla-config-service';
 import { TeamMemberEntity } from '../entities/team-member.entity';
 import { TaskEntity } from '../entities/task.entity';
 import { SprintEntity } from '../entities/sprint.entity';
@@ -13,8 +19,8 @@ import type { AllocationConflict } from './team-member-allocation-service';
 import { logger } from '@main/infrastructure/log/logger';
 import {
   calculateBusinessHours,
-  addBusinessHours,
   isBusinessDay,
+  startOfNextBusinessDay,
 } from '@main/infrastructure/utils/business-hours';
 import {
   SLA_LIMITS,
@@ -250,9 +256,10 @@ export interface HierarchyProgress {
 /**
  * Default Area Path patterns for filtering by team.
  * Property 25: Fallback to default values if not configured.
+ * @deprecated Use getAreaPaths(configId) which reads from DB with fallback.
  */
-const SUSTENTACAO_AREA_PATH_PATTERN = 'Tribo SEIF\\Sustentação';
-const PROJETOS_AREA_PATH_PATTERN = 'Tribo SEIF\\Projetos';
+const SUSTENTACAO_AREA_PATH_PATTERN = DEFAULT_SUSTENTACAO_AREA_PATH;
+const PROJETOS_AREA_PATH_PATTERN = DEFAULT_PROJETOS_AREA_PATH;
 
 /**
  * Valid work item types for Sustentação dashboard.
@@ -319,7 +326,9 @@ const IN_PROGRESS_STATUSES = [
 
 /**
  * Statuses that indicate a task is pending (not yet started).
+ * @deprecated Currently unused — kept for future filtering logic
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const PENDING_STATUSES = [
   'pending',
   'New',
@@ -479,11 +488,14 @@ export class DashboardService {
   private slaExclusionRepository: TaskSlaExclusionRepository;
   private hiddenRepository: TaskHiddenRepository;
   private noteCardRepository: NoteCardRepository;
+  private azureDevOpsService: AzureDevOpsService;
+  private slaConfigService: SlaConfigService;
 
   // Short-lived cache for getSustentacaoItems (avoids double calculation when metrics are fetched right after items)
   private _sustentacaoCache: {
     data: SustentacaoItemWithSLA[];
     ts: number;
+    configId?: number;
   } | null = null;
   private static readonly CACHE_TTL_MS = 5_000; // 5 seconds
 
@@ -516,6 +528,36 @@ export class DashboardService {
       slaExclusionRepository ?? new TaskSlaExclusionRepository();
     this.hiddenRepository = hiddenRepository ?? new TaskHiddenRepository();
     this.noteCardRepository = new NoteCardRepository();
+    this.azureDevOpsService = new AzureDevOpsService();
+    this.slaConfigService = new SlaConfigService();
+  }
+
+  /**
+   * Gets the configured area path prefix for Sustentação for the given project,
+   * falling back to the default value when not configured.
+   */
+  private async getSustentacaoAreaPath(configId?: number): Promise<string> {
+    if (!configId) return SUSTENTACAO_AREA_PATH_PATTERN;
+    try {
+      const config = await this.azureDevOpsService.getConfig(false, configId);
+      return config?.sustentacaoAreaPath || SUSTENTACAO_AREA_PATH_PATTERN;
+    } catch {
+      return SUSTENTACAO_AREA_PATH_PATTERN;
+    }
+  }
+
+  /**
+   * Gets the configured area path prefix for Projetos for the given project,
+   * falling back to the default value when not configured.
+   */
+  private async getProjetosAreaPath(configId?: number): Promise<string> {
+    if (!configId) return PROJETOS_AREA_PATH_PATTERN;
+    try {
+      const config = await this.azureDevOpsService.getConfig(false, configId);
+      return config?.projetosAreaPath || PROJETOS_AREA_PATH_PATTERN;
+    } catch {
+      return PROJETOS_AREA_PATH_PATTERN;
+    }
   }
 
   // Reserved for future use - suppress unused warning
@@ -791,12 +833,14 @@ export class DashboardService {
    */
   async getSustentacaoItems(
     options: SustentacaoOptions = {},
+    configId?: number,
   ): Promise<SustentacaoItemWithSLA[]> {
     const { staleDays = 7 } = options;
 
-    // Return cached result if fresh (avoids double calculation when metrics call this right after items)
+    // Return cached result if fresh AND same configId
     if (
       this._sustentacaoCache &&
+      this._sustentacaoCache.configId === configId &&
       Date.now() - this._sustentacaoCache.ts < DashboardService.CACHE_TTL_MS
     ) {
       logger.debug(
@@ -805,31 +849,42 @@ export class DashboardService {
       return this._sustentacaoCache.data;
     }
 
-    logger.debug('[DashboardService.getSustentacaoItems]', { options });
+    logger.debug('[DashboardService.getSustentacaoItems]', {
+      options,
+      configId,
+    });
+
+    const areaPattern = await this.getSustentacaoAreaPath(configId);
 
     // Get filtered tasks directly from DB (avoids loading all tasks)
-    const filteredTasks = await this.taskRepository.findOpenByAreaAndTypes(
-      SUSTENTACAO_AREA_PATH_PATTERN,
-      SUSTENTACAO_WORK_ITEM_TYPES,
-      CLOSED_STATUSES,
-    );
+    const filteredTasks = configId
+      ? await this.taskRepository.findOpenByConfigAndArea(
+          configId,
+          areaPattern,
+          SUSTENTACAO_WORK_ITEM_TYPES,
+          CLOSED_STATUSES,
+        )
+      : await this.taskRepository.findOpenByAreaAndTypes(
+          areaPattern,
+          SUSTENTACAO_WORK_ITEM_TYPES,
+          CLOSED_STATUSES,
+        );
 
     // Get external IDs for priority lookup
     const externalIds = filteredTasks
       .map((t) => t.externalId)
       .filter((id): id is string => id !== undefined && id !== null);
 
-    // Get local priorities for all filtered tasks
-    const priorityMap =
-      await this.taskLocalPriorityRepository.findByExternalIds(externalIds);
-
-    // Get SLA exclusions
-    const slaExclusions =
-      await this.slaExclusionRepository.findByExternalIds(externalIds);
-
-    // Get hidden items
-    const hiddenItems =
-      await this.hiddenRepository.findByExternalIds(externalIds);
+    // Fetch all independent data in parallel (includes SLA limits if configId provided)
+    const [priorityMap, slaExclusions, hiddenItems, slaLimitsMap] =
+      await Promise.all([
+        this.taskLocalPriorityRepository.findByExternalIds(externalIds),
+        this.slaExclusionRepository.findByExternalIds(externalIds),
+        this.hiddenRepository.findByExternalIds(externalIds),
+        configId
+          ? this.slaConfigService.getLimitsMap(configId)
+          : Promise.resolve(null as null),
+      ]);
 
     // Get active prioritization notes to calculate local priority SLA
     // Build a map: taskInternalId -> { deadline, createdAt, localPriority }
@@ -880,7 +935,7 @@ export class DashboardService {
       const isStale = daysSinceUpdate > staleDays;
       const childrenCount = task.children?.length ?? 0;
 
-      // SLA applies only to Ticket, not Improvement, and not excluded
+      // SLA applies only to Ticket, not Improvement, not excluded, AND only when endDate is set
       const isTicket = task.type === 'Ticket';
       const isSlaExcluded = task.externalId
         ? slaExclusions.has(task.externalId)
@@ -888,37 +943,70 @@ export class DashboardService {
       const isHidden = task.externalId
         ? hiddenItems.has(task.externalId)
         : false;
-      const applySla = isTicket && !isSlaExcluded;
-      const slaStartDate =
-        task.azureCreatedDate ?? task.startDate ?? task.createdAt;
-      const taskPriority = task.priority as TaskPriority;
-      const slaLimit = applySla
-        ? (SLA_LIMITS[taskPriority] ?? SLA_LIMITS.medium)
-        : 0;
+      // No endDate → no SLA (no limit defined by the support team)
+      const hasDeadline = !!task.endDate;
+      const applySla = isTicket && !isSlaExcluded && hasDeadline;
 
+      // SLA deadline is the task's endDate (TÉRMINO set in Azure)
+      const slaDeadline = task.endDate ? new Date(task.endDate) : null;
+
+      // Start of counting: next business day after azure creation
+      const rawSlaStartDate =
+        task.azureCreatedDate ?? task.startDate ?? task.createdAt;
+      const slaStartDate = rawSlaStartDate
+        ? startOfNextBusinessDay(rawSlaStartDate)
+        : undefined;
+
+      const taskPriority = task.priority as TaskPriority;
+
+      // slaLimit is kept for reference / metrics but no longer drives the deadline
+      let slaLimit = 0;
+      if (applySla) {
+        if (slaLimitsMap) {
+          const subArea = this.classifySubArea(task.areaPath, areaPattern);
+          slaLimit =
+            slaLimitsMap.get(`${subArea}:${taskPriority}`) ??
+            SLA_LIMITS[taskPriority] ??
+            SLA_LIMITS.medium;
+        } else {
+          slaLimit = SLA_LIMITS[taskPriority] ?? SLA_LIMITS.medium;
+        }
+      }
+
+      // Elapsed: business hours from SLA start until now
       let businessHoursElapsed = 0;
       if (applySla && slaStartDate) {
         businessHoursElapsed = calculateBusinessHours(slaStartDate, now);
       }
 
+      // Violated: current time is past the deadline
+      const slaViolated = applySla && slaDeadline != null && now > slaDeadline;
+
+      // Remaining: positive = hours left, negative = hours overdue
+      let businessHoursRemaining = 0;
+      if (applySla && slaDeadline != null) {
+        if (slaViolated) {
+          businessHoursRemaining = -calculateBusinessHours(slaDeadline, now);
+        } else {
+          businessHoursRemaining = calculateBusinessHours(now, slaDeadline);
+        }
+      }
+
+      // Total window for percentage calculation (start → deadline)
+      const totalWindow =
+        applySla && slaStartDate && slaDeadline
+          ? calculateBusinessHours(slaStartDate, slaDeadline)
+          : 0;
       const slaPercentage =
-        slaLimit > 0 ? (businessHoursElapsed / slaLimit) * 100 : 0;
-      const slaViolated = applySla && businessHoursElapsed > slaLimit;
+        totalWindow > 0 ? (businessHoursElapsed / totalWindow) * 100 : 0;
       const slaWarning = applySla && !slaViolated && slaPercentage >= 80;
 
-      // Expiration only for Tickets with SLA
-      const businessHoursRemaining = applySla
-        ? slaLimit - businessHoursElapsed
-        : 0;
-      const daysUntilExpiration = applySla
-        ? businessHoursRemaining / HOURS_PER_DAY
-        : 0;
+      const daysUntilExpiration = businessHoursRemaining / HOURS_PER_DAY;
 
-      let expirationDate: string | null = null;
-      if (applySla && slaStartDate) {
-        const expDate = addBusinessHours(slaStartDate, slaLimit);
-        expirationDate = expDate.toISOString();
-      }
+      // expirationDate is the endDate itself
+      const expirationDate: string | null = slaDeadline
+        ? slaDeadline.toISOString()
+        : null;
 
       let expirationAlert:
         | 'expired'
@@ -1004,24 +1092,58 @@ export class DashboardService {
       };
     });
 
-    // Sort: local priority first (higher = more urgent), then azure priority, then hours remaining ASC
-    const priorityOrder: Record<string, number> = {
-      critical: 0,
-      high: 1,
-      medium: 2,
-      low: 3,
-    };
+    // Sort rules (in order of precedence):
+    // 1. Blocked items (impedimento) go to the BOTTOM — they can't progress
+    // 2. Violated SLA first (now > endDate), most overdue first
+    // 3. Local priority (manual prioritization) DESC
+    // 4. SLA remaining ASC — closest deadline first
+    // 5. Tasks with no SLA — by azure priority then staleness
     items.sort((a, b) => {
-      // Items with local priority come first (higher localPriority = more urgent)
+      const aBlocked = a.task.isBlocked ? 1 : 0;
+      const bBlocked = b.task.isBlocked ? 1 : 0;
+
+      // Blocked always sinks to bottom
+      if (aBlocked !== bBlocked) return aBlocked - bBlocked;
+
+      const aViolated = a.slaViolated ? 1 : 0;
+      const bViolated = b.slaViolated ? 1 : 0;
+      const aHasSla = a.expirationDate != null ? 1 : 0;
+      const bHasSla = b.expirationDate != null ? 1 : 0;
+
+      // Violated always comes before non-violated
+      if (aViolated !== bViolated) return bViolated - aViolated;
+
+      // Both violated → most overdue first (most negative remaining)
+      if (aViolated && bViolated) {
+        return a.businessHoursRemaining - b.businessHoursRemaining;
+      }
+
+      // Local priority beats everything else (manual overrides)
       if (a.localPriority !== b.localPriority)
         return b.localPriority - a.localPriority;
+
+      // Items with SLA (endDate set) before items without
+      if (aHasSla !== bHasSla) return bHasSla - aHasSla;
+
+      // Both have SLA → closest deadline first
+      if (aHasSla && bHasSla) {
+        return a.businessHoursRemaining - b.businessHoursRemaining;
+      }
+
+      // Both have no SLA → sort by azure priority then staleness (older first)
+      const priorityOrder: Record<string, number> = {
+        critical: 0,
+        high: 1,
+        medium: 2,
+        low: 3,
+      };
       const aPrio = priorityOrder[a.task.priority] ?? 99;
       const bPrio = priorityOrder[b.task.priority] ?? 99;
       if (aPrio !== bPrio) return aPrio - bPrio;
-      return a.businessHoursRemaining - b.businessHoursRemaining;
+      return b.daysSinceUpdate - a.daysSinceUpdate; // most stale first
     });
 
-    this._sustentacaoCache = { data: items, ts: Date.now() };
+    this._sustentacaoCache = { data: items, ts: Date.now(), configId };
     return items;
   }
 
@@ -1045,13 +1167,15 @@ export class DashboardService {
    *
    * @returns Array of SustentacaoMemberWithCards
    */
-  async getSustentacaoMembersWithCards(): Promise<
-    SustentacaoMemberWithCards[]
-  > {
-    logger.debug('[DashboardService.getSustentacaoMembersWithCards]');
+  async getSustentacaoMembersWithCards(
+    configId?: number,
+  ): Promise<SustentacaoMemberWithCards[]> {
+    logger.debug('[DashboardService.getSustentacaoMembersWithCards]', {
+      configId,
+    });
 
     // 1. Get all open Sustentação items with SLA (not just in_progress)
-    const allSustentacaoItems = await this.getSustentacaoItems();
+    const allSustentacaoItems = await this.getSustentacaoItems({}, configId);
 
     // 2. Group cards by assignedTo (name or email) — no allocation needed
     const memberCardMap = new Map<
@@ -1079,13 +1203,19 @@ export class DashboardService {
     }
 
     // 3. Build result — create a lightweight member representation from assignedTo
+    // Collect all emails for a single batch query
+    const allEmails = [...memberCardMap.values()]
+      .map((d) => d.email)
+      .filter((e): e is string => !!e);
+    const memberEntityMap =
+      await this.teamMemberRepository.findByEmails(allEmails);
+
     const result: SustentacaoMemberWithCards[] = [];
     for (const [, data] of memberCardMap) {
-      // Try to find a real TeamMemberEntity by email or name
-      let memberEntity: TeamMemberEntity | null = null;
-      if (data.email) {
-        memberEntity = await this.teamMemberRepository.findByEmail(data.email);
-      }
+      // Try to find a real TeamMemberEntity by email
+      const memberEntity = data.email
+        ? (memberEntityMap.get(data.email.toLowerCase()) ?? null)
+        : null;
 
       const member: TeamMemberEntity =
         memberEntity ??
@@ -1099,8 +1229,25 @@ export class DashboardService {
           updatedAt: new Date(),
         } as TeamMemberEntity);
 
-      // Sort cards: priority critical > high > medium > low, then by SLA remaining ASC
+      // Sort cards: blocked to bottom, then violated first, then local priority, then closest deadline
       const sortedCards = [...data.cards].sort((a, b) => {
+        const aBlocked = a.task.isBlocked ? 1 : 0;
+        const bBlocked = b.task.isBlocked ? 1 : 0;
+        if (aBlocked !== bBlocked) return aBlocked - bBlocked;
+
+        const aViolated = a.slaViolated ? 1 : 0;
+        const bViolated = b.slaViolated ? 1 : 0;
+        const aHasSla = a.expirationDate != null ? 1 : 0;
+        const bHasSla = b.expirationDate != null ? 1 : 0;
+
+        if (aViolated !== bViolated) return bViolated - aViolated;
+        if (aViolated && bViolated)
+          return a.businessHoursRemaining - b.businessHoursRemaining;
+        if (a.localPriority !== b.localPriority)
+          return b.localPriority - a.localPriority;
+        if (aHasSla !== bHasSla) return bHasSla - aHasSla;
+        if (aHasSla && bHasSla)
+          return a.businessHoursRemaining - b.businessHoursRemaining;
         const priorityOrder: Record<string, number> = {
           critical: 0,
           high: 1,
@@ -1109,8 +1256,7 @@ export class DashboardService {
         };
         const aPrio = priorityOrder[a.task.priority] ?? 99;
         const bPrio = priorityOrder[b.task.priority] ?? 99;
-        if (aPrio !== bPrio) return aPrio - bPrio;
-        return a.businessHoursRemaining - b.businessHoursRemaining;
+        return aPrio - bPrio;
       });
 
       result.push({
@@ -1153,7 +1299,14 @@ export class DashboardService {
     // 2. Get ALL tasks (not just sustentação)
     const allTasks = await this.taskRepository.findAllWithRelations();
 
-    // 3. Filter: only open tasks
+    // 3. Build project display name map (configId → displayName) for task indicators
+    const projects = await this.azureDevOpsService.listProjects();
+    const projectDisplayNames = new Map<number, string>(
+      projects.map((p) => [p.id, p.displayName]),
+    );
+    const showProjectIndicator = projects.length > 1;
+
+    // 4. Filter: only open tasks
     const openTasks = allTasks.filter(
       (t) => !CLOSED_STATUSES.includes(t.status),
     );
@@ -1205,7 +1358,15 @@ export class DashboardService {
       for (const task of filteredTasks) {
         const area = this.classifyArea(task.areaPath);
         if (!groupMap.has(area)) groupMap.set(area, []);
-        groupMap.get(area)!.push(this.mapTaskToDto(task));
+        const taskDto = this.mapTaskToDto(task);
+        if (showProjectIndicator && task.origin === 'azure_devops') {
+          taskDto.azureDevOpsConfigId = task.azureDevOpsConfigId ?? null;
+          taskDto.azureProjectDisplayName = task.azureDevOpsConfigId
+            ? (projectDisplayNames.get(task.azureDevOpsConfigId) ??
+              'Projeto desconhecido')
+            : 'Projeto desconhecido';
+        }
+        groupMap.get(area)!.push(taskDto);
       }
 
       const taskGroups = Array.from(groupMap.entries())
@@ -1235,6 +1396,20 @@ export class DashboardService {
     });
 
     return result;
+  }
+
+  /**
+   * Classifies a task's areaPath to a SlaSubArea key used for dynamic SLA lookups.
+   */
+  private classifySubArea(
+    areaPath: string | undefined,
+    sustentacaoAreaPath: string,
+  ): import('../entities/sla-config.entity').SlaSubArea {
+    if (!areaPath) return 'outros';
+    if (!areaPath.startsWith(sustentacaoAreaPath)) return 'outros';
+    if (areaPath.includes('Gestão de Terceiros')) return 'gestao_terceiros';
+    if (areaPath.includes('Chamada Tecnológica')) return 'chamada_tecnologica';
+    return 'outros';
   }
 
   /** Classify a task's areaPath into a display-friendly group name */
@@ -1312,13 +1487,17 @@ export class DashboardService {
    */
   async getSustentacaoMetrics(
     statuses?: string[],
+    configId?: number,
   ): Promise<
     import('@shared/interfaces/config/index.types').SustentacaoMetrics
   > {
-    logger.debug('[DashboardService.getSustentacaoMetrics]', { statuses });
+    logger.debug('[DashboardService.getSustentacaoMetrics]', {
+      statuses,
+      configId,
+    });
 
     // 1. Get open items (already calculated with SLA)
-    const allOpenItems = await this.getSustentacaoItems();
+    const allOpenItems = await this.getSustentacaoItems({}, configId);
 
     // Filter by statuses if provided (dev + auditoria lanes)
     const statusSet = statuses
@@ -1487,15 +1666,27 @@ export class DashboardService {
   async getProjetosItems(
     sprintId: number,
     referenceDate: Date = new Date(),
+    configId?: number,
   ): Promise<ProjetosResult> {
-    logger.debug('[DashboardService.getProjetosItems]', { sprintId });
+    logger.debug('[DashboardService.getProjetosItems]', { sprintId, configId });
+
+    const areaPattern = await this.getProjetosAreaPath(configId);
 
     // Get tasks for the specified sprint
     const sprintTasks = await this.taskRepository.findBySprint(sprintId);
 
-    // Property 2: Filter by area_path LIKE 'Tribo SEIF\Projetos\%'
+    // Filter by area_path and (when configId provided) by azure_devops_config_id
     const filteredTasks = sprintTasks.filter((task) => {
-      return task.areaPath?.startsWith(PROJETOS_AREA_PATH_PATTERN) ?? false;
+      const areaMatch = task.areaPath?.startsWith(areaPattern) ?? false;
+      if (!areaMatch) return false;
+      if (configId) {
+        // Include tasks that belong to this config, OR legacy tasks without configId that match area
+        return (
+          task.azureDevOpsConfigId === configId ||
+          task.azureDevOpsConfigId == null
+        );
+      }
+      return true;
     });
 
     // Get external IDs for priority lookup
@@ -1507,35 +1698,38 @@ export class DashboardService {
     const priorityMap =
       await this.taskLocalPriorityRepository.findByExternalIds(externalIds);
 
+    // Pre-fetch all children in one batch query to avoid N+1
+    const taskIds = filteredTasks.map((t) => t.id);
+    const childrenByParentId =
+      await this.taskRepository.findByParentIds(taskIds);
+
     // Build ProjetosItem array with enriched data
-    const items: ProjetosItem[] = await Promise.all(
-      filteredTasks.map(async (task) => {
-        const localPriority = task.externalId
-          ? (priorityMap.get(task.externalId) ?? 0)
+    const items: ProjetosItem[] = filteredTasks.map((task) => {
+      const localPriority = task.externalId
+        ? (priorityMap.get(task.externalId) ?? 0)
+        : 0;
+
+      // Get children and calculate progress
+      const children = childrenByParentId.get(task.id) ?? [];
+      const childrenCount = children.length;
+      const completedChildrenCount = children.filter((child) =>
+        COMPLETED_STATUSES.includes(child.status),
+      ).length;
+
+      // Property 10: Progress = (completed / total) * 100, or 0 if no children
+      const progressPercent =
+        childrenCount > 0
+          ? Math.round((completedChildrenCount / childrenCount) * 100)
           : 0;
 
-        // Get children and calculate progress
-        const children = await this.taskRepository.findByParentId(task.id);
-        const childrenCount = children.length;
-        const completedChildrenCount = children.filter((child) =>
-          COMPLETED_STATUSES.includes(child.status),
-        ).length;
-
-        // Property 10: Progress = (completed / total) * 100, or 0 if no children
-        const progressPercent =
-          childrenCount > 0
-            ? Math.round((completedChildrenCount / childrenCount) * 100)
-            : 0;
-
-        return {
-          task,
-          localPriority,
-          childrenCount,
-          completedChildrenCount,
-          progressPercent,
-        };
-      }),
-    );
+      return {
+        task,
+        localPriority,
+        childrenCount,
+        completedChildrenCount,
+        progressPercent,
+      };
+    });
 
     // Group items by status category (Req 3.3)
     const groupedByStatus: ProjetosResult['groupedByStatus'] = {
@@ -1607,35 +1801,37 @@ export class DashboardService {
       return isUserStory && isProjetosArea;
     });
 
-    // Build UserStoryProgress array
-    const items: UserStoryProgress[] = await Promise.all(
-      userStories.map(async (task) => {
-        // Get children (Tasks)
-        const children = await this.taskRepository.findByParentId(task.id);
-        const totalChildren = children.length;
-        const completedChildren = children.filter((child) =>
-          COMPLETED_STATUSES.includes(child.status),
-        ).length;
+    // Build UserStoryProgress array — use batch query to avoid N+1
+    const userStoryIds = userStories.map((t) => t.id);
+    const childrenByParentId =
+      await this.taskRepository.findByParentIds(userStoryIds);
 
-        // Property 10: Progress calculation
-        const progressPercent =
-          totalChildren > 0
-            ? Math.round((completedChildren / totalChildren) * 100)
-            : 0;
+    const items: UserStoryProgress[] = userStories.map((task) => {
+      // Get children (Tasks)
+      const children = childrenByParentId.get(task.id) ?? [];
+      const totalChildren = children.length;
+      const completedChildren = children.filter((child) =>
+        COMPLETED_STATUSES.includes(child.status),
+      ).length;
 
-        // Property 11: Complete if all children are completed
-        const isComplete =
-          totalChildren > 0 && completedChildren === totalChildren;
+      // Property 10: Progress calculation
+      const progressPercent =
+        totalChildren > 0
+          ? Math.round((completedChildren / totalChildren) * 100)
+          : 0;
 
-        return {
-          task,
-          totalChildren,
-          completedChildren,
-          progressPercent,
-          isComplete,
-        };
-      }),
-    );
+      // Property 11: Complete if all children are completed
+      const isComplete =
+        totalChildren > 0 && completedChildren === totalChildren;
+
+      return {
+        task,
+        totalChildren,
+        completedChildren,
+        progressPercent,
+        isComplete,
+      };
+    });
 
     return items;
   }

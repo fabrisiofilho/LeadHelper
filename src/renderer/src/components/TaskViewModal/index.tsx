@@ -19,13 +19,8 @@ import {
 } from '@mui/material';
 import {
   Close as CloseIcon,
-  Person as PersonIcon,
   Label as LabelIcon,
-  Speed as SpeedIcon,
-  Flag as FlagIcon,
   CloudQueue as CloudIcon,
-  Group as GroupIcon,
-  AccountTree as SprintIcon,
   Description as DescriptionIcon,
   Assignment as TaskIcon,
   AssignmentTurnedIn as TaskTypeIcon,
@@ -927,6 +922,63 @@ export function TaskViewModal({ open, task, onClose }: TaskViewModalProps) {
                   </Stack>
 
                   <Divider />
+
+                  {/* Impedimento — always show for Azure tasks */}
+                  {displayTask.origin === 'azure_devops' && (
+                    <Box>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        fontWeight={600}
+                        sx={{ mb: 0.75, display: 'block' }}
+                      >
+                        IMPEDIMENTO
+                      </Typography>
+                      {displayTask.isBlocked ? (
+                        <Stack spacing={1}>
+                          <Chip
+                            label="⚠ Com impedimento"
+                            size="small"
+                            color="error"
+                            variant="filled"
+                            sx={{ fontWeight: 700, width: 'fit-content' }}
+                          />
+                          {displayTask.blockedReason && (
+                            <Paper
+                              variant="outlined"
+                              sx={{
+                                p: 1.5,
+                                borderColor: 'error.light',
+                                borderRadius: 1,
+                                bgcolor: 'background.paper',
+                              }}
+                            >
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                fontWeight={600}
+                                display="block"
+                                mb={0.25}
+                              >
+                                MOTIVO
+                              </Typography>
+                              <Typography variant="body2">
+                                {displayTask.blockedReason}
+                              </Typography>
+                            </Paper>
+                          )}
+                        </Stack>
+                      ) : (
+                        <Chip
+                          label="Sem impedimento"
+                          size="small"
+                          color="success"
+                          variant="outlined"
+                          sx={{ fontWeight: 600 }}
+                        />
+                      )}
+                    </Box>
+                  )}
 
                   {/* Datas Azure DevOps */}
                   {displayTask.origin === 'azure_devops' && (

@@ -5,7 +5,7 @@ import {
   Paper,
   Chip,
   Stack,
-  CircularProgress,
+  Skeleton,
   Tooltip,
 } from '@mui/material';
 import { Cloud as CloudIcon } from '@mui/icons-material';
@@ -13,7 +13,6 @@ import type {
   Task,
   TaskStatusConfig,
 } from '@shared/interfaces/config/index.types';
-import { getTaskTypeOption } from '@renderer/utils/task-type';
 import { WorkItemTypeChip } from '@renderer/components/WorkItemTypeChip';
 
 interface TaskKanbanViewProps {
@@ -46,9 +45,25 @@ export function TaskKanbanView({
 
   if (loading) {
     return (
-      <Stack alignItems="center" justifyContent="center" py={6}>
-        <CircularProgress size={36} />
-      </Stack>
+      <Box sx={{ display: 'flex', gap: 2, px: 2, py: 2, overflowX: 'auto' }}>
+        {Array.from({ length: 4 }).map((_, col) => (
+          <Box key={col} sx={{ minWidth: 280, flex: 1 }}>
+            <Skeleton
+              variant="rounded"
+              height={36}
+              sx={{ mb: 1, borderRadius: 1 }}
+            />
+            {Array.from({ length: 3 + col }).map((_, row) => (
+              <Skeleton
+                key={row}
+                variant="rounded"
+                height={90}
+                sx={{ mb: 1, borderRadius: 1.5 }}
+              />
+            ))}
+          </Box>
+        ))}
+      </Box>
     );
   }
 
@@ -157,14 +172,9 @@ export function TaskKanbanView({
                       flexWrap="wrap"
                       useFlexGap
                     >
-                      <WorkItemTypeChip
-                        type={task.type || 'Task'}
-                      />
+                      <WorkItemTypeChip type={task.type || 'Task'} />
                       {task.team && (
-                        <Chip
-                          label={task.team.name}
-                          size="small"
-                        />
+                        <Chip label={task.team.name} size="small" />
                       )}
                       {task.sprint && (
                         <Chip

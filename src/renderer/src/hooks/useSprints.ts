@@ -25,17 +25,17 @@ export function useSprints() {
     upcomingSprints: [],
   });
 
-  const setLoading = (loading: boolean) => {
+  const setLoading = useCallback((loading: boolean) => {
     setState((prev) => ({
       ...prev,
       loading,
       error: loading ? null : prev.error,
     }));
-  };
+  }, []);
 
-  const setError = (error: string | null) => {
+  const setError = useCallback((error: string | null) => {
     setState((prev) => ({ ...prev, error, loading: false }));
-  };
+  }, []);
 
   const create = useCallback(
     async (data: CreateSprintInput): Promise<Sprint | null> => {
@@ -59,7 +59,7 @@ export function useSprints() {
         return null;
       }
     },
-    [],
+    [setLoading, setError],
   );
 
   const update = useCallback(
@@ -84,28 +84,31 @@ export function useSprints() {
         return null;
       }
     },
-    [],
+    [setLoading, setError],
   );
 
-  const deleteSprint = useCallback(async (id: number): Promise<boolean> => {
-    setLoading(true);
-    try {
-      const response = await window.electronAPI.sprint.delete(id);
-      if (!response.success) {
-        setError(response.error || 'Erro ao excluir sprint');
+  const deleteSprint = useCallback(
+    async (id: number): Promise<boolean> => {
+      setLoading(true);
+      try {
+        const response = await window.electronAPI.sprint.delete(id);
+        if (!response.success) {
+          setError(response.error || 'Erro ao excluir sprint');
+          return false;
+        }
+        setState((prev) => ({
+          ...prev,
+          loading: false,
+          sprints: prev.sprints.filter((s) => s.id !== id),
+        }));
+        return true;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erro de comunicação');
         return false;
       }
-      setState((prev) => ({
-        ...prev,
-        loading: false,
-        sprints: prev.sprints.filter((s) => s.id !== id),
-      }));
-      return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro de comunicação');
-      return false;
-    }
-  }, []);
+    },
+    [setLoading, setError],
+  );
 
   const findAll = useCallback(
     async (filters?: SprintFilters): Promise<Sprint[]> => {
@@ -127,48 +130,54 @@ export function useSprints() {
         return [];
       }
     },
-    [],
+    [setLoading, setError],
   );
 
-  const findById = useCallback(async (id: number): Promise<Sprint | null> => {
-    setLoading(true);
-    try {
-      const response = await window.electronAPI.sprint.findById(id);
-      if (!response.success) {
-        setError(response.error || 'Erro ao buscar sprint');
+  const findById = useCallback(
+    async (id: number): Promise<Sprint | null> => {
+      setLoading(true);
+      try {
+        const response = await window.electronAPI.sprint.findById(id);
+        if (!response.success) {
+          setError(response.error || 'Erro ao buscar sprint');
+          return null;
+        }
+        setState((prev) => ({
+          ...prev,
+          loading: false,
+          selectedSprint: response.data || null,
+        }));
+        return response.data || null;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erro de comunicação');
         return null;
       }
-      setState((prev) => ({
-        ...prev,
-        loading: false,
-        selectedSprint: response.data || null,
-      }));
-      return response.data || null;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro de comunicação');
-      return null;
-    }
-  }, []);
+    },
+    [setLoading, setError],
+  );
 
-  const findByTeam = useCallback(async (teamId: number): Promise<Sprint[]> => {
-    setLoading(true);
-    try {
-      const response = await window.electronAPI.sprint.findByTeam(teamId);
-      if (!response.success) {
-        setError(response.error || 'Erro ao buscar sprints da equipe');
+  const findByTeam = useCallback(
+    async (teamId: number): Promise<Sprint[]> => {
+      setLoading(true);
+      try {
+        const response = await window.electronAPI.sprint.findByTeam(teamId);
+        if (!response.success) {
+          setError(response.error || 'Erro ao buscar sprints da equipe');
+          return [];
+        }
+        setState((prev) => ({
+          ...prev,
+          loading: false,
+          sprints: response.data || [],
+        }));
+        return response.data || [];
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erro de comunicação');
         return [];
       }
-      setState((prev) => ({
-        ...prev,
-        loading: false,
-        sprints: response.data || [],
-      }));
-      return response.data || [];
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro de comunicação');
-      return [];
-    }
-  }, []);
+    },
+    [setLoading, setError],
+  );
 
   const findCurrent = useCallback(
     async (teamId?: number): Promise<Sprint | null> => {
@@ -190,7 +199,7 @@ export function useSprints() {
         return null;
       }
     },
-    [],
+    [setLoading, setError],
   );
 
   const findUpcoming = useCallback(
@@ -216,7 +225,7 @@ export function useSprints() {
         return [];
       }
     },
-    [],
+    [setLoading, setError],
   );
 
   const clearError = useCallback(() => {

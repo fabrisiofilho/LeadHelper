@@ -150,9 +150,11 @@ const darkShadows = {
   z_16: '0rem 1rem 2rem -0.25rem rgba(0, 0, 0, 0.5)',
   z_20: '0rem 1.25rem 2.5rem -0.25rem rgba(0, 0, 0, 0.55)',
   z_24: '0rem 1.5rem 3rem 0rem rgba(0, 0, 0, 0.55)',
-  cards: '0rem 0.125rem 0.5rem -0.125rem rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255,255,255,0.04)',
+  cards:
+    '0rem 0.125rem 0.5rem -0.125rem rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255,255,255,0.04)',
   dialogs: '-2.5rem 2.5rem 5rem -0.5rem rgba(0, 0, 0, 0.6)',
-  dropdown: '0rem 0.5rem 1.5rem -0.25rem rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.05)',
+  dropdown:
+    '0rem 0.5rem 1.5rem -0.25rem rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.05)',
   circle_button: '0 0 0.15rem rgba(0, 0, 0, 0.4)',
 };
 

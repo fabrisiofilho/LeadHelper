@@ -5,6 +5,7 @@ import {
   Groups as GroupsIcon,
   People as PeopleIcon,
   Cloud as CloudIcon,
+  Timer as TimerIcon,
 } from '@mui/icons-material';
 import { styled, alpha } from '@mui/material/styles';
 
@@ -51,6 +52,14 @@ const SYSTEM_CARDS: SystemCard[] = [
     icon: <CloudIcon sx={{ fontSize: 32 }} />,
     path: '/panel/azure-devops',
     color: '#2563EB',
+  },
+  {
+    label: 'Configuração de SLA',
+    description:
+      'Defina os limites de SLA por prioridade e sub-área para cada projeto.',
+    icon: <TimerIcon sx={{ fontSize: 32 }} />,
+    path: '/panel/sla-config',
+    color: '#B45309',
   },
 ];
 

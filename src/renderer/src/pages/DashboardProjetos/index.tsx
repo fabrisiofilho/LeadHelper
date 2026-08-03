@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -18,6 +18,7 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  Skeleton,
   type SelectChangeEvent,
 } from '@mui/material';
 import {
@@ -35,6 +36,8 @@ import {
 } from '@mui/icons-material';
 import { PageLayout } from '@renderer/components/PageLayout';
 import { useTableSort } from '@renderer/hooks/useTableSort';
+import { ProjectSelector } from '@renderer/components/ProjectSelector';
+import { useAzureProjects } from '@renderer/providers/AzureProjectsProvider';
 import {
   StandardTable,
   type StandardColumn,
@@ -496,6 +499,29 @@ function UserStoryAccordion({
 // ── Main Component ──
 
 export function DashboardProjetosPage() {
+  const { projects } = useAzureProjects();
+
+  // Project selection — persisted in localStorage
+  const [selectedConfigId, setSelectedConfigId] = useState<number | null>(
+    () => {
+      const stored = localStorage.getItem('dashboard-projetos-project-id');
+      return stored ? Number(stored) : null;
+    },
+  );
+
+  const resolvedConfigId = useMemo(() => {
+    if (projects.length === 0) return undefined;
+    if (projects.length === 1) return projects[0].id;
+    if (selectedConfigId && projects.some((p) => p.id === selectedConfigId))
+      return selectedConfigId;
+    return projects[0]?.id;
+  }, [projects, selectedConfigId]);
+
+  const handleProjectChange = (id: number) => {
+    setSelectedConfigId(id);
+    localStorage.setItem('dashboard-projetos-project-id', String(id));
+  };
+
   const [sprints, setSprints] = useState<Sprint[]>([]);
   const [selectedSprintId, setSelectedSprintId] = useState<number | ''>('');
   const [result, setResult] = useState<ProjetosResult | null>(null);
@@ -559,6 +585,7 @@ export function DashboardProjetosPage() {
     try {
       const response = await window.electronAPI.dashboard.getProjetosItems(
         selectedSprintId as number,
+        resolvedConfigId,
       );
       if (!response.success) {
         setError(response.error || 'Erro ao carregar dados de Projetos');
@@ -571,7 +598,7 @@ export function DashboardProjetosPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedSprintId]);
+  }, [selectedSprintId, resolvedConfigId]);
 
   useEffect(() => {
     loadSprints();
@@ -631,11 +658,47 @@ export function DashboardProjetosPage() {
   if (loadingSprints) {
     return (
       <PageLayout>
-        <Stack alignItems="center" justifyContent="center" minHeight="60vh">
-          <CircularProgress size={48} />
-          <Typography variant="body1" color="text.secondary" mt={2}>
-            Carregando sprints...
-          </Typography>
+        <Stack
+          direction="row"
+          justifyContent="space-between"
+          alignItems="center"
+          mb={3}
+        >
+          <Stack spacing={1}>
+            <Skeleton
+              variant="text"
+              width={240}
+              height={40}
+              sx={{ borderRadius: 1 }}
+            />
+            <Skeleton
+              variant="text"
+              width={300}
+              height={22}
+              sx={{ borderRadius: 1 }}
+            />
+          </Stack>
+          <Skeleton
+            variant="rounded"
+            width={200}
+            height={40}
+            sx={{ borderRadius: 1 }}
+          />
+        </Stack>
+        <Skeleton
+          variant="rounded"
+          height={100}
+          sx={{ mb: 3, borderRadius: 2 }}
+        />
+        <Stack spacing={1.5}>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton
+              key={i}
+              variant="rounded"
+              height={64}
+              sx={{ borderRadius: 1.5 }}
+            />
+          ))}
         </Stack>
       </PageLayout>
     );
@@ -651,9 +714,18 @@ export function DashboardProjetosPage() {
         mb={3}
       >
         <Box>
-          <Typography variant="h4" fontWeight={700}>
-            Dashboard Projetos
-          </Typography>
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <Typography variant="h5" fontWeight={700}>
+              Dashboard Projetos
+            </Typography>
+            {projects.length > 1 && (
+              <ProjectSelector
+                projects={projects}
+                selectedId={resolvedConfigId ?? null}
+                onChange={handleProjectChange}
+              />
+            )}
+          </Stack>
           <Typography variant="body2" color="text.secondary">
             User Stories da sprint — expanda para ver Tasks e Bugs
           </Typography>
@@ -697,11 +769,16 @@ export function DashboardProjetosPage() {
           Selecione uma sprint para visualizar os dados.
         </Alert>
       ) : loading ? (
-        <Stack alignItems="center" justifyContent="center" minHeight="40vh">
-          <CircularProgress size={40} />
-          <Typography variant="body2" color="text.secondary" mt={2}>
-            Carregando dados da sprint...
-          </Typography>
+        <Stack spacing={1.5}>
+          <Skeleton variant="rounded" height={100} sx={{ borderRadius: 2 }} />
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton
+              key={i}
+              variant="rounded"
+              height={64}
+              sx={{ borderRadius: 1.5 }}
+            />
+          ))}
         </Stack>
       ) : error ? (
         <Stack alignItems="center" justifyContent="center" minHeight="40vh">

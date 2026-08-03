@@ -241,7 +241,7 @@ export function GanttPage() {
           mb={3}
         >
           <Box>
-            <Typography variant="h4" fontWeight={700}>
+            <Typography variant="h5" fontWeight={700}>
               Gráfico de Gantt
             </Typography>
             <Typography variant="body2" color="text.secondary">

@@ -11,6 +11,7 @@ import { HashRouter } from 'react-router-dom';
 import { ThemeProvider as StyledProvider } from 'styled-components';
 import { WithHooks } from '@renderer/hooks';
 import { ThemeProvider, useTheme } from '@renderer/hooks/theme';
+import { AzureProjectsProvider } from '@renderer/providers/AzureProjectsProvider';
 
 type Props = {
   children: ReactNode;
@@ -36,7 +37,9 @@ function ThemedApp({ children }: Props) {
             info: CustomMaterialDesignContent,
           }}
         >
-          <WithHooks>{children}</WithHooks>
+          <WithHooks>
+            <AzureProjectsProvider>{children}</AzureProjectsProvider>
+          </WithHooks>
         </SnackbarProvider>
       </MUIProvider>
     </StyledProvider>

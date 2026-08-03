@@ -4,23 +4,22 @@ import {
   Typography,
   IconButton,
   Tooltip,
-  CircularProgress,
   Stack,
   Alert,
-  TextField,
-  InputAdornment,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
   Chip,
+  Skeleton,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
   Lock as LockIcon,
-  Search as SearchIcon,
   Clear as ClearIcon,
 } from '@mui/icons-material';
+import { DebouncedSearchInput } from '@renderer/components/DebouncedSearchInput';
+import { useAzureProjects } from '@renderer/providers/AzureProjectsProvider';
 import { useTasks } from '@renderer/hooks/useTasks';
 import { useTeams } from '@renderer/hooks/useTeams';
 import { useSprints } from '@renderer/hooks/useSprints';
@@ -69,6 +68,7 @@ interface TaskManagementFilters {
   type: string;
   teamType: string;
   sprintId: string;
+  azureConfigId: string; // 'all' or project id as string
 }
 
 const EMPTY_FILTERS: TaskManagementFilters = {
@@ -77,6 +77,7 @@ const EMPTY_FILTERS: TaskManagementFilters = {
   type: 'all',
   teamType: 'all',
   sprintId: 'all',
+  azureConfigId: 'all',
 };
 
 // Table columns configuration
@@ -101,7 +102,13 @@ import { getStatusColor } from '@shared/constants/status-colors';
 function normalizeStatus(state: string): string {
   const s = state.toLowerCase();
 
-  if (s === 'done' || s === 'closed' || s === 'resolved' || s === 'finalizado' || s === 'completed') {
+  if (
+    s === 'done' ||
+    s === 'closed' ||
+    s === 'resolved' ||
+    s === 'finalizado' ||
+    s === 'completed'
+  ) {
     return 'completed';
   }
 
@@ -127,28 +134,17 @@ function normalizeStatus(state: string): string {
     return 'in_progress';
   }
 
-  if (s === 'removed' || s === 'cut' || s === 'cancelado' || s === 'cancelled') {
+  if (
+    s === 'removed' ||
+    s === 'cut' ||
+    s === 'cancelado' ||
+    s === 'cancelled'
+  ) {
     return 'cancelled';
   }
 
   return 'pending';
 }
-
-// Type color mapping
-const getTypeColor = (type: string): string => {
-  const typeColors: Record<string, string> = {
-    epic: '#EA580C',
-    feature: '#7C3AED',
-    improvement: '#DB2777',
-    rework: '#DC2626',
-    bug: '#DC2626',
-    roadmap: '#475569',
-    task: '#CA8A04',
-    ticket: '#16A34A',
-    'user story': '#2563EB',
-  };
-  return typeColors[type.toLowerCase()] || '#64748B';
-};
 
 // Get team type from area path
 const getTeamTypeFromAreaPath = (areaPath?: string): string => {
@@ -159,6 +155,9 @@ const getTeamTypeFromAreaPath = (areaPath?: string): string => {
 };
 
 export function TaskManagementPage() {
+  const { projects } = useAzureProjects();
+  const showProjectFilter = projects.length > 1;
+
   const [filters, setFilters] = useState<TaskManagementFilters>(EMPTY_FILTERS);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
@@ -212,7 +211,9 @@ export function TaskManagementPage() {
 
     // Status filter (Property 16)
     if (filters.status !== 'all') {
-      result = result.filter((t) => normalizeStatus(t.status) === filters.status);
+      result = result.filter(
+        (t) => normalizeStatus(t.status) === filters.status,
+      );
     }
 
     // Type filter - Azure DevOps work item type
@@ -238,6 +239,12 @@ export function TaskManagementPage() {
     if (filters.sprintId !== 'all') {
       const sprintId = parseInt(filters.sprintId, 10);
       result = result.filter((t) => t.sprintId === sprintId);
+    }
+
+    // Project filter
+    if (filters.azureConfigId !== 'all') {
+      const configId = parseInt(filters.azureConfigId, 10);
+      result = result.filter((t) => t.azureDevOpsConfigId === configId);
     }
 
     return result;
@@ -302,7 +309,9 @@ export function TaskManagementPage() {
         ),
         team: (
           <Typography variant="body2" color="text.secondary">
-            {getTeamTypeFromAreaPath(task.areaPath)}
+            {showProjectFilter && task.azureProjectDisplayName
+              ? task.azureProjectDisplayName
+              : getTeamTypeFromAreaPath(task.areaPath)}
           </Typography>
         ),
         sprint: (
@@ -312,7 +321,7 @@ export function TaskManagementPage() {
         ),
       },
     }));
-  }, [paginatedTasks, handleTaskClick]);
+  }, [paginatedTasks, handleTaskClick, showProjectFilter]);
 
   const handleRefresh = async () => {
     await loadData();
@@ -337,7 +346,8 @@ export function TaskManagementPage() {
       filters.status !== 'all' ||
       filters.type !== 'all' ||
       filters.teamType !== 'all' ||
-      filters.sprintId !== 'all'
+      filters.sprintId !== 'all' ||
+      filters.azureConfigId !== 'all'
     );
   }, [filters]);
 
@@ -346,11 +356,64 @@ export function TaskManagementPage() {
   if (isLoading) {
     return (
       <PageContainer>
-        <Stack alignItems="center" justifyContent="center" minHeight="60vh">
-          <CircularProgress size={48} />
-          <Typography variant="body1" color="text.secondary" mt={2}>
-            Carregando tarefas...
-          </Typography>
+        <Stack
+          direction="row"
+          justifyContent="space-between"
+          alignItems="center"
+          mb={2}
+        >
+          <Stack spacing={0.5}>
+            <Skeleton
+              variant="text"
+              width={220}
+              height={40}
+              sx={{ borderRadius: 1 }}
+            />
+            <Skeleton
+              variant="text"
+              width={300}
+              height={22}
+              sx={{ borderRadius: 1 }}
+            />
+          </Stack>
+          <Skeleton variant="circular" width={32} height={32} />
+        </Stack>
+        <Skeleton
+          variant="rounded"
+          height={44}
+          sx={{ mb: 2, borderRadius: 1 }}
+        />
+        <Stack direction="row" spacing={2} mb={2} flexWrap="wrap" useFlexGap>
+          <Skeleton
+            variant="rounded"
+            width={300}
+            height={40}
+            sx={{ borderRadius: 1 }}
+          />
+          {[150, 150, 150, 180].map((w, i) => (
+            <Skeleton
+              key={i}
+              variant="rounded"
+              width={w}
+              height={40}
+              sx={{ borderRadius: 1 }}
+            />
+          ))}
+        </Stack>
+        <Stack spacing={0}>
+          <Skeleton
+            variant="rounded"
+            height={48}
+            sx={{ borderRadius: '4px 4px 0 0' }}
+          />
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton
+              key={i}
+              variant="rounded"
+              height={52}
+              sx={{ borderRadius: 0, mt: '1px' }}
+            />
+          ))}
         </Stack>
       </PageContainer>
     );
@@ -362,11 +425,11 @@ export function TaskManagementPage() {
         direction="row"
         justifyContent="space-between"
         alignItems="center"
-        mb={2}
+        mb={2.5}
         flexShrink={0}
       >
         <Box>
-          <Typography variant="h4" fontWeight={700}>
+          <Typography variant="h5" fontWeight={700}>
             Gestão de Tarefas
           </Typography>
           <Typography variant="body2" color="text.secondary">
@@ -393,29 +456,11 @@ export function TaskManagementPage() {
         <FiltersContainer>
           <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
             {/* Global Search */}
-            <TextField
+            <DebouncedSearchInput
               placeholder="Buscar por ID, título, descrição ou responsável..."
-              value={filters.search}
-              onChange={(e) => handleFilterChange('search', e.target.value)}
-              size="small"
+              defaultValue={filters.search}
+              onSearch={(v) => handleFilterChange('search', v)}
               sx={{ minWidth: 300, flex: 1 }}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon color="action" />
-                  </InputAdornment>
-                ),
-                endAdornment: filters.search && (
-                  <InputAdornment position="end">
-                    <IconButton
-                      size="small"
-                      onClick={() => handleFilterChange('search', '')}
-                    >
-                      <ClearIcon fontSize="small" />
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
             />
 
             {/* Status Filter */}
@@ -483,6 +528,26 @@ export function TaskManagementPage() {
               </Select>
             </FormControl>
 
+            {/* Project Filter — only shown when multiple projects are configured */}
+            {showProjectFilter && (
+              <FormControl size="small" sx={{ minWidth: 180 }}>
+                <InputLabel>Projeto</InputLabel>
+                <Select
+                  value={filters.azureConfigId}
+                  label="Projeto"
+                  onChange={(e) =>
+                    handleFilterChange('azureConfigId', e.target.value)
+                  }
+                >
+                  <MenuItem value="all">Todos os Projetos</MenuItem>
+                  {projects.map((p) => (
+                    <MenuItem key={p.id} value={p.id.toString()}>
+                      {p.displayName}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
             {/* Clear Filters Button */}
             {hasActiveFilters && (
               <Tooltip title="Limpar filtros">

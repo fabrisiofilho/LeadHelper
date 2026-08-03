@@ -294,9 +294,8 @@ function TaskHierarchyItem({
 export function TaskHierarchy({
   task,
   onTaskClick,
-  level = 0,
   maxLevel = 5,
-}: TaskHierarchyProps) {
+}: Omit<TaskHierarchyProps, 'level'>) {
   // Check if task has parent or children
   const hasHierarchy =
     task.parent || (task.children && task.children.length > 0);

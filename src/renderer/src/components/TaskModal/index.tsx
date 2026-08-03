@@ -134,6 +134,7 @@ export function TaskModal({
     },
   });
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const startDateValue = watch('startDate');
 
   useEffect(() => {

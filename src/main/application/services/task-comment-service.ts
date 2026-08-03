@@ -75,7 +75,7 @@ export class TaskCommentService {
     if (!entity) {
       throw new Error(`Comentário com ID ${id} não encontrado`);
     }
-    await this.repository.delete({ id } as any);
+    await this.repository.delete({ id } as Record<string, unknown>);
     logger.info(`Task comment deleted: ${id}`);
   }
 }

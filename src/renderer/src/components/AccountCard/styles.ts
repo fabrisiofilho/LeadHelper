@@ -5,6 +5,7 @@ export type AccountTypeVariant =
   | 'savings'
   | 'credit_card'
   | 'wallet';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const getAccountTypeColors = (theme: any, type: AccountTypeVariant) => {
   const colors = {
     checking: {

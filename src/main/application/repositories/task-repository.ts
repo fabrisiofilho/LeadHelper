@@ -66,6 +66,30 @@ export class TaskRepository extends BaseRepository<TaskEntity> {
     });
   }
 
+  /**
+   * Batch version of findByParentId — one query for all parent IDs.
+   * Returns a Map<parentId, children[]> for O(1) lookup.
+   */
+  async findByParentIds(
+    parentIds: number[],
+  ): Promise<Map<number, TaskEntity[]>> {
+    if (parentIds.length === 0) return new Map();
+    const tasks = await this.repository
+      .createQueryBuilder('task')
+      .leftJoinAndSelect('task.sprint', 'sprint')
+      .leftJoinAndSelect('task.team', 'team')
+      .where('task.parent_id IN (:...ids)', { ids: parentIds })
+      .getMany();
+    const map = new Map<number, TaskEntity[]>();
+    for (const t of tasks) {
+      if (t.parentId == null) continue;
+      const list = map.get(t.parentId) ?? [];
+      list.push(t);
+      map.set(t.parentId, list);
+    }
+    return map;
+  }
+
   async findRootTasks(): Promise<TaskEntity[]> {
     return await this.repository
       .createQueryBuilder('task')
@@ -97,6 +121,47 @@ export class TaskRepository extends BaseRepository<TaskEntity> {
     }
 
     return qb.getMany();
+  }
+
+  /**
+   * Find open tasks filtered by Azure DevOps project config AND area path prefix.
+   * Includes tasks with null azureDevOpsConfigId (legacy data) when they match the area path.
+   */
+  async findOpenByConfigAndArea(
+    configId: number,
+    areaPathPrefix: string,
+    validTypes: string[],
+    closedStatuses: string[],
+  ): Promise<TaskEntity[]> {
+    const qb = this.repository
+      .createQueryBuilder('task')
+      .leftJoinAndSelect('task.sprint', 'sprint')
+      .leftJoinAndSelect('task.team', 'team')
+      .leftJoinAndSelect('task.children', 'children')
+      .where('task.area_path LIKE :area', { area: `${areaPathPrefix}%` })
+      .andWhere('task.type IN (:...types)', { types: validTypes })
+      .andWhere(
+        '(task.azure_devops_config_id = :configId OR task.azure_devops_config_id IS NULL)',
+        { configId },
+      );
+
+    if (closedStatuses.length > 0) {
+      qb.andWhere('task.status NOT IN (:...closed)', {
+        closed: closedStatuses,
+      });
+    }
+
+    return qb.getMany();
+  }
+
+  /**
+   * Find tasks filtered by Azure DevOps project config id (for task management / allocation).
+   */
+  async findByConfigId(configId: number): Promise<TaskEntity[]> {
+    return await this.find({
+      where: { azureDevOpsConfigId: configId },
+      relations: [...TASK_RELATIONS],
+    });
   }
 
   async searchByText(query: string, limit = 50): Promise<TaskEntity[]> {

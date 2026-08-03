@@ -2,7 +2,7 @@ import {
   Typography,
   Button,
   Stack,
-  CircularProgress,
+  Skeleton,
   IconButton,
   Chip,
   Tooltip,
@@ -81,9 +81,8 @@ export function MemberDetails({
               variant="outlined"
               size="small"
               startIcon={<PersonAddIcon />}
-              onClick={onNewMember}
-              sx={{ borderRadius: '0.5rem' }}
               disabled
+              sx={{ borderRadius: '0.5rem' }}
             >
               Novo Membro
             </Button>
@@ -91,20 +90,23 @@ export function MemberDetails({
               variant="contained"
               size="small"
               startIcon={<AddIcon />}
-              onClick={onNewAllocation}
-              sx={{ borderRadius: '0.5rem' }}
               disabled
+              sx={{ borderRadius: '0.5rem' }}
             >
               Alocar Membro
             </Button>
           </Stack>
         </HeaderContainer>
         <ContentContainer>
-          <Stack alignItems="center" justifyContent="center" height="100%">
-            <CircularProgress size={32} />
-            <Typography variant="body2" color="text.secondary" mt={2}>
-              Carregando membros...
-            </Typography>
+          <Stack spacing={1.5}>
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton
+                key={i}
+                variant="rounded"
+                height={72}
+                sx={{ borderRadius: 1.5 }}
+              />
+            ))}
           </Stack>
         </ContentContainer>
       </MemberDetailsContainer>

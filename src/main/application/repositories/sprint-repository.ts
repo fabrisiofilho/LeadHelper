@@ -142,4 +142,12 @@ export class SprintRepository {
     await this.repository.update(id, { isActive: false });
     return this.findById(id);
   }
+
+  async findByConfigId(configId: number): Promise<SprintEntity[]> {
+    return this.repository.find({
+      where: { azureDevOpsConfigId: configId },
+      relations: ['team'],
+      order: { startDate: 'DESC' },
+    });
+  }
 }

@@ -1,77 +1,47 @@
-import styled from 'styled-components';
-import { Box, Stack } from '@mui/material';
+import { styled, Box } from '@mui/material';
 
-export const PageContainer = styled(Box)`
-  padding: 1.5rem;
-  min-height: 100%;
-  max-width: 1400px;
-  margin: 0 auto;
-  width: 100%;
-  background-color: ${({ theme }) => theme.COLORS.background};
+export const PageContainer = styled(Box)(({ theme }) => ({
+  padding: theme.spacing(3),
+  maxWidth: 1440,
+  margin: '0 auto',
+  width: '100%',
+  [theme.breakpoints.down('sm')]: {
+    padding: theme.spacing(2),
+  },
+}));
 
-  @media ${({ theme }) => theme.SIZES.xs} {
-    padding: 1rem;
-  }
-`;
-
-export const PlaceholderContent = styled(Box)`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 4rem 2rem;
-  text-align: center;
-  background-color: ${({ theme }) => theme.COLORS.surface};
-  border-radius: 1rem;
-  box-shadow: ${({ theme }) => theme.SHADOWS.cards};
-  border: 1px solid ${({ theme }) => theme.COLORS.border};
-`;
-
-export const MembersGrid = styled(Box)`
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 1.5rem;
-
-  @media ${({ theme }) => theme.SIZES.xs} {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-  }
-`;
-
-export const FiltersContainer = styled(Stack).attrs({
-  direction: 'row',
+export const PlaceholderContent = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  flexDirection: 'column',
   alignItems: 'center',
+  justifyContent: 'center',
+  padding: `${theme.spacing(8)} ${theme.spacing(3)}`,
+  backgroundColor: theme.palette.background.paper,
+  borderRadius: Number(theme.shape.borderRadius) * 3,
+  border: `1px solid ${theme.palette.divider}`,
+  textAlign: 'center',
+}));
+
+export const FiltersContainer = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  gap: theme.spacing(1.5),
+  marginBottom: theme.spacing(2.5),
   flexWrap: 'wrap',
-  useFlexGap: true,
-})`
-  margin-bottom: 1.5rem;
-  padding: 1rem;
-  background-color: ${({ theme }) => theme.COLORS.surface};
-  border-radius: 0.75rem;
-  border: 1px solid ${({ theme }) => theme.COLORS.border};
-  gap: 1rem;
+  alignItems: 'center',
+  padding: theme.spacing(2),
+  backgroundColor: theme.palette.background.paper,
+  borderRadius: Number(theme.shape.borderRadius) * 2,
+  border: `1px solid ${theme.palette.divider}`,
+  [theme.breakpoints.down('sm')]: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: theme.spacing(1),
+  },
+}));
 
-  @media ${({ theme }) => theme.SIZES.md} {
-    gap: 0.875rem;
-  }
-
-  @media ${({ theme }) => theme.SIZES.sm} {
-    gap: 0.75rem;
-  }
-
-  @media ${({ theme }) => theme.SIZES.xs} {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.75rem;
-  }
-
-  & > * {
-    flex-shrink: 0;
-  }
-`;
-
-export const FormContainer = styled(Stack).attrs({
-  spacing: 2,
-})`
-  padding: 0.5rem 0;
-`;
+export const FormContainer = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: theme.spacing(2.5),
+  padding: theme.spacing(1),
+}));

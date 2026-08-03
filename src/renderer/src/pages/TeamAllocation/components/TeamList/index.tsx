@@ -2,10 +2,8 @@ import { useState, useMemo } from 'react';
 import {
   Typography,
   Button,
-  TextField,
-  InputAdornment,
   Stack,
-  CircularProgress,
+  Skeleton,
   IconButton,
   Tooltip,
 } from '@mui/material';
@@ -15,6 +13,7 @@ import {
   Groups as GroupsIcon,
   Edit as EditIcon,
 } from '@mui/icons-material';
+import { DebouncedSearchInput } from '@renderer/components/DebouncedSearchInput';
 import type { Team } from '@shared/interfaces/config/index.types';
 import {
   TeamListContainer,
@@ -59,25 +58,32 @@ export function TeamList({
     return (
       <TeamListContainer>
         <HeaderContainer>
-          <Typography variant="subtitle1" fontWeight={600}>
-            Equipes
-          </Typography>
-          <Button
-            variant="contained"
-            size="small"
-            startIcon={<AddIcon />}
-            onClick={onNewTeam}
-            sx={{ borderRadius: '0.5rem' }}
-          >
-            Nova Equipe
-          </Button>
+          <Skeleton
+            variant="text"
+            width={80}
+            height={28}
+            sx={{ borderRadius: 1 }}
+          />
+          <Skeleton
+            variant="rounded"
+            width={110}
+            height={32}
+            sx={{ borderRadius: 1 }}
+          />
         </HeaderContainer>
-        <Stack alignItems="center" justifyContent="center" flex={1}>
-          <CircularProgress size={32} />
-          <Typography variant="body2" color="text.secondary" mt={2}>
-            Carregando equipes...
-          </Typography>
-        </Stack>
+        <SearchContainer>
+          <Skeleton variant="rounded" height={40} sx={{ borderRadius: 1 }} />
+        </SearchContainer>
+        <ListContainer>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton
+              key={i}
+              variant="rounded"
+              height={56}
+              sx={{ borderRadius: 1.5, mb: 1 }}
+            />
+          ))}
+        </ListContainer>
       </TeamListContainer>
     );
   }
@@ -101,21 +107,10 @@ export function TeamList({
 
       {teams.length > 0 && (
         <SearchContainer>
-          <TextField
-            size="small"
+          <DebouncedSearchInput
             placeholder="Buscar equipe..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onSearch={setSearchTerm}
             fullWidth
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon fontSize="small" color="action" />
-                  </InputAdornment>
-                ),
-              },
-            }}
           />
         </SearchContainer>
       )}

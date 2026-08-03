@@ -145,7 +145,7 @@ export function TaskImport({ onImportSuccess, onClose }: TaskImportProps) {
         });
 
         setMapping(autoMapping);
-      } catch (err) {
+      } catch {
         setError(
           'Erro ao processar arquivo. Verifique se é um arquivo Excel válido.',
         );

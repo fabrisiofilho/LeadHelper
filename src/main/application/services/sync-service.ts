@@ -73,6 +73,12 @@ export interface SyncProgress {
   percentage: number;
   stepErrors?: string[];
   stepResult?: { created: number; updated: number; total: number };
+  /** Display name of the project currently being synced */
+  projectName?: string;
+  /** 1-based index of the project being synced */
+  projectIndex?: number;
+  /** Total number of active projects being synced */
+  projectTotal?: number;
 }
 
 /** Tracks a status change detected during sync for notification purposes. */
@@ -118,269 +124,260 @@ export class SyncService {
   }
 
   /**
-   * Performs a full synchronization of all data from Azure DevOps.
-   *
-   * Flow:
-   * 1. Fetch iterations → parse → upsert sprints
-   * 2. Fetch area paths → parse → upsert teams
-   * 3. Fetch all work items
-   * 4. Parse members from work items → upsert members
-   * 5. Parse tasks from work items → resolve relationships → upsert tasks
-   * 6. Return FullSyncResult with counters and errors
-   *
-   * Error handling: catches errors per step, continues with next steps,
-   * collects errors in the result.
-   *
-   * Optimized with batch processing and progress reporting.
+   * Performs a full synchronization of ALL active Azure DevOps projects in sequence.
+   * Each project is synced independently; failures in one project don't stop the others.
    */
   async fullSync(): Promise<FullSyncResult> {
-    const errors: string[] = [];
+    const projects = await this.azureDevOpsService.listProjects();
+    const activeProjects = projects.filter((p) => p.isActive);
 
-    // Steps 1 & 2: Sync sprints and teams in parallel (they are independent)
-    this.emitProgress({
-      step: 'sprints',
-      message: 'Sincronizando sprints e equipes...',
-      current: 0,
-      total: 100,
-      percentage: 0,
-    });
-
-    let sprintsResult: SyncStepResult = {
-      created: 0,
-      updated: 0,
-      total: 0,
-      errors: [],
-    };
-    let teamsResult: SyncStepResult = {
-      created: 0,
-      updated: 0,
-      total: 0,
-      errors: [],
-    };
-
-    // Run sprints and teams sync in parallel since they don't depend on each other
-    const [sprintsOutcome, teamsOutcome] = await Promise.allSettled([
-      this.syncSprints(),
-      this.syncTeams(),
-    ]);
-
-    if (sprintsOutcome.status === 'fulfilled') {
-      sprintsResult = sprintsOutcome.value;
-      errors.push(...sprintsResult.errors);
-    } else {
-      const msg = `Erro ao sincronizar sprints: ${sprintsOutcome.reason instanceof Error ? sprintsOutcome.reason.message : 'Erro desconhecido'}`;
-      logger.error(msg);
-      errors.push(msg);
-      sprintsResult.errors.push(msg);
+    if (activeProjects.length === 0) {
+      throw new Error(
+        'Nenhum projeto Azure DevOps ativo encontrado. Configure ao menos um projeto antes de sincronizar.',
+      );
     }
 
-    if (teamsOutcome.status === 'fulfilled') {
-      teamsResult = teamsOutcome.value;
-      errors.push(...teamsResult.errors);
-    } else {
-      const msg = `Erro ao sincronizar equipes: ${teamsOutcome.reason instanceof Error ? teamsOutcome.reason.message : 'Erro desconhecido'}`;
-      logger.error(msg);
-      errors.push(msg);
-      teamsResult.errors.push(msg);
-    }
+    const totalProjects = activeProjects.length;
+    const allErrors: string[] = [];
 
-    this.emitProgress({
-      step: 'sprints',
-      message:
-        sprintsResult.errors.length > 0
-          ? `Sprints sincronizados com ${sprintsResult.errors.length} erro(s)`
-          : `Sprints sincronizados: ${sprintsResult.total}`,
-      current: 20,
-      total: 100,
-      percentage: 20,
-      stepErrors:
-        sprintsResult.errors.length > 0 ? sprintsResult.errors : undefined,
-      stepResult: {
-        created: sprintsResult.created,
-        updated: sprintsResult.updated,
-        total: sprintsResult.total,
-      },
-    });
+    // Aggregated totals across all projects
+    const totals = {
+      sprints: { created: 0, updated: 0, total: 0 },
+      teams: { created: 0, updated: 0, total: 0 },
+      members: { created: 0, updated: 0, total: 0 },
+      tasks: { created: 0, updated: 0, total: 0 },
+    };
 
-    this.emitProgress({
-      step: 'teams',
-      message:
-        teamsResult.errors.length > 0
-          ? `Equipes sincronizadas com ${teamsResult.errors.length} erro(s)`
-          : `Equipes sincronizadas: ${teamsResult.total}`,
-      current: 40,
-      total: 100,
-      percentage: 40,
-      stepErrors:
-        teamsResult.errors.length > 0 ? teamsResult.errors : undefined,
-      stepResult: {
-        created: teamsResult.created,
-        updated: teamsResult.updated,
-        total: teamsResult.total,
-      },
-    });
+    for (let i = 0; i < activeProjects.length; i++) {
+      const project = activeProjects[i];
+      const projectIndex = i + 1;
+      const projectName = project.displayName;
+      const configId = project.id;
 
-    // Step 3: Fetch all work items
-    this.emitProgress({
-      step: 'work_items',
-      message: 'Buscando work items do Azure DevOps...',
-      current: 40,
-      total: 100,
-      percentage: 40,
-    });
-
-    let workItems: AzureWorkItem[] = [];
-    const workItemErrors: string[] = [];
-    try {
-      workItems = await this.azureDevOpsService.fetchAllWorkItems();
       logger.info(
-        `[fullSync] Fetched ${workItems.length} work items from Azure DevOps`,
+        `[fullSync] Starting project ${projectIndex}/${totalProjects}: ${projectName}`,
       );
-    } catch (error) {
-      const msg = `Erro ao buscar work items: ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
-      logger.error(msg);
-      logger.error('[fullSync] Error details:', error);
-      errors.push(msg);
-      workItemErrors.push(msg);
-    }
 
-    this.emitProgress({
-      step: 'work_items',
-      message:
-        workItemErrors.length > 0
-          ? `Erro ao buscar work items`
-          : `${workItems.length} work items encontrados`,
-      current: 60,
-      total: 100,
-      percentage: 60,
-      stepErrors: workItemErrors.length > 0 ? workItemErrors : undefined,
-    });
+      // Global percentage offset for this project
+      const projectOffsetPct = (i / totalProjects) * 100;
+      const projectSharePct = 100 / totalProjects;
 
-    // Step 4: Sync members from work items
-    this.emitProgress({
-      step: 'members',
-      message: 'Sincronizando membros da equipe...',
-      current: 60,
-      total: 100,
-      percentage: 60,
-    });
+      const emitProjectProgress = (
+        localPct: number,
+        step: SyncProgress['step'],
+        message: string,
+        extra?: Partial<SyncProgress>,
+      ) => {
+        const globalPct = projectOffsetPct + (localPct / 100) * projectSharePct;
+        this.emitProgress({
+          step,
+          message: `[${projectName}] ${message}`,
+          current: Math.round(globalPct),
+          total: 100,
+          percentage: Math.round(globalPct),
+          projectName,
+          projectIndex,
+          projectTotal: totalProjects,
+          ...extra,
+        });
+      };
 
-    let membersResult: SyncStepResult = {
-      created: 0,
-      updated: 0,
-      total: 0,
-      errors: [],
-    };
-    try {
-      membersResult = await this.syncMembers(workItems);
-      errors.push(...membersResult.errors);
-    } catch (error) {
-      const msg = `Erro ao sincronizar membros: ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
-      logger.error(msg);
-      errors.push(msg);
-      membersResult.errors.push(msg);
-    }
+      try {
+        // Steps 1 & 2: Sync sprints and teams in parallel
+        emitProjectProgress(0, 'sprints', 'Sincronizando sprints e equipes...');
 
-    this.emitProgress({
-      step: 'members',
-      message:
-        membersResult.errors.length > 0
-          ? `Membros sincronizados com ${membersResult.errors.length} erro(s)`
-          : `Membros sincronizados: ${membersResult.total}`,
-      current: 80,
-      total: 100,
-      percentage: 80,
-      stepErrors:
-        membersResult.errors.length > 0 ? membersResult.errors : undefined,
-      stepResult: {
-        created: membersResult.created,
-        updated: membersResult.updated,
-        total: membersResult.total,
-      },
-    });
+        let sprintsResult: SyncStepResult = {
+          created: 0,
+          updated: 0,
+          total: 0,
+          errors: [],
+        };
+        let teamsResult: SyncStepResult = {
+          created: 0,
+          updated: 0,
+          total: 0,
+          errors: [],
+        };
 
-    // Step 5: Sync tasks from work items (needs sprints and teams for relationship resolution)
-    this.emitProgress({
-      step: 'tasks',
-      message: `Sincronizando ${workItems.length} tarefas...`,
-      current: 80,
-      total: 100,
-      percentage: 80,
-    });
+        const [sprintsOutcome, teamsOutcome] = await Promise.allSettled([
+          this.syncSprints(configId),
+          this.syncTeams(configId),
+        ]);
 
-    let tasksResult: SyncStepResult = {
-      created: 0,
-      updated: 0,
-      total: 0,
-      errors: [],
-    };
-    try {
-      const allSprints = await this.sprintRepository.findAll();
-      const allTeams = await this.teamRepository.findAll();
-      tasksResult = await this.syncTasks(workItems, allSprints, allTeams);
-      errors.push(...tasksResult.errors);
-    } catch (error) {
-      const msg = `Erro ao sincronizar tarefas: ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
-      logger.error(msg);
-      errors.push(msg);
-      tasksResult.errors.push(msg);
-    }
+        if (sprintsOutcome.status === 'fulfilled') {
+          sprintsResult = sprintsOutcome.value;
+          allErrors.push(...sprintsResult.errors);
+          totals.sprints.created += sprintsResult.created;
+          totals.sprints.updated += sprintsResult.updated;
+          totals.sprints.total += sprintsResult.total;
+        } else {
+          const msg = `[${projectName}] Erro ao sincronizar sprints: ${sprintsOutcome.reason instanceof Error ? sprintsOutcome.reason.message : 'Erro desconhecido'}`;
+          logger.error(msg);
+          allErrors.push(msg);
+        }
 
-    const failureCount = errors.length;
+        if (teamsOutcome.status === 'fulfilled') {
+          teamsResult = teamsOutcome.value;
+          allErrors.push(...teamsResult.errors);
+          totals.teams.created += teamsResult.created;
+          totals.teams.updated += teamsResult.updated;
+          totals.teams.total += teamsResult.total;
+        } else {
+          const msg = `[${projectName}] Erro ao sincronizar equipes: ${teamsOutcome.reason instanceof Error ? teamsOutcome.reason.message : 'Erro desconhecido'}`;
+          logger.error(msg);
+          allErrors.push(msg);
+        }
 
-    if (failureCount > 0) {
-      logger.warning(
-        `[fullSync] Sincronização concluída com ${failureCount} falha(s). Detalhes: ${errors.join('; ')}`,
+        emitProjectProgress(
+          20,
+          'sprints',
+          `Sprints: ${sprintsResult.total} | Equipes: ${teamsResult.total}`,
+          {
+            stepResult: {
+              created: sprintsResult.created,
+              updated: sprintsResult.updated,
+              total: sprintsResult.total,
+            },
+          },
+        );
+
+        // Step 3: Fetch all work items
+        emitProjectProgress(40, 'work_items', 'Buscando work items...');
+
+        let workItems: AzureWorkItem[] = [];
+        try {
+          workItems = await this.azureDevOpsService.fetchAllWorkItems(configId);
+          logger.info(
+            `[fullSync][${projectName}] Fetched ${workItems.length} work items`,
+          );
+        } catch (error) {
+          const msg = `[${projectName}] Erro ao buscar work items: ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
+          logger.error(msg, error);
+          allErrors.push(msg);
+        }
+
+        emitProjectProgress(
+          60,
+          'work_items',
+          `${workItems.length} work items encontrados`,
+        );
+
+        // Step 4: Sync members
+        emitProjectProgress(60, 'members', 'Sincronizando membros...');
+        let membersResult: SyncStepResult = {
+          created: 0,
+          updated: 0,
+          total: 0,
+          errors: [],
+        };
+        try {
+          membersResult = await this.syncMembers(workItems);
+          allErrors.push(...membersResult.errors);
+          totals.members.created += membersResult.created;
+          totals.members.updated += membersResult.updated;
+          totals.members.total += membersResult.total;
+        } catch (error) {
+          const msg = `[${projectName}] Erro ao sincronizar membros: ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
+          logger.error(msg);
+          allErrors.push(msg);
+        }
+
+        emitProjectProgress(80, 'members', `Membros: ${membersResult.total}`, {
+          stepResult: {
+            created: membersResult.created,
+            updated: membersResult.updated,
+            total: membersResult.total,
+          },
+        });
+
+        // Step 5: Sync tasks
+        emitProjectProgress(
+          80,
+          'tasks',
+          `Sincronizando ${workItems.length} tarefas...`,
+        );
+        let tasksResult: SyncStepResult = {
+          created: 0,
+          updated: 0,
+          total: 0,
+          errors: [],
+        };
+        try {
+          const allSprints = await this.sprintRepository.findAll();
+          const allTeams = await this.teamRepository.findAll();
+          tasksResult = await this.syncTasks(
+            workItems,
+            allSprints,
+            allTeams,
+            configId,
+          );
+          allErrors.push(...tasksResult.errors);
+          totals.tasks.created += tasksResult.created;
+          totals.tasks.updated += tasksResult.updated;
+          totals.tasks.total += tasksResult.total;
+        } catch (error) {
+          const msg = `[${projectName}] Erro ao sincronizar tarefas: ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
+          logger.error(msg);
+          allErrors.push(msg);
+        }
+
+        emitProjectProgress(100, 'tasks', `Tarefas: ${tasksResult.total}`, {
+          stepResult: {
+            created: tasksResult.created,
+            updated: tasksResult.updated,
+            total: tasksResult.total,
+          },
+        });
+      } catch (projectError) {
+        const msg = `[${projectName}] Falha crítica: ${projectError instanceof Error ? projectError.message : 'Erro desconhecido'}`;
+        logger.error(msg, projectError);
+        allErrors.push(msg);
+      }
+
+      logger.info(
+        `[fullSync] Completed project ${projectIndex}/${totalProjects}: ${projectName}`,
       );
     }
 
-    // Single WAL checkpoint after all bulk operations are done
+    // WAL checkpoint after all projects
     try {
       await this.taskRepository.walCheckpoint();
     } catch (error) {
       logger.warning('[fullSync] WAL checkpoint failed:', error);
     }
 
+    const failureCount = allErrors.length;
+    const summary = `${totalProjects} projeto(s) sincronizado(s), ${totals.tasks.total} tarefa(s)${failureCount > 0 ? `, ${failureCount} erro(s)` : ''}`;
+
+    if (failureCount > 0) {
+      logger.warning(
+        `[fullSync] Concluído com ${failureCount} falha(s): ${allErrors.join('; ')}`,
+      );
+    }
+
     this.emitProgress({
       step: 'complete',
       message:
         failureCount > 0
-          ? `Sincronização concluída com ${failureCount} falha(s).`
-          : 'Sincronização concluída!',
+          ? `Sincronização concluída com ${failureCount} falha(s). ${summary}`
+          : `Sincronização concluída! ${summary}`,
       current: 100,
       total: 100,
       percentage: 100,
-      stepErrors:
-        tasksResult.errors.length > 0 ? tasksResult.errors : undefined,
+      stepErrors: allErrors.length > 0 ? allErrors : undefined,
       stepResult: {
-        created: tasksResult.created,
-        updated: tasksResult.updated,
-        total: tasksResult.total,
+        created: totals.tasks.created,
+        updated: totals.tasks.updated,
+        total: totals.tasks.total,
       },
     });
 
     return {
-      sprints: {
-        created: sprintsResult.created,
-        updated: sprintsResult.updated,
-        total: sprintsResult.total,
-      },
-      teams: {
-        created: teamsResult.created,
-        updated: teamsResult.updated,
-        total: teamsResult.total,
-      },
-      members: {
-        created: membersResult.created,
-        updated: membersResult.updated,
-        total: membersResult.total,
-      },
-      tasks: {
-        created: tasksResult.created,
-        updated: tasksResult.updated,
-        total: tasksResult.total,
-      },
-      errors,
+      sprints: totals.sprints,
+      teams: totals.teams,
+      members: totals.members,
+      tasks: totals.tasks,
+      errors: allErrors,
       failureCount,
       syncedAt: new Date(),
     };
@@ -389,7 +386,7 @@ export class SyncService {
   /**
    * Sync sprints: fetch iteration nodes → flatten → parse → upsert by iterationPath.
    */
-  private async syncSprints(): Promise<SyncStepResult> {
+  private async syncSprints(configId?: number): Promise<SyncStepResult> {
     const result: SyncStepResult = {
       created: 0,
       updated: 0,
@@ -397,7 +394,8 @@ export class SyncService {
       errors: [],
     };
 
-    const iterationNodes = await this.azureDevOpsService.fetchIterationNodes();
+    const iterationNodes =
+      await this.azureDevOpsService.fetchIterationNodes(configId);
 
     // Flatten all iteration trees into a single list
     const flatNodes: AzureIterationNode[] = [];
@@ -418,7 +416,7 @@ export class SyncService {
 
     for (let i = 0; i < parsedSprints.length; i++) {
       try {
-        await this.upsertSprint(parsedSprints[i], result, sprintMap);
+        await this.upsertSprint(parsedSprints[i], result, sprintMap, configId);
       } catch (error) {
         const msg = `Erro ao upsert sprint "${parsedSprints[i].name}": ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
         logger.error(msg);
@@ -436,16 +434,21 @@ export class SyncService {
     parsed: ParsedSprint,
     result: SyncStepResult,
     sprintMap: Map<string, SprintEntity>,
+    configId?: number,
   ): Promise<void> {
     const match = sprintMap.get(parsed.iterationPath);
 
     if (match) {
-      // Update existing sprint
-      await this.sprintRepository.update(match.id, {
+      // Update existing sprint — also set configId if not yet set
+      const updateData: Partial<SprintEntity> = {
         name: parsed.name,
         startDate: parsed.startDate,
         endDate: parsed.endDate,
-      });
+      };
+      if (configId !== undefined && !match.azureDevOpsConfigId) {
+        (updateData as Record<string, unknown>).azureDevOpsConfigId = configId;
+      }
+      await this.sprintRepository.update(match.id, updateData);
       result.updated++;
       logger.debug('[upsertSprint] Updated:', {
         id: match.id,
@@ -453,14 +456,15 @@ export class SyncService {
         iterationPath: parsed.iterationPath,
       });
     } else {
-      // Create new sprint
+      // Create new sprint with configId
       const created = await this.sprintRepository.create({
         name: parsed.name,
         startDate: parsed.startDate,
         endDate: parsed.endDate,
         iterationPath: parsed.iterationPath,
         isActive: true,
-      });
+        azureDevOpsConfigId: configId ?? null,
+      } as Partial<SprintEntity>);
       result.created++;
       logger.debug('[upsertSprint] Created:', {
         id: created.id,
@@ -473,7 +477,7 @@ export class SyncService {
   /**
    * Sync teams: fetch area paths → flatten → parse → upsert by azureAreaPath.
    */
-  private async syncTeams(): Promise<SyncStepResult> {
+  private async syncTeams(configId?: number): Promise<SyncStepResult> {
     const result: SyncStepResult = {
       created: 0,
       updated: 0,
@@ -481,7 +485,7 @@ export class SyncService {
       errors: [],
     };
 
-    const areaNodes = await this.azureDevOpsService.fetchAreaPaths();
+    const areaNodes = await this.azureDevOpsService.fetchAreaPaths(configId);
 
     // Flatten all area trees into a single list
     const flatNodes = areaNodes.flatMap((node) => flattenAreaTree(node));
@@ -621,6 +625,7 @@ export class SyncService {
     workItems: AzureWorkItem[],
     sprints: SprintEntity[],
     teams: TeamEntity[],
+    configId?: number,
   ): Promise<SyncStepResult> {
     const result: SyncStepResult = {
       created: 0,
@@ -664,6 +669,7 @@ export class SyncService {
           result,
           existingTaskMap,
           statusChanges,
+          configId,
         ).catch((error) => {
           const msg = `Erro ao upsert tarefa "${parsed.title}" (externalId=${parsed.externalId}): ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
           logger.error(msg);
@@ -715,6 +721,7 @@ export class SyncService {
     result: SyncStepResult,
     existingTaskMap: Map<string, { id: number; status: string }>,
     statusChanges: StatusChange[],
+    configId?: number,
   ): Promise<void> {
     // Resolve Task → Sprint by iterationPath
     const sprintId = this.resolveSprintByIterationPath(
@@ -767,6 +774,8 @@ export class SyncService {
       azureCreatedDate: parsed.azureCreatedDate,
       azureChangedDate: parsed.azureChangedDate,
       azurePriority: parsed.azurePriority,
+      isBlocked: parsed.isBlocked,
+      blockedReason: parsed.blockedReason,
       sprintId: sprintId ?? undefined,
       teamId: teamId ?? undefined,
     };
@@ -776,10 +785,7 @@ export class SyncService {
 
     if (existing) {
       // Detect status changes for tracked work item types
-      if (
-        TRACKED_TYPES.has(parsed.type) &&
-        existing.status !== parsed.status
-      ) {
+      if (TRACKED_TYPES.has(parsed.type) && existing.status !== parsed.status) {
         statusChanges.push({
           externalId: parsed.externalId,
           title: parsed.title,
@@ -788,16 +794,20 @@ export class SyncService {
           newStatus: parsed.status,
         });
       }
-      await this.taskRepository.update({ id: existing.id }, taskData);
+      // Also update configId if not yet set
+      const updatePayload: Record<string, unknown> = { ...taskData };
+      if (configId !== undefined) updatePayload.azureDevOpsConfigId = configId;
+      await this.taskRepository.update({ id: existing.id }, updatePayload);
       result.updated++;
     } else {
-      // Create new task
+      // Create new task with configId
       await this.taskRepository.save({
         ...taskData,
         externalId: parsed.externalId,
         origin: parsed.origin,
         sprintId: sprintId ?? undefined,
         teamId: teamId ?? undefined,
+        azureDevOpsConfigId: configId ?? null,
       });
       result.created++;
     }
@@ -875,14 +885,13 @@ export class SyncService {
       });
 
       notification.show();
-      logger.info(
-        `[SyncService] Notification: ${count} items → ${newStatus}`,
-      );
+      logger.info(`[SyncService] Notification: ${count} items → ${newStatus}`);
     }
   }
 
   private getNotificationIcon(): string | undefined {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const path = require('path');
       if (app.isPackaged) {
         return path.join(process.resourcesPath, 'build', 'icon.png');

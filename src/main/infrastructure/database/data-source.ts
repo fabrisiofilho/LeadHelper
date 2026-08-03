@@ -21,6 +21,7 @@ import { TaskSlaExclusionEntity } from '@main/application/entities/task-sla-excl
 import { TaskHiddenEntity } from '@main/application/entities/task-hidden.entity';
 import { NoteCardEntity } from '@main/application/entities/note-card.entity';
 import { NoteLinkEntity } from '@main/application/entities/note-link.entity';
+import { SlaConfigEntity } from '@main/application/entities/sla-config.entity';
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -76,6 +77,7 @@ function createDataSource(): DataSource {
       TaskHiddenEntity,
       NoteCardEntity,
       NoteLinkEntity,
+      SlaConfigEntity,
     ],
     migrations: [],
     subscribers: [],

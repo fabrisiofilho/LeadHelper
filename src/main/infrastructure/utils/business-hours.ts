@@ -277,9 +277,26 @@ export function addBusinessHours(start: Date, hours: number): Date {
   return current;
 }
 
-// ============================================================
-// Exportação de constantes (para uso em testes)
-// ============================================================
+/**
+ * Returns the start of the next business day after the given date.
+ * Used for SLA calculation: the creation day itself is not counted.
+ *
+ * Examples:
+ *  - Monday 14:00  → Tuesday 08:00
+ *  - Friday 09:00  → Monday 08:00
+ *  - Saturday any  → Monday 08:00
+ */
+export function startOfNextBusinessDay(date: Date): Date {
+  const next = new Date(date);
+  // Move to the next calendar day
+  next.setDate(next.getDate() + 1);
+  next.setHours(MORNING_START.hour, MORNING_START.minute, 0, 0);
+  // Skip weekend days
+  while (!isBusinessDay(next)) {
+    next.setDate(next.getDate() + 1);
+  }
+  return next;
+}
 
 export {
   MORNING_START,

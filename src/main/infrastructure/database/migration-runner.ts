@@ -30,10 +30,12 @@ type DatabaseConstructor = typeof BetterSqlite3;
 
 const Database: DatabaseConstructor = nativeBinding
   ? (() => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const mod = require('better-sqlite3');
       return mod.default || mod;
     })()
-  : require('better-sqlite3');
+  : // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('better-sqlite3');
 
 function createDatabase(dbPath: string): BetterSqlite3.Database {
   const options: BetterSqlite3.Options = {};
@@ -56,7 +58,7 @@ function getElectronApp(): {
 
   try {
     const moduleName = 'electron';
-
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const electron = require(moduleName);
     electronApp = electron.app || null;
     return electronApp;
@@ -171,7 +173,9 @@ export class MigrationRunner {
       logger.error('Failed to create backup:', error);
       try {
         this.db = createDatabase(this.dbPath);
-      } catch {}
+      } catch {
+        // intentionally ignored — best effort re-open after failed backup
+      }
       throw new Error(`Failed to create database backup: ${error}`);
     }
   }
@@ -185,7 +189,9 @@ export class MigrationRunner {
     try {
       try {
         this.db.close();
-      } catch {}
+      } catch {
+        // intentionally ignored — db may already be closed
+      }
 
       if (fs.existsSync(this.dbPath)) {
         fs.unlinkSync(this.dbPath);

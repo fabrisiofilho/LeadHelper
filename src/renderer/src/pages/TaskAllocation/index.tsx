@@ -9,13 +9,12 @@ import {
   Chip,
   Avatar,
   Paper,
-  TextField,
-  InputAdornment,
   Alert,
+  Skeleton,
+  Fade,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
-  Search as SearchIcon,
   WarningAmber as WarningIcon,
   CheckCircleOutline as OkIcon,
   PersonOff as NoTaskIcon,
@@ -24,6 +23,8 @@ import {
 import { PageLayout } from '@renderer/components/PageLayout';
 import { TaskViewModal } from '@renderer/components/TaskViewModal';
 import { WorkItemTypeChip } from '@renderer/components/WorkItemTypeChip';
+import { DebouncedSearchInput } from '@renderer/components/DebouncedSearchInput';
+import { useAzureProjects } from '@renderer/providers/AzureProjectsProvider';
 import { getInitials, ROLE_COLORS } from '@renderer/utils/member';
 import { useSyncRefresh } from '@renderer/hooks/useSyncRefresh';
 import type {
@@ -61,24 +62,33 @@ function getCardState(item: TaskAllocationMember): CardState {
   return 'alert';
 }
 
+const api = (
+  window as unknown as {
+    electronAPI: import('@shared/interfaces/config/index.types').CustomElectronAPI;
+  }
+).electronAPI;
+
 export function TaskAllocationPage() {
+  const { projects } = useAzureProjects();
+  const showProjectIndicator = projects.length > 1;
+
   const [data, setData] = useState<TaskAllocationMember[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // searchText holds the *debounced* value used for filtering
   const [searchText, setSearchText] = useState('');
   const [selectedPosition, setSelectedPosition] = useState<string | null>(null);
   const [excludedTypes, setExcludedTypes] = useState<Set<string>>(new Set());
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
 
-  const api = (
-    window as unknown as {
-      electronAPI: import('@shared/interfaces/config/index.types').CustomElectronAPI;
+  const fetchData = useCallback(async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
     }
-  ).electronAPI;
-
-  const fetchData = useCallback(async () => {
-    setLoading(true);
     setError(null);
     try {
       const res = await api.dashboard.getTaskAllocationData();
@@ -88,6 +98,7 @@ export function TaskAllocationPage() {
       setError(err instanceof Error ? err.message : 'Erro inesperado');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
@@ -96,7 +107,7 @@ export function TaskAllocationPage() {
   }, [fetchData]);
 
   // Refresh data automatically when sync completes
-  useSyncRefresh(fetchData);
+  useSyncRefresh(() => fetchData(true));
 
   // Extract unique position names for filter
   const positionNames = useMemo(() => {
@@ -183,15 +194,53 @@ export function TaskAllocationPage() {
     (m) => getCardState(m) === 'ok',
   ).length;
 
-  if (loading) {
+  if (loading && data.length === 0) {
     return (
       <PageLayout>
-        <Stack alignItems="center" justifyContent="center" minHeight="60vh">
-          <CircularProgress size={48} />
-          <Typography variant="body2" color="text.secondary" mt={2}>
-            Carregando dados de alocação de tarefas...
-          </Typography>
+        <Stack spacing={1} mb={2}>
+          <Skeleton
+            variant="text"
+            width={260}
+            height={36}
+            sx={{ borderRadius: 1 }}
+          />
         </Stack>
+        <Skeleton
+          variant="rounded"
+          height={40}
+          sx={{ mb: 2, maxWidth: 500, borderRadius: 1 }}
+        />
+        <Stack direction="row" spacing={1} mb={2}>
+          {[80, 100, 70, 90].map((w, i) => (
+            <Skeleton
+              key={i}
+              variant="rounded"
+              width={w}
+              height={28}
+              sx={{ borderRadius: 14 }}
+            />
+          ))}
+        </Stack>
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: {
+              xs: '1fr',
+              sm: 'repeat(2, 1fr)',
+              lg: 'repeat(3, 1fr)',
+            },
+            gap: 2,
+          }}
+        >
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton
+              key={i}
+              variant="rounded"
+              height={180}
+              sx={{ borderRadius: 2.5 }}
+            />
+          ))}
+        </Box>
       </PageLayout>
     );
   }
@@ -220,7 +269,9 @@ export function TaskAllocationPage() {
         spacing={1}
         mb={2}
       >
-        <Typography variant="h5">Alocação de Tarefas</Typography>
+        <Typography variant="h5" fontWeight={700}>
+          Alocação de Tarefas
+        </Typography>
         <Stack
           direction="row"
           spacing={1}
@@ -244,30 +295,22 @@ export function TaskAllocationPage() {
               variant="outlined"
             />
           )}
+          {refreshing && (
+            <Fade in>
+              <CircularProgress size={20} thickness={5} />
+            </Fade>
+          )}
           <Tooltip title="Atualizar">
-            <IconButton onClick={fetchData}>
+            <IconButton onClick={() => fetchData(true)} disabled={refreshing}>
               <RefreshIcon />
             </IconButton>
           </Tooltip>
         </Stack>
       </Stack>
 
-      <TextField
-        fullWidth
-        size="small"
+      <DebouncedSearchInput
         placeholder="Buscar por nome, e-mail, código ou título da tarefa..."
-        value={searchText}
-        onChange={(e) => setSearchText(e.target.value)}
-        onKeyDown={(e) => e.stopPropagation()}
-        slotProps={{
-          input: {
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
-              </InputAdornment>
-            ),
-          },
-        }}
+        onSearch={setSearchText}
         sx={{ mb: 2, maxWidth: { sm: 500 } }}
       />
 
@@ -346,29 +389,50 @@ export function TaskAllocationPage() {
             lg: 'repeat(3, 1fr)',
           },
           gap: 2,
+          opacity: 1,
+          transition: 'opacity 0.2s',
         }}
       >
         {filteredWithTypes.map((item) => (
-          <MemberCard
-            key={item.member.id}
-            item={item}
-            onTaskClick={(task) => {
-              setSelectedTask(task);
-              setIsTaskModalOpen(true);
-            }}
-          />
+          <Fade in key={item.member.id} timeout={250}>
+            <div>
+              <MemberCard
+                item={item}
+                showProjectIndicator={showProjectIndicator}
+                onTaskClick={(task) => {
+                  setSelectedTask(task);
+                  setIsTaskModalOpen(true);
+                }}
+              />
+            </div>
+          </Fade>
         ))}
       </Box>
 
       {filteredWithTypes.length === 0 && (
-        <Typography
-          variant="body2"
-          color="text.secondary"
-          textAlign="center"
-          mt={4}
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            py: 8,
+            px: 3,
+            textAlign: 'center',
+            bgcolor: 'background.paper',
+            borderRadius: 3,
+            border: '1px solid',
+            borderColor: 'divider',
+          }}
         >
-          Nenhum membro encontrado.
-        </Typography>
+          <NoTaskIcon sx={{ fontSize: 56, color: 'text.disabled', mb: 2 }} />
+          <Typography variant="h6" color="text.secondary" gutterBottom>
+            Nenhum membro encontrado
+          </Typography>
+          <Typography variant="body2" color="text.disabled">
+            Tente ajustar os filtros aplicados
+          </Typography>
+        </Box>
       )}
 
       <TaskViewModal
@@ -398,9 +462,11 @@ function getAreaColor(area: string): string {
 function MemberCard({
   item,
   onTaskClick,
+  showProjectIndicator,
 }: {
   item: TaskAllocationMember;
   onTaskClick: (task: Task) => void;
+  showProjectIndicator?: boolean;
 }) {
   const { member, taskGroups, positionName, totalTasks } = item;
   const state = getCardState(item);
@@ -661,6 +727,7 @@ function MemberCard({
                     key={task.externalId ?? task.id}
                     task={task}
                     onClick={() => onTaskClick(task)}
+                    showProjectIndicator={showProjectIndicator}
                   />
                 ))}
               </Stack>
@@ -672,7 +739,15 @@ function MemberCard({
   );
 }
 
-function TaskRow({ task, onClick }: { task: Task; onClick: () => void }) {
+function TaskRow({
+  task,
+  onClick,
+  showProjectIndicator,
+}: {
+  task: Task;
+  onClick: () => void;
+  showProjectIndicator?: boolean;
+}) {
   const prioColor = PRIO_COLOR[task.priority] ?? '#64748B';
 
   return (
@@ -689,7 +764,14 @@ function TaskRow({ task, onClick }: { task: Task; onClick: () => void }) {
         '&:hover': { bgcolor: 'action.selected' },
       }}
     >
-      <Stack direction="row" alignItems="center" spacing={0.5} mb={0.25}>
+      <Stack
+        direction="row"
+        alignItems="center"
+        spacing={0.5}
+        mb={0.25}
+        flexWrap="wrap"
+        useFlexGap
+      >
         <Typography
           variant="caption"
           color="text.disabled"
@@ -699,12 +781,25 @@ function TaskRow({ task, onClick }: { task: Task; onClick: () => void }) {
           #{task.externalId ?? task.id}
         </Typography>
         <WorkItemTypeChip type={task.type} />
+        {showProjectIndicator && task.origin === 'azure_devops' && (
+          <Chip
+            label={task.azureProjectDisplayName ?? 'Projeto desconhecido'}
+            size="small"
+            variant="outlined"
+            sx={{
+              fontSize: '0.6rem',
+              height: 18,
+              color: task.azureProjectDisplayName
+                ? 'primary.main'
+                : 'text.disabled',
+              borderColor: task.azureProjectDisplayName
+                ? 'primary.main'
+                : 'divider',
+            }}
+          />
+        )}
         <Box sx={{ flex: 1 }} />
-        <Chip
-          label={task.status}
-          size="small"
-          variant="outlined"
-        />
+        <Chip label={task.status} size="small" variant="outlined" />
       </Stack>
       <Typography
         variant="caption"

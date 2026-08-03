@@ -38,12 +38,26 @@ function formatDateTime(dateStr: string): string {
   return `${d.toLocaleDateString('pt-BR')} ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
 }
 
-function isDeadlinePast(
-  deadline: string | null | undefined,
-  completedAt: string | null | undefined,
-): boolean {
-  if (!deadline || completedAt) return false;
-  return new Date() > new Date(deadline);
+function formatPeriod(noteCard: NoteCard): string | null {
+  const { startDate, deadline, allDay } = noteCard;
+  if (!startDate) {
+    // legacy single deadline
+    if (!deadline) return null;
+    return allDay !== false ? formatDate(deadline) : formatDateTime(deadline);
+  }
+  const fmt = allDay !== false ? formatDate : formatDateTime;
+  // Period
+  if (deadline && startDate !== deadline) {
+    return `${fmt(startDate)} → ${fmt(deadline)}`;
+  }
+  // Single day
+  return fmt(startDate);
+}
+
+function isPeriodPast(noteCard: NoteCard): boolean {
+  const end = noteCard.deadline ?? noteCard.startDate;
+  if (!end || noteCard.completedAt) return false;
+  return new Date() > new Date(end);
 }
 
 const ENTITY_TYPE_COLORS: Record<
@@ -72,9 +86,11 @@ export function NoteCardItem({
   onDelete,
 }: NoteCardItemProps) {
   const sanitizedBody = DOMPurify.sanitize(noteCard.body);
-  const deadlinePast = isDeadlinePast(noteCard.deadline, noteCard.completedAt);
+  const deadlinePast = isPeriodPast(noteCard);
   const isCompleted = !!noteCard.completedAt;
   const hasLinks = noteCard.links && noteCard.links.length > 0;
+  const periodLabel = formatPeriod(noteCard);
+  const hasPeriod = !!(noteCard.startDate || noteCard.deadline);
 
   return (
     <Paper
@@ -102,120 +118,131 @@ export function NoteCardItem({
         }}
       />
 
-      {/* Title */}
-      <Box sx={{ px: 2, pt: 1.5, pb: 0.5 }}>
-        <Typography
-          variant="subtitle1"
-          fontWeight={700}
-          sx={{
-            lineHeight: 1.3,
-            display: '-webkit-box',
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical',
-            overflow: 'hidden',
-            wordBreak: 'break-word',
-          }}
-        >
-          {noteCard.title}
-        </Typography>
-      </Box>
-
-      {/* Body preview */}
+      {/* Clickable upper area — opens detail view */}
       <Box
+        onClick={() => onViewDetails(noteCard)}
         sx={{
-          px: 2,
+          cursor: 'pointer',
           flex: 1,
-          overflow: 'hidden',
-          display: '-webkit-box',
-          WebkitLineClamp: 3,
-          WebkitBoxOrient: 'vertical',
-          fontSize: '0.82rem',
-          lineHeight: 1.5,
-          color: 'text.secondary',
-          mb: 1,
-          '& p': { margin: 0 },
-          '& h1, & h2, & h3': {
-            margin: 0,
-            fontSize: '0.82rem',
-            fontWeight: 600,
-          },
-          '& ul, & ol': { margin: 0, paddingLeft: '1.2rem' },
+          display: 'flex',
+          flexDirection: 'column',
         }}
-        dangerouslySetInnerHTML={{ __html: sanitizedBody }}
-      />
+      >
+        {/* Title */}
+        <Box sx={{ px: 2, pt: 1.5, pb: 0.5 }}>
+          <Typography
+            variant="subtitle1"
+            fontWeight={700}
+            sx={{
+              lineHeight: 1.3,
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              wordBreak: 'break-word',
+            }}
+          >
+            {noteCard.title}
+          </Typography>
+        </Box>
 
-      {/* Metadata: date + deadline */}
-      <Box sx={{ px: 2, pb: 1 }}>
-        <Stack spacing={0.5}>
-          <Stack direction="row" alignItems="center" spacing={0.5}>
-            <CalendarIcon sx={{ fontSize: 13, color: 'text.disabled' }} />
-            <Typography
-              variant="caption"
-              color="text.disabled"
-              sx={{ fontSize: '0.7rem' }}
-            >
-              {formatDate(noteCard.createdAt)}
-            </Typography>
-          </Stack>
+        {/* Body preview */}
+        <Box
+          sx={{
+            px: 2,
+            flex: 1,
+            overflow: 'hidden',
+            display: '-webkit-box',
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: 'vertical',
+            fontSize: '0.82rem',
+            lineHeight: 1.5,
+            color: 'text.secondary',
+            mb: 1,
+            '& p': { margin: 0 },
+            '& h1, & h2, & h3': {
+              margin: 0,
+              fontSize: '0.82rem',
+              fontWeight: 600,
+            },
+            '& ul, & ol': { margin: 0, paddingLeft: '1.2rem' },
+          }}
+          dangerouslySetInnerHTML={{ __html: sanitizedBody }}
+        />
 
-          {noteCard.deadline && (
+        {/* Metadata: date + deadline */}
+        <Box sx={{ px: 2, pb: 1 }}>
+          <Stack spacing={0.5}>
             <Stack direction="row" alignItems="center" spacing={0.5}>
-              <ScheduleIcon
-                sx={{
-                  fontSize: 13,
-                  color: deadlinePast ? 'error.main' : 'text.disabled',
-                }}
-              />
-              {deadlinePast ? (
-                <Chip
-                  icon={<WarningIcon sx={{ fontSize: '14px !important' }} />}
-                  label={formatDateTime(noteCard.deadline)}
-                  color="error"
-                  size="small"
-                />
-              ) : (
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: '0.7rem' }}
-                >
-                  Prazo: {formatDateTime(noteCard.deadline)}
-                </Typography>
-              )}
+              <CalendarIcon sx={{ fontSize: 13, color: 'text.disabled' }} />
+              <Typography
+                variant="caption"
+                color="text.disabled"
+                sx={{ fontSize: '0.7rem' }}
+              >
+                {formatDate(noteCard.createdAt)}
+              </Typography>
             </Stack>
-          )}
-        </Stack>
+
+            {hasPeriod && (
+              <Stack direction="row" alignItems="center" spacing={0.5}>
+                <ScheduleIcon
+                  sx={{
+                    fontSize: 13,
+                    color: deadlinePast ? 'error.main' : 'text.disabled',
+                  }}
+                />
+                {deadlinePast ? (
+                  <Chip
+                    icon={<WarningIcon sx={{ fontSize: '14px !important' }} />}
+                    label={periodLabel}
+                    color="error"
+                    size="small"
+                  />
+                ) : (
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ fontSize: '0.7rem' }}
+                  >
+                    {noteCard.startDate ? periodLabel : `Prazo: ${periodLabel}`}
+                  </Typography>
+                )}
+              </Stack>
+            )}
+          </Stack>
+        </Box>
+
+        {/* Links */}
+        {hasLinks && (
+          <Box sx={{ px: 2, pb: 1 }}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+              {noteCard.links.slice(0, 4).map((link) => (
+                <Chip
+                  key={link.id}
+                  label={
+                    link.entityName ||
+                    `${ENTITY_TYPE_LABELS[link.entityType]} #${link.entityId}`
+                  }
+                  size="small"
+                  variant="outlined"
+                  color={ENTITY_TYPE_COLORS[link.entityType] || 'primary'}
+                  sx={{ maxWidth: 160 }}
+                />
+              ))}
+              {noteCard.links.length > 4 && (
+                <Chip
+                  label={`+${noteCard.links.length - 4}`}
+                  size="small"
+                  sx={{ fontWeight: 700 }}
+                />
+              )}
+            </Box>
+          </Box>
+        )}
       </Box>
 
-      {/* Links */}
-      {hasLinks && (
-        <Box sx={{ px: 2, pb: 1 }}>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-            {noteCard.links.slice(0, 4).map((link) => (
-              <Chip
-                key={link.id}
-                label={
-                  link.entityName ||
-                  `${ENTITY_TYPE_LABELS[link.entityType]} #${link.entityId}`
-                }
-                size="small"
-                variant="outlined"
-                color={ENTITY_TYPE_COLORS[link.entityType] || 'primary'}
-                sx={{ maxWidth: 160 }}
-              />
-            ))}
-            {noteCard.links.length > 4 && (
-              <Chip
-                label={`+${noteCard.links.length - 4}`}
-                size="small"
-                sx={{ fontWeight: 700 }}
-              />
-            )}
-          </Box>
-        </Box>
-      )}
-
-      {/* Actions */}
+      {/* Actions bar — NOT clickable for view details */}
       <Box
         sx={{
           display: 'flex',
@@ -234,7 +261,10 @@ export function NoteCardItem({
             <IconButton
               size="small"
               color="success"
-              onClick={() => onComplete(noteCard.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onComplete(noteCard.id);
+              }}
             >
               <CheckCircleIcon sx={{ fontSize: 18 }} />
             </IconButton>
@@ -245,7 +275,10 @@ export function NoteCardItem({
             <IconButton
               size="small"
               color="info"
-              onClick={() => onReactivate(noteCard.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onReactivate(noteCard.id);
+              }}
             >
               <ReplayIcon sx={{ fontSize: 18 }} />
             </IconButton>
@@ -253,13 +286,25 @@ export function NoteCardItem({
         )}
         {!isCompleted && (
           <Tooltip title="Editar">
-            <IconButton size="small" onClick={() => onEdit(noteCard)}>
+            <IconButton
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(noteCard);
+              }}
+            >
               <EditIcon sx={{ fontSize: 18 }} />
             </IconButton>
           </Tooltip>
         )}
         <Tooltip title="Ver detalhes">
-          <IconButton size="small" onClick={() => onViewDetails(noteCard)}>
+          <IconButton
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewDetails(noteCard);
+            }}
+          >
             <VisibilityIcon sx={{ fontSize: 18 }} />
           </IconButton>
         </Tooltip>
@@ -268,7 +313,10 @@ export function NoteCardItem({
             <IconButton
               size="small"
               color="error"
-              onClick={() => onDelete(noteCard.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(noteCard.id);
+              }}
             >
               <DeleteIcon sx={{ fontSize: 18 }} />
             </IconButton>

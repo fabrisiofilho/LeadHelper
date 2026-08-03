@@ -5,6 +5,7 @@ function getElectronApp(): { getPath: (name: string) => string } | null {
   if (electronApp !== null) return electronApp;
   try {
     const moduleName = 'electron';
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const electron = require(moduleName);
     electronApp = electron.app || null;
     return electronApp;

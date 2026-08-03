@@ -26,6 +26,7 @@ import { TaskAllocationPage } from '@renderer/pages/TaskAllocation';
 import { TaskManagementPage } from '@renderer/pages/TaskManagement';
 import { SystemSettingsPage } from '@renderer/pages/SystemSettings';
 import { NotesBoardPage } from '@renderer/pages/NotesBoard';
+import { SlaConfigPage } from '@renderer/pages/SlaConfig';
 
 type WithRouteProps<T> = T & {
   routePath: string;
@@ -173,6 +174,14 @@ const ROUTES_ITEMS: WithRouteProps<IDrawerItem>[] = [
     canAccess: true,
     routeElement: <AzureDevOpsConfigPage />,
     routePath: '/azure-devops',
+  },
+  {
+    label: 'Configuração de SLA',
+    path: '/panel/sla-config',
+    icon: <SettingsOutlinedIcon />,
+    canAccess: true,
+    routeElement: <SlaConfigPage />,
+    routePath: '/sla-config',
   },
 ];
 

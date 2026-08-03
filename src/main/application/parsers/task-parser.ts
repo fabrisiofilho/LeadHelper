@@ -38,6 +38,8 @@ export interface AzureWorkItem {
     'Microsoft.VSTS.Scheduling.StartDate'?: string;
     'Microsoft.VSTS.Scheduling.FinishDate'?: string;
     'Microsoft.VSTS.Scheduling.TargetDate'?: string;
+    'Custom.Impedimento'?: boolean | string | number | unknown;
+    'Custom.MotivoImpedimento'?: string;
   };
   relations?: Array<{
     rel: string;
@@ -63,6 +65,8 @@ export interface ParsedTask {
   azureCreatedDate?: Date;
   azureChangedDate?: Date;
   azurePriority?: number;
+  isBlocked: boolean;
+  blockedReason?: string;
   externalId: string;
   origin: 'azure_devops';
 }
@@ -158,6 +162,19 @@ export function parseTask(workItem: AzureWorkItem): ParsedTask {
     azureCreatedDate: parseDate(fields['System.CreatedDate']),
     azureChangedDate: parseDate(fields['System.ChangedDate']),
     azurePriority: azurePriorityNum,
+    // Handle boolean field that Azure may return as true/false (JS bool), "True"/"False" (string), or 1/0 (number)
+    isBlocked: (() => {
+      const raw = fields['Custom.Impedimento'];
+      if (raw == null) return false;
+      if (raw === true || raw === 1) return true;
+      if (typeof raw === 'string') return raw.toLowerCase() === 'true';
+      return Boolean(raw);
+    })(),
+    blockedReason: (() => {
+      const raw = fields['Custom.MotivoImpedimento'];
+      if (!raw) return undefined;
+      return String(raw).trim() || undefined;
+    })(),
     externalId: String(workItem.id),
     origin: 'azure_devops',
   };

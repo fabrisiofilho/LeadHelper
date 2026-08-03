@@ -1,16 +1,15 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Box,
   Typography,
   Button,
   IconButton,
   Tooltip,
-  CircularProgress,
   Stack,
   TextField,
   MenuItem,
   Chip,
-  InputAdornment,
+  Skeleton,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -20,9 +19,9 @@ import {
   Edit as EditIcon,
   ToggleOff as ToggleOffIcon,
   ToggleOn as ToggleOnIcon,
-  Search as SearchIcon,
   Upload as UploadIcon,
 } from '@mui/icons-material';
+import { DebouncedSearchInput } from '@renderer/components/DebouncedSearchInput';
 import { useForm, Controller } from 'react-hook-form';
 import { Modal } from '@renderer/components/Modal';
 import { useTeamMembers } from '@renderer/hooks/useTeamMembers';
@@ -162,11 +161,42 @@ export function TeamMembersPage() {
     );
   });
 
+  // useTableSort handles column-header sorting; no defaultSort so the hook
+  // returns items in the same order they come in when the user hasn't clicked anything.
   const {
-    sortedItems: filteredMembers,
+    sortedItems: hookSorted,
     sortConfig,
     handleSort,
-  } = useTableSort(filteredMembersRaw, { property: 'name', direction: 'asc' });
+  } = useTableSort(filteredMembersRaw);
+
+  // Always apply the fixed tiebreaker: active members first.
+  // When the user has sorted by a column, that sort is the PRIMARY key;
+  // isActive is the SECONDARY key (tiebreaker) so equal values still group
+  // actives before inactives.
+  // When no column sort is active, fall back to name A→Z as secondary.
+  const filteredMembers = useMemo(() => {
+    return [...hookSorted].sort((a, b) => {
+      // If a column sort is active, it already ordered them — only apply
+      // the isActive tiebreaker for records that are equal on the primary key.
+      if (sortConfig) {
+        // The hook already put them in primary-key order; we only need to
+        // break ties within groups that have the same primary value.
+        // Re-apply the primary-key comparison to detect true ties:
+        const getPrimary = (obj: typeof a) => {
+          const val = (obj as Record<string, unknown>)[sortConfig.property];
+          return val == null ? '' : String(val).toLowerCase();
+        };
+        const diff = getPrimary(a).localeCompare(getPrimary(b));
+        if (diff !== 0) return 0; // not a tie — keep hook's order (return 0 = no swap)
+        // True tie: active first
+        if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
+        return 0;
+      }
+      // No column sort active: active first, then name A→Z
+      if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
+      return a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' });
+    });
+  }, [hookSorted, sortConfig]);
 
   const handleNewMember = () => {
     setSelectedMember(null);
@@ -246,17 +276,6 @@ export function TeamMembersPage() {
     }
   };
 
-  const handleChangePage = (_event: unknown, newPage: number) => {
-    setPage(newPage);
-  };
-
-  const handleChangeRowsPerPage = (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0);
-  };
-
   const handlePositionFilterChange = (
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
@@ -280,12 +299,74 @@ export function TeamMembersPage() {
   if (loading && teamMembers.length === 0) {
     return (
       <PageContainer>
-        <Stack alignItems="center" justifyContent="center" minHeight="60vh">
-          <CircularProgress size={48} />
-          <Typography variant="body1" color="text.secondary" mt={2}>
-            Carregando membros da equipe...
-          </Typography>
+        <Stack
+          direction="row"
+          justifyContent="space-between"
+          alignItems="center"
+          mb={3}
+        >
+          <Stack spacing={0.5}>
+            <Skeleton
+              variant="text"
+              width={200}
+              height={40}
+              sx={{ borderRadius: 1 }}
+            />
+            <Skeleton
+              variant="text"
+              width={240}
+              height={22}
+              sx={{ borderRadius: 1 }}
+            />
+          </Stack>
+          <Stack direction="row" spacing={1}>
+            <Skeleton
+              variant="rounded"
+              width={150}
+              height={36}
+              sx={{ borderRadius: 1 }}
+            />
+            <Skeleton
+              variant="rounded"
+              width={130}
+              height={36}
+              sx={{ borderRadius: 1 }}
+            />
+          </Stack>
         </Stack>
+        <Stack direction="row" spacing={2} mb={2}>
+          <Skeleton
+            variant="rounded"
+            width={250}
+            height={40}
+            sx={{ borderRadius: 1 }}
+          />
+          <Skeleton
+            variant="rounded"
+            width={180}
+            height={40}
+            sx={{ borderRadius: 1 }}
+          />
+          <Skeleton
+            variant="rounded"
+            width={120}
+            height={40}
+            sx={{ borderRadius: 1 }}
+          />
+        </Stack>
+        <Skeleton
+          variant="rounded"
+          height={48}
+          sx={{ borderRadius: '4px 4px 0 0' }}
+        />
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton
+            key={i}
+            variant="rounded"
+            height={52}
+            sx={{ borderRadius: 0, mt: '1px' }}
+          />
+        ))}
       </PageContainer>
     );
   }
@@ -312,10 +393,10 @@ export function TeamMembersPage() {
         direction="row"
         justifyContent="space-between"
         alignItems="center"
-        mb={3}
+        mb={2.5}
       >
         <Box>
-          <Typography variant="h4" fontWeight={700}>
+          <Typography variant="h5" fontWeight={700}>
             Membros da Equipe
           </Typography>
           <Typography variant="body2" color="text.secondary">
@@ -349,22 +430,11 @@ export function TeamMembersPage() {
 
       {/* Filters */}
       <FiltersContainer>
-        <TextField
-          size="small"
+        <DebouncedSearchInput
           placeholder="Buscar por nome, email ou cargo..."
-          value={searchTerm}
-          onChange={(e) => {
-            setSearchTerm(e.target.value);
+          onSearch={(v) => {
+            setSearchTerm(v);
             setPage(0);
-          }}
-          slotProps={{
-            input: {
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" color="action" />
-                </InputAdornment>
-              ),
-            },
           }}
           sx={{ minWidth: 250 }}
         />
@@ -653,10 +723,7 @@ export function TeamMembersPage() {
           loadTeamMembers();
         }}
         positions={positions}
-        memberEmails={teamMembers.map((m) => m.email)}
-        onImport={async (rows) => {
-          await window.electronAPI.teamMember.importPositions(rows);
-        }}
+        memberEmails={teamMembers.map((m) => m.email).filter(Boolean)}
       />
     </PageContainer>
   );

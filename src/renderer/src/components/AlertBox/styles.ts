@@ -6,6 +6,7 @@ type ElementWithVariant = {
   $noMargin?: boolean;
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const getVariantColors = (theme: any, variant: AlertBoxVariants) => {
   switch (variant) {
     case AlertBoxVariantsEnum.success:

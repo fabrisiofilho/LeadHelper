@@ -66,7 +66,11 @@ export const CustomDialog = styled(Dialog, {
     },
     'div.MuiDialogContent-root': {
       padding: '1.5rem',
-      ...(height && { flex: 1, minHeight: 0, overflow: 'hidden' }),
+      ...(height && {
+        flex: 1,
+        minHeight: 0,
+        overflow: 'hidden',
+      }),
     },
     'div.MuiDialogActions-root': {
       padding: '1.5rem',

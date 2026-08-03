@@ -78,6 +78,8 @@ export function RichTextEditor({
         border: '1px solid',
         borderColor: 'divider',
         borderRadius: 1,
+        display: 'flex',
+        flexDirection: 'column',
         overflow: 'hidden',
       }}
     >
@@ -201,7 +203,9 @@ export function RichTextEditor({
       <Box
         sx={{
           p: 1.5,
+          flex: 1,
           minHeight: '150px',
+          overflow: 'auto',
           bgcolor: 'background.paper',
           '& .tiptap': {
             outline: 'none',

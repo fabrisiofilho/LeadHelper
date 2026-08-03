@@ -22,17 +22,17 @@ export function useTasks() {
     selectedTask: null,
   });
 
-  const setLoading = (loading: boolean) => {
+  const setLoading = useCallback((loading: boolean) => {
     setState((prev) => ({
       ...prev,
       loading,
       error: loading ? null : prev.error,
     }));
-  };
+  }, []);
 
-  const setError = (error: string | null) => {
+  const setError = useCallback((error: string | null) => {
     setState((prev) => ({ ...prev, error, loading: false }));
-  };
+  }, []);
 
   const create = useCallback(
     async (data: CreateTaskInput): Promise<Task | null> => {
@@ -54,7 +54,7 @@ export function useTasks() {
         return null;
       }
     },
-    [],
+    [setLoading, setError],
   );
 
   const update = useCallback(
@@ -83,49 +83,55 @@ export function useTasks() {
         return null;
       }
     },
-    [],
+    [setLoading, setError],
   );
 
-  const deleteTask = useCallback(async (id: number): Promise<boolean> => {
-    setLoading(true);
-    try {
-      const response = await window.electronAPI.task.delete(id);
-      if (!response.success) {
-        setError(response.error || 'Erro ao excluir tarefa');
+  const deleteTask = useCallback(
+    async (id: number): Promise<boolean> => {
+      setLoading(true);
+      try {
+        const response = await window.electronAPI.task.delete(id);
+        if (!response.success) {
+          setError(response.error || 'Erro ao excluir tarefa');
+          return false;
+        }
+        setState((prev) => ({
+          ...prev,
+          loading: false,
+          tasks: prev.tasks.filter((t) => t.id !== id),
+          selectedTask: prev.selectedTask?.id === id ? null : prev.selectedTask,
+        }));
+        return true;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erro de comunicação');
         return false;
       }
-      setState((prev) => ({
-        ...prev,
-        loading: false,
-        tasks: prev.tasks.filter((t) => t.id !== id),
-        selectedTask: prev.selectedTask?.id === id ? null : prev.selectedTask,
-      }));
-      return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro de comunicação');
-      return false;
-    }
-  }, []);
+    },
+    [setLoading, setError],
+  );
 
-  const findById = useCallback(async (id: number): Promise<Task | null> => {
-    setLoading(true);
-    try {
-      const response = await window.electronAPI.task.findById(id);
-      if (!response.success) {
-        setError(response.error || 'Erro ao buscar tarefa');
+  const findById = useCallback(
+    async (id: number): Promise<Task | null> => {
+      setLoading(true);
+      try {
+        const response = await window.electronAPI.task.findById(id);
+        if (!response.success) {
+          setError(response.error || 'Erro ao buscar tarefa');
+          return null;
+        }
+        setState((prev) => ({
+          ...prev,
+          loading: false,
+          selectedTask: response.data || null,
+        }));
+        return response.data || null;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erro de comunicação');
         return null;
       }
-      setState((prev) => ({
-        ...prev,
-        loading: false,
-        selectedTask: response.data || null,
-      }));
-      return response.data || null;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro de comunicação');
-      return null;
-    }
-  }, []);
+    },
+    [setLoading, setError],
+  );
 
   const findAll = useCallback(
     async (filters?: TaskFilters): Promise<Task[]> => {
@@ -147,7 +153,7 @@ export function useTasks() {
         return [];
       }
     },
-    [],
+    [setLoading, setError],
   );
 
   const findByStatus = useCallback(
@@ -170,7 +176,7 @@ export function useTasks() {
         return [];
       }
     },
-    [],
+    [setLoading, setError],
   );
 
   const findByPeriod = useCallback(
@@ -196,7 +202,7 @@ export function useTasks() {
         return [];
       }
     },
-    [],
+    [setLoading, setError],
   );
 
   const findBySprint = useCallback(
@@ -219,7 +225,7 @@ export function useTasks() {
         return [];
       }
     },
-    [],
+    [setLoading, setError],
   );
 
   const clearError = useCallback(() => {

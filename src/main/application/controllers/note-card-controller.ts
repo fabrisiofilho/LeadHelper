@@ -97,5 +97,23 @@ export function registerNoteCardController(): void {
     },
   );
 
+  ipcMain.handle(
+    'note-card:findForGantt',
+    async (
+      _event,
+      filters: import('@shared/interfaces/config/index.types').NoteGanttFilters,
+    ): Promise<ApiResponse<unknown>> => {
+      return tryCatch(async () => {
+        // Dates arrive from IPC as strings — convert back
+        const parsedFilters = {
+          ...filters,
+          startDate: new Date(filters.startDate),
+          endDate: new Date(filters.endDate),
+        };
+        return await noteCardService.findForGantt(parsedFilters);
+      }, 'Erro ao buscar notas para Gantt');
+    },
+  );
+
   logger.info('NoteCard controller registered');
 }

@@ -182,7 +182,7 @@ export class TeamMemberAllocationService {
       throw new Error('Alocação não encontrada');
     }
 
-    await this.repository.delete({ id } as any);
+    await this.repository.delete({ id } as Record<string, unknown>);
   }
 
   async deactivate(id: number): Promise<TeamMemberAllocation> {

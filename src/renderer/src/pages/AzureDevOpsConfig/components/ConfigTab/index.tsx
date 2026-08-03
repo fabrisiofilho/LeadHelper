@@ -75,7 +75,6 @@ export function ConfigTab({
     control,
     handleSubmit,
     reset,
-    setValue,
     formState: { errors: formErrors, isDirty },
   } = useForm<ConfigFormData>({
     defaultValues: {

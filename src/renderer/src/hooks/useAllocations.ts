@@ -46,17 +46,17 @@ export function useAllocations() {
     ganttData: null,
   });
 
-  const setLoading = (loading: boolean) => {
+  const setLoading = useCallback((loading: boolean) => {
     setState((prev) => ({
       ...prev,
       loading,
       error: loading ? null : prev.error,
     }));
-  };
+  }, []);
 
-  const setError = (error: string | null) => {
+  const setError = useCallback((error: string | null) => {
     setState((prev) => ({ ...prev, error, loading: false }));
-  };
+  }, []);
 
   const create = useCallback(
     async (data: CreateAllocationInput): Promise<Allocation | null> => {
@@ -80,7 +80,7 @@ export function useAllocations() {
         return null;
       }
     },
-    [],
+    [setLoading, setError],
   );
 
   const update = useCallback(
@@ -112,30 +112,33 @@ export function useAllocations() {
         return null;
       }
     },
-    [],
+    [setLoading, setError],
   );
 
-  const deleteAllocation = useCallback(async (id: number): Promise<boolean> => {
-    setLoading(true);
-    try {
-      const response = await window.electronAPI.allocation.delete(id);
-      if (!response.success) {
-        setError(response.error || 'Erro ao excluir alocação');
+  const deleteAllocation = useCallback(
+    async (id: number): Promise<boolean> => {
+      setLoading(true);
+      try {
+        const response = await window.electronAPI.allocation.delete(id);
+        if (!response.success) {
+          setError(response.error || 'Erro ao excluir alocação');
+          return false;
+        }
+        setState((prev) => ({
+          ...prev,
+          loading: false,
+          allocations: prev.allocations.filter((a) => a.id !== id),
+          selectedAllocation:
+            prev.selectedAllocation?.id === id ? null : prev.selectedAllocation,
+        }));
+        return true;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erro de comunicação');
         return false;
       }
-      setState((prev) => ({
-        ...prev,
-        loading: false,
-        allocations: prev.allocations.filter((a) => a.id !== id),
-        selectedAllocation:
-          prev.selectedAllocation?.id === id ? null : prev.selectedAllocation,
-      }));
-      return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro de comunicação');
-      return false;
-    }
-  }, []);
+    },
+    [setLoading, setError],
+  );
 
   const findById = useCallback(
     async (id: number): Promise<Allocation | null> => {
@@ -157,7 +160,7 @@ export function useAllocations() {
         return null;
       }
     },
-    [],
+    [setLoading, setError],
   );
 
   const findByTeamMember = useCallback(
@@ -181,7 +184,7 @@ export function useAllocations() {
         return [];
       }
     },
-    [],
+    [setLoading, setError],
   );
 
   const findByTask = useCallback(
@@ -204,7 +207,7 @@ export function useAllocations() {
         return [];
       }
     },
-    [],
+    [setLoading, setError],
   );
 
   const findByPeriod = useCallback(
@@ -230,7 +233,7 @@ export function useAllocations() {
         return [];
       }
     },
-    [],
+    [setLoading, setError],
   );
 
   const getGanttData = useCallback(
@@ -254,7 +257,7 @@ export function useAllocations() {
         return null;
       }
     },
-    [],
+    [setLoading, setError],
   );
 
   const clearError = useCallback(() => {

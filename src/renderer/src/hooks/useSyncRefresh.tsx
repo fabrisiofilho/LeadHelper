@@ -65,7 +65,10 @@ export function SyncRefreshProvider({ children }: PropsWithChildren) {
 export function useSyncRefresh(callback: RefreshCallback): void {
   const ctx = useContext(SyncRefreshContext);
   const callbackRef = useRef(callback);
-  callbackRef.current = callback;
+
+  useEffect(() => {
+    callbackRef.current = callback;
+  });
 
   useEffect(() => {
     if (!ctx) return;

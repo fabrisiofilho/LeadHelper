@@ -79,7 +79,10 @@ export class TaskLocalKanbanRepository extends BaseRepository<TaskLocalKanbanEnt
    * @param _parentId - Optional parent work item ID to filter by context (reserved for future use)
    * @returns Array of Kanban position entities
    */
-  async findByContext(_parentId?: number): Promise<TaskLocalKanbanEntity[]> {
+  async findByContext(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _parentId?: number,
+  ): Promise<TaskLocalKanbanEntity[]> {
     // Currently returns all positions
     // In the future, this could be extended to filter by parent context
     // when we have a relationship between kanban positions and parent items

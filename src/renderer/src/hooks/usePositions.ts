@@ -21,17 +21,17 @@ export function usePositions() {
     selectedPosition: null,
   });
 
-  const setLoading = (loading: boolean) => {
+  const setLoading = useCallback((loading: boolean) => {
     setState((prev) => ({
       ...prev,
       loading,
       error: loading ? null : prev.error,
     }));
-  };
+  }, []);
 
-  const setError = (error: string | null) => {
+  const setError = useCallback((error: string | null) => {
     setState((prev) => ({ ...prev, error, loading: false }));
-  };
+  }, []);
 
   const create = useCallback(
     async (data: CreatePositionInput): Promise<Position | null> => {
@@ -55,7 +55,7 @@ export function usePositions() {
         return null;
       }
     },
-    [],
+    [setLoading, setError],
   );
 
   const update = useCallback(
@@ -80,28 +80,31 @@ export function usePositions() {
         return null;
       }
     },
-    [],
+    [setLoading, setError],
   );
 
-  const deletePosition = useCallback(async (id: number): Promise<boolean> => {
-    setLoading(true);
-    try {
-      const response = await window.electronAPI.position.delete(id);
-      if (!response.success) {
-        setError(response.error || 'Erro ao excluir cargo');
+  const deletePosition = useCallback(
+    async (id: number): Promise<boolean> => {
+      setLoading(true);
+      try {
+        const response = await window.electronAPI.position.delete(id);
+        if (!response.success) {
+          setError(response.error || 'Erro ao excluir cargo');
+          return false;
+        }
+        setState((prev) => ({
+          ...prev,
+          loading: false,
+          positions: prev.positions.filter((p) => p.id !== id),
+        }));
+        return true;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erro de comunicação');
         return false;
       }
-      setState((prev) => ({
-        ...prev,
-        loading: false,
-        positions: prev.positions.filter((p) => p.id !== id),
-      }));
-      return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro de comunicação');
-      return false;
-    }
-  }, []);
+    },
+    [setLoading, setError],
+  );
 
   const findAll = useCallback(
     async (filters?: PositionFilters): Promise<Position[]> => {
@@ -123,30 +126,33 @@ export function usePositions() {
         return [];
       }
     },
-    [],
+    [setLoading, setError],
   );
 
-  const activate = useCallback(async (id: number): Promise<Position | null> => {
-    setLoading(true);
-    try {
-      const response = await window.electronAPI.position.activate(id);
-      if (!response.success) {
-        setError(response.error || 'Erro ao ativar cargo');
+  const activate = useCallback(
+    async (id: number): Promise<Position | null> => {
+      setLoading(true);
+      try {
+        const response = await window.electronAPI.position.activate(id);
+        if (!response.success) {
+          setError(response.error || 'Erro ao ativar cargo');
+          return null;
+        }
+        setState((prev) => ({
+          ...prev,
+          loading: false,
+          positions: prev.positions.map((p) =>
+            p.id === id && response.data ? response.data : p,
+          ),
+        }));
+        return response.data || null;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erro de comunicação');
         return null;
       }
-      setState((prev) => ({
-        ...prev,
-        loading: false,
-        positions: prev.positions.map((p) =>
-          p.id === id && response.data ? response.data : p,
-        ),
-      }));
-      return response.data || null;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro de comunicação');
-      return null;
-    }
-  }, []);
+    },
+    [setLoading, setError],
+  );
 
   const deactivate = useCallback(
     async (id: number): Promise<Position | null> => {
@@ -170,7 +176,7 @@ export function usePositions() {
         return null;
       }
     },
-    [],
+    [setLoading, setError],
   );
 
   const clearError = useCallback(() => {

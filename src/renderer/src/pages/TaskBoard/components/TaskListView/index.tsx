@@ -11,15 +11,13 @@ import {
   TablePagination,
   Chip,
   Tooltip,
-  Stack,
-  CircularProgress,
+  Skeleton,
 } from '@mui/material';
 import { Cloud as CloudIcon } from '@mui/icons-material';
 import type {
   Task,
   TaskStatusConfig,
 } from '@shared/interfaces/config/index.types';
-import { getTaskTypeOption } from '@renderer/utils/task-type';
 import { useTableSort } from '@renderer/hooks/useTableSort';
 import { SortableTableCell } from '@renderer/components/SortableTableCell';
 import { WorkItemTypeChip } from '@renderer/components/WorkItemTypeChip';
@@ -28,7 +26,7 @@ interface TaskListViewProps {
   tasks: Task[];
   statuses: TaskStatusConfig[];
   loading: boolean;
-  onReadOnlyAction: () => void;
+  onReadOnlyAction?: () => void;
   onTaskClick?: (task: Task) => void;
 }
 
@@ -49,7 +47,6 @@ export function TaskListView({
   tasks,
   statuses,
   loading,
-  onReadOnlyAction,
   onTaskClick,
 }: TaskListViewProps) {
   const [page, setPage] = useState(0);
@@ -78,9 +75,21 @@ export function TaskListView({
 
   if (loading) {
     return (
-      <Stack alignItems="center" justifyContent="center" py={6}>
-        <CircularProgress size={36} />
-      </Stack>
+      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <Skeleton
+          variant="rounded"
+          height={48}
+          sx={{ borderRadius: '4px 4px 0 0' }}
+        />
+        {Array.from({ length: 8 }).map((_, i) => (
+          <Skeleton
+            key={i}
+            variant="rounded"
+            height={52}
+            sx={{ borderRadius: 0, mt: '1px' }}
+          />
+        ))}
+      </Box>
     );
   }
 

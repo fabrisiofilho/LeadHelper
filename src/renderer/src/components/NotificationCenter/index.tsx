@@ -126,11 +126,7 @@ export function NotificationCenter() {
     <>
       <Tooltip title="Notificações">
         <IconButton onClick={handleOpen} color="primary" size="small">
-          <Badge
-            badgeContent={unreadCount}
-            color="error"
-            max={99}
-          >
+          <Badge badgeContent={unreadCount} color="error" max={99}>
             {unreadCount > 0 ? (
               <NotificationsIcon fontSize="small" />
             ) : (
@@ -213,10 +209,7 @@ export function NotificationCenter() {
             notifications.map((entry, idx) => (
               <Box key={entry.id}>
                 {idx > 0 && <Divider />}
-                <NotificationItem
-                  entry={entry}
-                  onItemClick={handleItemClick}
-                />
+                <NotificationItem entry={entry} onItemClick={handleItemClick} />
               </Box>
             ))
           )}

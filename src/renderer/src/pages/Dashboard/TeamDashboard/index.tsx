@@ -142,7 +142,7 @@ export function TeamDashboardPage() {
         mb={2}
       >
         <Box>
-          <Typography variant="h4" fontWeight={700}>
+          <Typography variant="h5" fontWeight={700}>
             Dashboard da Equipe
           </Typography>
           <Typography variant="body2" color="text.secondary">

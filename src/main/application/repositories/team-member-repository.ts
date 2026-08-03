@@ -3,7 +3,7 @@ import {
   TeamMemberEntity,
   TeamMemberRole,
 } from '../entities/team-member.entity';
-import { EntityManager } from 'typeorm';
+import { EntityManager, FindManyOptions } from 'typeorm';
 
 export interface TeamMemberFilters {
   role?: TeamMemberRole;
@@ -20,6 +20,26 @@ export class TeamMemberRepository extends BaseRepository<TeamMemberEntity> {
       where: { email },
       relations: ['position'],
     });
+  }
+
+  /**
+   * Batch fetch members by a list of emails — one IN query instead of N queries.
+   * Returns a Map<email_lowercase, entity> for O(1) lookup.
+   */
+  async findByEmails(emails: string[]): Promise<Map<string, TeamMemberEntity>> {
+    if (emails.length === 0) return new Map();
+    const entities = await this.repository
+      .createQueryBuilder('m')
+      .leftJoinAndSelect('m.position', 'position')
+      .where('LOWER(m.email) IN (:...emails)', {
+        emails: emails.map((e) => e.toLowerCase()),
+      })
+      .getMany();
+    const map = new Map<string, TeamMemberEntity>();
+    for (const e of entities) {
+      if (e.email) map.set(e.email.toLowerCase(), e);
+    }
+    return map;
   }
 
   async findByRole(role: TeamMemberRole): Promise<TeamMemberEntity[]> {
@@ -64,7 +84,9 @@ export class TeamMemberRepository extends BaseRepository<TeamMemberEntity> {
     });
   }
 
-  async find(options?: any): Promise<TeamMemberEntity[]> {
+  async find(
+    options?: FindManyOptions<TeamMemberEntity>,
+  ): Promise<TeamMemberEntity[]> {
     if (!options) {
       return await this.repository.find({ relations: ['position'] });
     }

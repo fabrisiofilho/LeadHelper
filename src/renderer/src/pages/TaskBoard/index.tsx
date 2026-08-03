@@ -4,9 +4,9 @@ import {
   Typography,
   IconButton,
   Tooltip,
-  CircularProgress,
   Stack,
   Alert,
+  Skeleton,
 } from '@mui/material';
 import { Refresh as RefreshIcon, Lock as LockIcon } from '@mui/icons-material';
 import { enqueueSnackbar } from 'notistack';
@@ -136,12 +136,57 @@ export function TaskBoardPage() {
   if (isLoading) {
     return (
       <PageContainer>
-        <Stack alignItems="center" justifyContent="center" minHeight="60vh">
-          <CircularProgress size={48} />
-          <Typography variant="body1" color="text.secondary" mt={2}>
-            Carregando tarefas...
-          </Typography>
+        <Stack
+          direction="row"
+          justifyContent="space-between"
+          alignItems="center"
+          mb={2}
+        >
+          <Stack spacing={0.5}>
+            <Skeleton
+              variant="text"
+              width={220}
+              height={40}
+              sx={{ borderRadius: 1 }}
+            />
+            <Skeleton
+              variant="text"
+              width={360}
+              height={22}
+              sx={{ borderRadius: 1 }}
+            />
+          </Stack>
+          <Skeleton variant="circular" width={32} height={32} />
         </Stack>
+        <Skeleton
+          variant="rounded"
+          height={44}
+          sx={{ mb: 2, borderRadius: 1 }}
+        />
+        <Stack direction="row" spacing={1} mb={2} flexWrap="wrap" useFlexGap>
+          {[200, 130, 130, 140, 150].map((w, i) => (
+            <Skeleton
+              key={i}
+              variant="rounded"
+              width={w}
+              height={40}
+              sx={{ borderRadius: 1 }}
+            />
+          ))}
+        </Stack>
+        <Skeleton
+          variant="rounded"
+          height={48}
+          sx={{ borderRadius: '4px 4px 0 0' }}
+        />
+        {Array.from({ length: 8 }).map((_, i) => (
+          <Skeleton
+            key={i}
+            variant="rounded"
+            height={52}
+            sx={{ borderRadius: 0, mt: '1px' }}
+          />
+        ))}
       </PageContainer>
     );
   }
@@ -156,7 +201,7 @@ export function TaskBoardPage() {
         flexShrink={0}
       >
         <Box>
-          <Typography variant="h4" fontWeight={700}>
+          <Typography variant="h5" fontWeight={700}>
             Gestão de Tarefas
           </Typography>
           <Typography variant="body2" color="text.secondary">

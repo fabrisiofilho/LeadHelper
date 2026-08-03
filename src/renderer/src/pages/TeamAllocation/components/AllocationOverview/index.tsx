@@ -273,7 +273,9 @@ export function AllocationOverview({
                 <GroupsIcon
                   fontSize="small"
                   sx={{
-                    color: isSelected ? 'primary.contrastText' : 'text.secondary',
+                    color: isSelected
+                      ? 'primary.contrastText'
+                      : 'text.secondary',
                   }}
                 />
                 <Typography
@@ -297,7 +299,9 @@ export function AllocationOverview({
                     bgcolor: isSelected
                       ? 'rgba(255,255,255,0.25)'
                       : 'action.hover',
-                    color: isSelected ? 'primary.contrastText' : 'text.secondary',
+                    color: isSelected
+                      ? 'primary.contrastText'
+                      : 'text.secondary',
                   }}
                 />
               </Stack>

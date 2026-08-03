@@ -119,7 +119,7 @@ export abstract class BaseRepository<T extends ObjectLiteral> {
     const saved = await this.repository.save(entity);
 
     logger.info(`Entity saved to ${this.repository.metadata.tableName}:`, {
-      id: (saved as any).id,
+      id: (saved as Record<string, unknown>).id,
     });
 
     return saved;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -17,12 +17,13 @@ import {
   Paper,
   Switch,
   FormControlLabel,
-  TextField,
-  InputAdornment,
   Tabs,
   Tab,
+  Skeleton,
 } from '@mui/material';
-import { Search as SearchIcon } from '@mui/icons-material';
+import { DebouncedSearchInput } from '@renderer/components/DebouncedSearchInput';
+import { ProjectSelector } from '@renderer/components/ProjectSelector';
+import { useAzureProjects } from '@renderer/providers/AzureProjectsProvider';
 import {
   Refresh as RefreshIcon,
   TimerOff as TimerOffIcon,
@@ -43,12 +44,14 @@ import {
   InfoOutlined as InfoIcon,
   FormatListNumbered as SlaOrderIcon,
   PriorityHigh as PriorityHighIcon,
+  PlaylistAddCheck as SelectCopyIcon,
 } from '@mui/icons-material';
 import { PageLayout } from '@renderer/components/PageLayout';
 import { TaskViewModal } from '@renderer/components/TaskViewModal';
 import { WorkItemTypeChip } from '@renderer/components/WorkItemTypeChip';
 import { SlaOrderModal } from '@renderer/components/SlaOrderModal';
 import { PrioritizeItemModal } from '@renderer/components/PrioritizeItemModal';
+import { CopySelectionModal } from './components/CopySelectionModal';
 import { useSyncRefresh } from '@renderer/hooks/useSyncRefresh';
 import type {
   SustentacaoItemWithSLA,
@@ -134,26 +137,36 @@ function dashboardSort(
   a: SustentacaoItemWithSLA,
   b: SustentacaoItemWithSLA,
 ): number {
-  // 0. Items with local priority always come first (higher localPriority = more urgent)
+  const aBlocked = a.task.isBlocked ? 1 : 0;
+  const bBlocked = b.task.isBlocked ? 1 : 0;
+
+  // Blocked items always sink to the bottom
+  if (aBlocked !== bBlocked) return aBlocked - bBlocked;
+
+  const aViolated = a.slaViolated ? 1 : 0;
+  const bViolated = b.slaViolated ? 1 : 0;
+  const aHasSla = a.expirationDate != null ? 1 : 0;
+  const bHasSla = b.expirationDate != null ? 1 : 0;
+
+  // 1. Violated SLA always floats to the top, most overdue first
+  if (aViolated !== bViolated) return bViolated - aViolated;
+  if (aViolated && bViolated)
+    return a.businessHoursRemaining - b.businessHoursRemaining;
+
+  // 2. Local priority (manual priorização) — higher number = more urgent
   const aLocal = a.localPriority ?? 0;
   const bLocal = b.localPriority ?? 0;
-  if (aLocal !== bLocal) return bLocal - aLocal; // DESC: higher priority first
+  if (aLocal !== bLocal) return bLocal - aLocal;
 
-  const aIsTicket = a.task.type === 'Ticket';
-  const bIsTicket = b.task.type === 'Ticket';
-  const aHasActiveSla = aIsTicket && !a.slaExcluded;
-  const bHasActiveSla = bIsTicket && !b.slaExcluded;
+  // 3. Items with SLA (endDate set) before items without
+  if (aHasSla !== bHasSla) return bHasSla - aHasSla;
 
-  // 1. Tickets with active SLA go to the very top, sorted by remaining hours ASC
-  if (aHasActiveSla && !bHasActiveSla) return -1;
-  if (!aHasActiveSla && bHasActiveSla) return 1;
-  if (aHasActiveSla && bHasActiveSla) {
+  // 4. Both have SLA → closest deadline first (tomorrow before 4 days)
+  if (aHasSla && bHasSla) {
     return a.businessHoursRemaining - b.businessHoursRemaining;
   }
 
-  // 2. For items without active SLA: original rule
-  //    GT Ticket(0) > GT Improvement(1) > CT Ticket(2) > CT Improvement(3)
-  //    then by priority, then by remaining hours
+  // 5. No SLA — sort by area/type weight then azure priority
   const wa = typeAreaWeight(a);
   const wb = typeAreaWeight(b);
   if (wa !== wb) return wa - wb;
@@ -201,6 +214,7 @@ function slaChipColor(
   item: SustentacaoItemWithSLA,
 ): 'error' | 'warning' | 'info' | 'default' {
   if (item.slaExcluded) return 'default';
+  if (!item.expirationDate) return 'default';
   if (item.slaViolated) return 'error';
   if (item.slaWarning) return 'warning';
   if (
@@ -258,6 +272,8 @@ async function exportToPdf(
     if (isTicket) {
       if (item.slaExcluded) {
         slaHtml = '<span style="color:#94A3B8;font-size:9px;">Excluído</span>';
+      } else if (!item.expirationDate) {
+        slaHtml = '<span style="color:#94A3B8;font-size:9px;">Sem SLA</span>';
       } else if (item.slaViolated) {
         slaHtml = `<span style="color:#DC2626;font-weight:700;font-size:10px;">${formatSlaDelay(item.businessHoursRemaining)}</span>`;
         if (item.expirationDate) {
@@ -496,6 +512,9 @@ async function exportToPdf(
 
 // ── ItemRow (memo) ──
 
+// Module-level constant: computed once when the module loads, not during render
+const MODULE_LOAD_TIME = Date.now();
+
 interface ItemRowProps {
   item: SustentacaoItemWithSLA;
   showAreaColumn: boolean;
@@ -526,12 +545,12 @@ const ItemRow = memo(function ItemRow({
   const isTicket = t.type === 'Ticket';
   const noAssignee = !t.assignedToName;
 
-  // Check if item was created in the last 24 hours
+  // Check if item was created in the last 24 hours using module-load time as reference
   const isNew = useMemo(() => {
     const created = t.azureCreatedDate ?? t.createdAt;
     if (!created) return false;
     const createdMs = new Date(created).getTime();
-    return Date.now() - createdMs < 24 * 60 * 60 * 1000;
+    return MODULE_LOAD_TIME - createdMs < 24 * 60 * 60 * 1000;
   }, [t.azureCreatedDate, t.createdAt]);
 
   // Check if assignee's position allows this status
@@ -609,12 +628,34 @@ const ItemRow = memo(function ItemRow({
 
       {/* Título */}
       <TableCell sx={{ verticalAlign: 'middle', py: 1 }}>
-        <Typography
-          variant="body2"
-          sx={{ wordBreak: 'break-word', lineHeight: 1.4 }}
-        >
-          {t.title}
-        </Typography>
+        <Stack spacing={0.4}>
+          <Typography
+            variant="body2"
+            sx={{ wordBreak: 'break-word', lineHeight: 1.4 }}
+          >
+            {t.title}
+          </Typography>
+          {t.isBlocked && (
+            <Tooltip
+              title={
+                t.blockedReason ?? 'Item com impedimento — não pode avançar'
+              }
+            >
+              <Chip
+                label="⚠ Impedimento"
+                size="small"
+                color="error"
+                variant="outlined"
+                sx={{
+                  fontWeight: 700,
+                  fontSize: '0.65rem',
+                  height: 20,
+                  width: 'fit-content',
+                }}
+              />
+            </Tooltip>
+          )}
+        </Stack>
       </TableCell>
 
       {/* Status */}
@@ -655,6 +696,13 @@ const ItemRow = memo(function ItemRow({
           {isTicket ? (
             item.slaExcluded ? (
               <Chip label="SLA Excluído" size="small" variant="outlined" />
+            ) : !item.expirationDate ? (
+              <Chip
+                label="Sem SLA"
+                size="small"
+                variant="outlined"
+                sx={{ color: 'text.disabled', borderColor: 'divider' }}
+              />
             ) : (
               <Stack spacing={0.3}>
                 <Stack direction="row" alignItems="center" spacing={0.5}>
@@ -750,9 +798,7 @@ const ItemRow = memo(function ItemRow({
                 <Typography
                   variant="caption"
                   sx={{
-                    color: item.localPriorityExpired
-                      ? 'error.main'
-                      : '#B45309',
+                    color: item.localPriorityExpired ? 'error.main' : '#B45309',
                     fontWeight: item.localPriorityExpired ? 700 : 400,
                     fontSize: '0.7rem',
                   }}
@@ -1053,7 +1099,37 @@ function formatBusinessHours(hours: number | null): string {
 
 // ── Main Component ──
 
+const dashboardApi = (
+  window as unknown as {
+    electronAPI: import('@shared/interfaces/config/index.types').CustomElectronAPI;
+  }
+).electronAPI;
+
 export function DashboardSustentacaoPage() {
+  const { projects } = useAzureProjects();
+
+  // Project selection — persisted in localStorage
+  const [selectedConfigId, setSelectedConfigId] = useState<number | null>(
+    () => {
+      const stored = localStorage.getItem('dashboard-sustentacao-project-id');
+      return stored ? Number(stored) : null;
+    },
+  );
+
+  // Resolve selectedConfigId: fall back to first active project if stored one is gone
+  const resolvedConfigId = useMemo(() => {
+    if (projects.length === 0) return undefined;
+    if (projects.length === 1) return projects[0].id;
+    if (selectedConfigId && projects.some((p) => p.id === selectedConfigId))
+      return selectedConfigId;
+    return projects[0]?.id;
+  }, [projects, selectedConfigId]);
+
+  const handleProjectChange = (id: number) => {
+    setSelectedConfigId(id);
+    localStorage.setItem('dashboard-sustentacao-project-id', String(id));
+  };
+
   const [items, setItems] = useState<SustentacaoItemWithSLA[]>([]);
   const [metrics, setMetrics] = useState<SustentacaoMetrics | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1069,6 +1145,7 @@ export function DashboardSustentacaoPage() {
   const [metricsLoading, setMetricsLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [activeTab, setActiveTab] = useState(0);
+  const [copySelectionOpen, setCopySelectionOpen] = useState(false);
   const [slaOrderModal, setSlaOrderModal] = useState<{
     open: boolean;
     title: string;
@@ -1080,12 +1157,6 @@ export function DashboardSustentacaoPage() {
   });
   const [prioritizeItem, setPrioritizeItem] =
     useState<SustentacaoItemWithSLA | null>(null);
-
-  const api = (
-    window as unknown as {
-      electronAPI: import('@shared/interfaces/config/index.types').CustomElectronAPI;
-    }
-  ).electronAPI;
 
   // ── fetch helpers ──
 
@@ -1105,10 +1176,11 @@ export function DashboardSustentacaoPage() {
     setError(null);
     try {
       const [res, membersRes, metricsRes] = await Promise.all([
-        api.dashboard.getSustentacaoItems(),
-        api.teamMember.findAll(),
-        api.dashboard.getSustentacaoMetrics(
+        dashboardApi.dashboard.getSustentacaoItems(undefined, resolvedConfigId),
+        dashboardApi.teamMember.findAll(),
+        dashboardApi.dashboard.getSustentacaoMetrics(
           getMetricsStatuses(includeAnalysis),
+          resolvedConfigId,
         ),
       ]);
       if (res.success && res.data) {
@@ -1122,8 +1194,11 @@ export function DashboardSustentacaoPage() {
       if (membersRes.success && membersRes.data) {
         const map = new Map<string, string[]>();
         for (const m of membersRes.data) {
-          if (m.email && (m.position as any)?.allowedStatuses) {
-            const statuses = ((m.position as any).allowedStatuses as string)
+          const position = m.position as
+            | { allowedStatuses?: string }
+            | undefined;
+          if (m.email && position?.allowedStatuses) {
+            const statuses = position.allowedStatuses
               .split(',')
               .map((s: string) => s.trim().toLowerCase())
               .filter(Boolean);
@@ -1137,16 +1212,16 @@ export function DashboardSustentacaoPage() {
     } finally {
       setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [getMetricsStatuses, includeAnalysis, resolvedConfigId]);
 
   /** Background refresh — no full-screen spinner, silently updates data */
   const refreshData = useCallback(async () => {
     try {
       const [res, metricsRes] = await Promise.all([
-        api.dashboard.getSustentacaoItems(),
-        api.dashboard.getSustentacaoMetrics(
+        dashboardApi.dashboard.getSustentacaoItems(undefined, resolvedConfigId),
+        dashboardApi.dashboard.getSustentacaoMetrics(
           getMetricsStatuses(includeAnalysis),
+          resolvedConfigId,
         ),
       ]);
       if (res.success && res.data) setItems(res.data);
@@ -1154,15 +1229,16 @@ export function DashboardSustentacaoPage() {
     } catch {
       /* silent */
     }
-  }, [includeAnalysis, getMetricsStatuses]);
+  }, [includeAnalysis, getMetricsStatuses, resolvedConfigId]);
 
   /** Metrics-only refresh — shows loading only on cards */
   const refreshMetrics = useCallback(
     async (withAnalysis: boolean) => {
       setMetricsLoading(true);
       try {
-        const res = await api.dashboard.getSustentacaoMetrics(
+        const res = await dashboardApi.dashboard.getSustentacaoMetrics(
           getMetricsStatuses(withAnalysis),
+          resolvedConfigId,
         );
         if (res.success && res.data) setMetrics(res.data);
       } catch {
@@ -1171,7 +1247,7 @@ export function DashboardSustentacaoPage() {
         setMetricsLoading(false);
       }
     },
-    [getMetricsStatuses],
+    [getMetricsStatuses, resolvedConfigId],
   );
 
   useEffect(() => {
@@ -1182,7 +1258,7 @@ export function DashboardSustentacaoPage() {
   useSyncRefresh(refreshData);
 
   // When includeAnalysis changes, only reload metrics (not the whole page)
-  const isFirstRender = useMemo(() => ({ current: true }), []);
+  const isFirstRender = useRef(true);
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
@@ -1205,9 +1281,9 @@ export function DashboardSustentacaoPage() {
       setBusyItems((prev) => new Set(prev).add(externalId));
       try {
         if (excluded) {
-          await api.dashboard.restoreSla(externalId);
+          await dashboardApi.dashboard.restoreSla(externalId);
         } else {
-          await api.dashboard.excludeSla(externalId);
+          await dashboardApi.dashboard.excludeSla(externalId);
         }
         await refreshData();
       } catch {
@@ -1241,9 +1317,9 @@ export function DashboardSustentacaoPage() {
       setBusyItems((prev) => new Set(prev).add(externalId));
       try {
         if (hidden) {
-          await api.dashboard.unhideItem(externalId);
+          await dashboardApi.dashboard.unhideItem(externalId);
         } else {
-          await api.dashboard.hideItem(externalId);
+          await dashboardApi.dashboard.hideItem(externalId);
         }
         await refreshData();
       } catch {
@@ -1293,58 +1369,58 @@ export function DashboardSustentacaoPage() {
       const buildUrl = (id: string | number) =>
         `https://dev.azure.com/senaisc-solucoes-digitais/Tribo%20SEIF/_workitems/edit/${id}/`;
 
-      const gestaoItems = visible.filter((i) => isGestao(i.task.areaPath));
-      const ctItems = visible.filter((i) => !isGestao(i.task.areaPath));
-
-      const isWrongPosition = (t: Task) => {
-        if (!t.assignedToName || !t.assignedToEmail || !t.status) return false;
-        const allowed = positionMap.get(t.assignedToEmail.toLowerCase());
-        if (!allowed || allowed.length === 0) return false;
-        return !allowed.includes(t.status.toLowerCase());
-      };
+      const areaTagStr = (areaPath?: string) =>
+        areaPath?.includes('Gestão de Terceiros') ? '[Gestão]' : '[Chamada]';
 
       const formatItemHtml = (item: SustentacaoItemWithSLA, idx: number) => {
         const t = item.task;
         const id = t.externalId ?? String(t.id);
         const url = buildUrl(id);
-        const prio = PRIO_LABEL[t.priority] ?? t.priority;
-        const responsavel =
-          !t.assignedToName || isWrongPosition(t)
-            ? 'Sem responsável'
-            : t.assignedToName;
+        const tag = `<span style="color:#94A3B8;font-size:0.8em;">${areaTagStr(t.areaPath)}</span>`;
 
-        let sla = '';
-        if (t.type === 'Ticket' && !item.slaExcluded) {
-          if (item.slaViolated) {
-            sla = ` | SLA: ${formatSlaDelay(item.businessHoursRemaining)}`;
-          } else {
-            sla = ` | SLA: ${formatSlaRemaining(item.businessHoursRemaining)} restante`;
-          }
+        let dateInfo = '';
+        if (item.expirationDate) {
+          const d = new Date(item.expirationDate);
+          const label = item.slaViolated ? 'Término (vencido)' : 'Término';
+          const color = item.slaViolated ? '#DC2626' : '#0369A1';
+          dateInfo = ` | <span style="color:${color};">${label}: ${d.toLocaleDateString('pt-BR')}</span>`;
+        } else if (item.localPriority > 0) {
+          const ds = item.localPriorityDeadline ?? item.localPriorityCreatedAt;
+          if (ds)
+            dateInfo = ` | <span style="color:#7C3AED;">Priorizado para: ${new Date(ds).toLocaleDateString('pt-BR')}</span>`;
         }
 
-        return `${idx + 1}. <b><a href="${url}">#${id}</a></b> - ${t.type} | ${prio} | ${responsavel}${sla}`;
+        let blocked = '';
+        if (t.isBlocked) {
+          blocked = ` | <span style="color:#DC2626;font-weight:700;">⚠ Impedimento${t.blockedReason ? `: ${t.blockedReason}` : ''}</span>`;
+        }
+
+        return `${idx + 1}. ${tag} <b><a href="${url}">#${id}</a></b> - ${t.type}${dateInfo}${blocked}`;
       };
 
       const formatItemText = (item: SustentacaoItemWithSLA, idx: number) => {
         const t = item.task;
         const id = t.externalId ?? String(t.id);
         const url = buildUrl(id);
-        const prio = PRIO_LABEL[t.priority] ?? t.priority;
-        const responsavel =
-          !t.assignedToName || isWrongPosition(t)
-            ? 'Sem responsável'
-            : t.assignedToName;
+        const tag = areaTagStr(t.areaPath);
 
-        let sla = '';
-        if (t.type === 'Ticket' && !item.slaExcluded) {
-          if (item.slaViolated) {
-            sla = ` | SLA: ${formatSlaDelay(item.businessHoursRemaining)}`;
-          } else {
-            sla = ` | SLA: ${formatSlaRemaining(item.businessHoursRemaining)} restante`;
-          }
+        let dateInfo = '';
+        if (item.expirationDate) {
+          const d = new Date(item.expirationDate);
+          const label = item.slaViolated ? 'Término (vencido)' : 'Término';
+          dateInfo = ` | ${label}: ${d.toLocaleDateString('pt-BR')}`;
+        } else if (item.localPriority > 0) {
+          const ds = item.localPriorityDeadline ?? item.localPriorityCreatedAt;
+          if (ds)
+            dateInfo = ` | Priorizado para: ${new Date(ds).toLocaleDateString('pt-BR')}`;
         }
 
-        return `${idx + 1}. #${id} (${url}) - ${t.type} | ${prio} | ${responsavel}${sla}`;
+        let blocked = '';
+        if (t.isBlocked) {
+          blocked = ` | ⚠ Impedimento${t.blockedReason ? `: ${t.blockedReason}` : ''}`;
+        }
+
+        return `${idx + 1}. ${tag} #${id} (${url}) - ${t.type}${dateInfo}${blocked}`;
       };
 
       const htmlLines: string[] = [];
@@ -1355,29 +1431,43 @@ export function DashboardSustentacaoPage() {
 
       let counter = 0;
 
-      if (gestaoItems.length > 0) {
-        htmlLines.push(
-          `<b>Gestão de Terceiros (${gestaoItems.length})</b><br/>`,
-        );
-        textLines.push(`Gestão de Terceiros (${gestaoItems.length})`);
-        gestaoItems.forEach((item) => {
+      const hasPrioFn = (item: SustentacaoItemWithSLA) =>
+        !!item.expirationDate || item.localPriority > 0;
+
+      const renderGroup = (
+        items: SustentacaoItemWithSLA[],
+        groupLabel: string,
+      ) => {
+        if (items.length === 0) return;
+        htmlLines.push(`<b>${groupLabel} (${items.length})</b><br/>`);
+        textLines.push(`${groupLabel} (${items.length})`);
+        items.forEach((item) => {
           htmlLines.push(formatItemHtml(item, counter) + '<br/>');
           textLines.push(formatItemText(item, counter));
           counter++;
         });
         htmlLines.push('<br/>');
         textLines.push('');
-      }
+      };
 
-      if (ctItems.length > 0) {
-        htmlLines.push(`<b>Chamada Tecnológica (${ctItems.length})</b><br/>`);
-        textLines.push(`Chamada Tecnológica (${ctItems.length})`);
-        ctItems.forEach((item) => {
-          htmlLines.push(formatItemHtml(item, counter) + '<br/>');
-          textLines.push(formatItemText(item, counter));
-          counter++;
+      // Flat structure: blocked last, no GT/CT sub-headers
+      const blockedItems = visible.filter((i) => i.task.isBlocked);
+      const unblockedItems = visible.filter((i) => !i.task.isBlocked);
+      const withPrio = unblockedItems.filter(hasPrioFn);
+      const withoutPrio = unblockedItems
+        .filter((i) => !hasPrioFn(i))
+        .sort((a, b) => {
+          const aT = a.task.type === 'Ticket' ? 0 : 1;
+          const bT = b.task.type === 'Ticket' ? 0 : 1;
+          if (aT !== bT) return aT - bT;
+          const aG = isGestao(a.task.areaPath) ? 0 : 1;
+          const bG = isGestao(b.task.areaPath) ? 0 : 1;
+          return aG - bG;
         });
-      }
+
+      renderGroup(withPrio, 'Com prioridade/SLA');
+      renderGroup(withoutPrio, 'Sem prioridade');
+      renderGroup(blockedItems, 'Com impedimento');
 
       const html = htmlLines.join('');
       const text = textLines.join('\n');
@@ -1393,7 +1483,7 @@ export function DashboardSustentacaoPage() {
         navigator.clipboard.writeText(text).catch(() => {});
       });
     },
-    [showHidden, positionMap],
+    [showHidden],
   );
 
   const handleRowClick = useCallback((task: Task) => {
@@ -1413,9 +1503,9 @@ export function DashboardSustentacaoPage() {
   const handlePrioritizeSaved = useCallback(async () => {
     setPrioritizeItem(null);
     // Invalidate backend cache so refreshData gets fresh data
-    await api.dashboard.invalidateCache();
+    await dashboardApi.dashboard.invalidateCache();
     refreshData();
-  }, [refreshData, api]);
+  }, [refreshData]);
 
   // ── derived data ──
 
@@ -1460,15 +1550,34 @@ export function DashboardSustentacaoPage() {
   }, [items, positionMap]);
 
   // ── loading / error states ──
-  if (loading) {
+  if (loading && items.length === 0) {
     return (
       <PageLayout>
-        <Stack alignItems="center" justifyContent="center" minHeight="60vh">
-          <CircularProgress size={48} />
-          <Typography variant="body2" color="text.secondary" mt={2}>
-            Carregando itens de sustentação...
-          </Typography>
+        <Stack spacing={1} mb={3}>
+          <Skeleton
+            variant="text"
+            width={320}
+            height={40}
+            sx={{ borderRadius: 1 }}
+          />
+          <Stack direction="row" spacing={1}>
+            {[100, 80, 110, 90, 120].map((w, i) => (
+              <Skeleton
+                key={i}
+                variant="rounded"
+                width={w}
+                height={48}
+                sx={{ borderRadius: 2 }}
+              />
+            ))}
+          </Stack>
         </Stack>
+        <Skeleton
+          variant="rounded"
+          height={40}
+          sx={{ mb: 2, maxWidth: 400, borderRadius: 1 }}
+        />
+        <Skeleton variant="rounded" height={450} sx={{ borderRadius: 2 }} />
       </PageLayout>
     );
   }
@@ -1497,7 +1606,18 @@ export function DashboardSustentacaoPage() {
         justifyContent="space-between"
         mb={2}
       >
-        <Typography variant="h5">Dashboard Sustentação</Typography>
+        <Stack direction="row" alignItems="center" spacing={1}>
+          <Typography variant="h5" fontWeight={700}>
+            Dashboard Sustentação
+          </Typography>
+          {projects.length > 1 && (
+            <ProjectSelector
+              projects={projects}
+              selectedId={resolvedConfigId ?? null}
+              onChange={handleProjectChange}
+            />
+          )}
+        </Stack>
         <Stack direction="row" spacing={1} alignItems="center">
           <FormControlLabel
             control={
@@ -1530,22 +1650,10 @@ export function DashboardSustentacaoPage() {
       </Stack>
 
       {/* Search Filter */}
-      <TextField
+      <DebouncedSearchInput
         fullWidth
-        size="small"
         placeholder="Buscar por código ou descrição da tarefa..."
-        value={searchText}
-        onChange={(e) => setSearchText(e.target.value)}
-        onKeyDown={(e) => e.stopPropagation()}
-        slotProps={{
-          input: {
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
-              </InputAdornment>
-            ),
-          },
-        }}
+        onSearch={setSearchText}
         sx={{ mb: 2 }}
       />
 
@@ -1592,7 +1700,7 @@ export function DashboardSustentacaoPage() {
             bgColor={
               metrics.slaViolatedCount > 0 ? 'rgba(220,38,38,0.06)' : undefined
             }
-            tooltip="Tickets cujo tempo de SLA já foi ultrapassado. Limites por prioridade: Crítica 4h, Alta 8h, Média 24h, Baixa 40h úteis."
+            tooltip="Tickets cuja data de término (TÉRMINO) definida no Azure já foi ultrapassada."
           />
           <MetricCard
             icon={<WarningIcon fontSize="inherit" />}
@@ -1730,6 +1838,14 @@ export function DashboardSustentacaoPage() {
           </Tabs>
 
           <Stack direction="row" spacing={0.5} alignItems="center">
+            <Tooltip title="Selecionar itens para copiar">
+              <IconButton
+                size="small"
+                onClick={() => setCopySelectionOpen(true)}
+              >
+                <SelectCopyIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
             <Tooltip title="Ordem de prioridade SLA">
               <IconButton
                 size="small"
@@ -1802,6 +1918,14 @@ export function DashboardSustentacaoPage() {
           </Box>
         ))}
       </Box>
+
+      <CopySelectionModal
+        open={copySelectionOpen}
+        onClose={() => setCopySelectionOpen(false)}
+        devItems={devItems}
+        auditItems={auditItems}
+        analysisItems={analysisItems}
+      />
 
       <SlaOrderModal
         open={slaOrderModal.open}

@@ -84,7 +84,8 @@ export class TeamRepository {
    * @deprecated Use TeamMemberAllocationRepository to manage team-member relationships
    * This method is kept for backward compatibility but does nothing
    */
-  async removeMember(teamId: number, memberId: number): Promise<boolean> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async removeMember(_teamId: number, _memberId: number): Promise<boolean> {
     // Team-member relationship is now managed via TeamMemberAllocationEntity
     // This method does nothing but returns true
     return true;

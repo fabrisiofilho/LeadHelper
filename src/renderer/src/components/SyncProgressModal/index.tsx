@@ -37,6 +37,9 @@ interface SyncProgress {
   percentage: number;
   stepErrors?: string[];
   stepResult?: { created: number; updated: number; total: number };
+  projectName?: string;
+  projectIndex?: number;
+  projectTotal?: number;
 }
 
 interface StepInfo {
@@ -98,7 +101,6 @@ export function SyncProgressModal({ open, onClose }: SyncProgressModalProps) {
     const handleProgress = (_event: unknown, data: SyncProgress) => {
       setProgress(data);
 
-      // Track step errors and results
       if (data.stepErrors || data.stepResult) {
         setStepInfoMap((prev) => {
           const next = new Map(prev);
@@ -116,7 +118,6 @@ export function SyncProgressModal({ open, onClose }: SyncProgressModalProps) {
 
       if (data.step === 'complete') {
         setIsComplete(true);
-        // If there are errors, don't auto-close — let user review
         if (!data.stepErrors?.length && !data.message.includes('falha')) {
           setTimeout(onClose, 2000);
         }
@@ -144,6 +145,9 @@ export function SyncProgressModal({ open, onClose }: SyncProgressModalProps) {
   const allErrors = Array.from(stepInfoMap.entries()).flatMap(([step, info]) =>
     info.errors.map((err) => ({ step, error: err })),
   );
+
+  const isMultiProject =
+    progress.projectTotal !== undefined && progress.projectTotal > 1;
 
   const getStepChipColor = (
     step: SyncStep,
@@ -184,7 +188,7 @@ export function SyncProgressModal({ open, onClose }: SyncProgressModalProps) {
           borderRadius: 4,
           p: '2rem 3rem',
           minWidth: 420,
-          maxWidth: 560,
+          maxWidth: 580,
           maxHeight: '80vh',
           overflow: 'auto',
           textAlign: 'center',
@@ -212,6 +216,37 @@ export function SyncProgressModal({ open, onClose }: SyncProgressModalProps) {
               : 'Sincronização Concluída!'
             : 'Sincronizando com Azure DevOps'}
         </Typography>
+
+        {/* Multi-project indicator */}
+        {isMultiProject && !isComplete && (
+          <Box
+            sx={{
+              mb: 1.5,
+              px: 2,
+              py: 0.75,
+              borderRadius: 2,
+              bgcolor: 'action.hover',
+              display: 'inline-block',
+            }}
+          >
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              fontWeight={600}
+            >
+              Projeto {progress.projectIndex} de {progress.projectTotal}
+            </Typography>
+            {progress.projectName && (
+              <Typography
+                variant="body2"
+                fontWeight={700}
+                sx={{ display: 'block' }}
+              >
+                {progress.projectName}
+              </Typography>
+            )}
+          </Box>
+        )}
 
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           {progress.message}

@@ -22,6 +22,10 @@ import { ApiResponse } from '@shared/interfaces/types/common.types';
 import { logger } from '@main/infrastructure/log/logger';
 import { TaskSlaExclusionRepository } from '../repositories/task-sla-exclusion-repository';
 import { TaskHiddenRepository } from '../repositories/task-hidden-repository';
+import type {
+  SustentacaoMetrics,
+  TaskAllocationMember,
+} from '@shared/interfaces/config/index.types';
 
 export class DashboardController extends BaseHandler {
   private service: DashboardService;
@@ -190,9 +194,10 @@ export class DashboardController extends BaseHandler {
   @IpcMethod('dashboard:getSustentacaoItems')
   async getSustentacaoItems(
     options?: SustentacaoOptions,
+    configId?: number,
   ): Promise<ApiResponse<SustentacaoItemWithSLA[]>> {
     try {
-      const result = await this.service.getSustentacaoItems(options);
+      const result = await this.service.getSustentacaoItems(options, configId);
       return { success: true, data: result };
     } catch (error) {
       const message =
@@ -213,13 +218,13 @@ export class DashboardController extends BaseHandler {
   @IpcMethod('dashboard:getSustentacaoMetrics')
   async getSustentacaoMetrics(
     statuses?: string[],
-  ): Promise<
-    ApiResponse<
-      import('@shared/interfaces/config/index.types').SustentacaoMetrics
-    >
-  > {
+    configId?: number,
+  ): Promise<ApiResponse<SustentacaoMetrics>> {
     try {
-      const result = await this.service.getSustentacaoMetrics(statuses);
+      const result = await this.service.getSustentacaoMetrics(
+        statuses,
+        configId,
+      );
       return { success: true, data: result };
     } catch (error) {
       const message =
@@ -231,17 +236,13 @@ export class DashboardController extends BaseHandler {
     }
   }
 
-  /**
-   * Get Sustentação team members with their in-progress cards.
-   *
-   * Validates: Requirements 2.2, 2.3, 2.4
-   */
   @IpcMethod('dashboard:getSustentacaoMembersWithCards')
-  async getSustentacaoMembersWithCards(): Promise<
-    ApiResponse<SustentacaoMemberWithCards[]>
-  > {
+  async getSustentacaoMembersWithCards(
+    configId?: number,
+  ): Promise<ApiResponse<SustentacaoMemberWithCards[]>> {
     try {
-      const result = await this.service.getSustentacaoMembersWithCards();
+      const result =
+        await this.service.getSustentacaoMembersWithCards(configId);
       return { success: true, data: result };
     } catch (error) {
       const message =
@@ -257,11 +258,7 @@ export class DashboardController extends BaseHandler {
   }
 
   @IpcMethod('dashboard:getTaskAllocationData')
-  async getTaskAllocationData(): Promise<
-    ApiResponse<
-      import('@shared/interfaces/config/index.types').TaskAllocationMember[]
-    >
-  > {
+  async getTaskAllocationData(): Promise<ApiResponse<TaskAllocationMember[]>> {
     try {
       const result = await this.service.getTaskAllocationData();
       return { success: true, data: result };
@@ -318,9 +315,14 @@ export class DashboardController extends BaseHandler {
   @IpcMethod('dashboard:getProjetosItems')
   async getProjetosItems(
     sprintId: number,
+    configId?: number,
   ): Promise<ApiResponse<ProjetosResult>> {
     try {
-      const result = await this.service.getProjetosItems(sprintId);
+      const result = await this.service.getProjetosItems(
+        sprintId,
+        new Date(),
+        configId,
+      );
       return { success: true, data: result };
     } catch (error) {
       const message =

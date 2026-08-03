@@ -3,6 +3,7 @@ import { Box, Stack, Avatar } from '@mui/material';
 
 type CardVariant = 'primary' | 'success' | 'error' | 'info' | 'warning';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const getVariantColors = (theme: any, variant: CardVariant) => {
   const variants = {
     primary: {

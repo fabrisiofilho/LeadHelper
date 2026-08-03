@@ -22,7 +22,6 @@ type Props<T> = {
 };
 
 export function HeaderField<T>({
-  isLastItem,
   filters,
   headerField,
   handleChangeFilters,

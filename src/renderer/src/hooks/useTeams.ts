@@ -21,17 +21,17 @@ export function useTeams() {
     selectedTeam: null,
   });
 
-  const setLoading = (loading: boolean) => {
+  const setLoading = useCallback((loading: boolean) => {
     setState((prev) => ({
       ...prev,
       loading,
       error: loading ? null : prev.error,
     }));
-  };
+  }, []);
 
-  const setError = (error: string | null) => {
+  const setError = useCallback((error: string | null) => {
     setState((prev) => ({ ...prev, error, loading: false }));
-  };
+  }, []);
 
   const create = useCallback(
     async (data: CreateTeamInput): Promise<Team | null> => {
@@ -53,7 +53,7 @@ export function useTeams() {
         return null;
       }
     },
-    [],
+    [setLoading, setError],
   );
 
   const update = useCallback(
@@ -78,28 +78,31 @@ export function useTeams() {
         return null;
       }
     },
-    [],
+    [setLoading, setError],
   );
 
-  const deleteTeam = useCallback(async (id: number): Promise<boolean> => {
-    setLoading(true);
-    try {
-      const response = await window.electronAPI.team.delete(id);
-      if (!response.success) {
-        setError(response.error || 'Erro ao excluir equipe');
+  const deleteTeam = useCallback(
+    async (id: number): Promise<boolean> => {
+      setLoading(true);
+      try {
+        const response = await window.electronAPI.team.delete(id);
+        if (!response.success) {
+          setError(response.error || 'Erro ao excluir equipe');
+          return false;
+        }
+        setState((prev) => ({
+          ...prev,
+          loading: false,
+          teams: prev.teams.filter((t) => t.id !== id),
+        }));
+        return true;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erro de comunicação');
         return false;
       }
-      setState((prev) => ({
-        ...prev,
-        loading: false,
-        teams: prev.teams.filter((t) => t.id !== id),
-      }));
-      return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro de comunicação');
-      return false;
-    }
-  }, []);
+    },
+    [setLoading, setError],
+  );
 
   const findAll = useCallback(
     async (filters?: TeamFilters): Promise<Team[]> => {
@@ -121,28 +124,31 @@ export function useTeams() {
         return [];
       }
     },
-    [],
+    [setLoading, setError],
   );
 
-  const findById = useCallback(async (id: number): Promise<Team | null> => {
-    setLoading(true);
-    try {
-      const response = await window.electronAPI.team.findById(id);
-      if (!response.success) {
-        setError(response.error || 'Erro ao buscar equipe');
+  const findById = useCallback(
+    async (id: number): Promise<Team | null> => {
+      setLoading(true);
+      try {
+        const response = await window.electronAPI.team.findById(id);
+        if (!response.success) {
+          setError(response.error || 'Erro ao buscar equipe');
+          return null;
+        }
+        setState((prev) => ({
+          ...prev,
+          loading: false,
+          selectedTeam: response.data || null,
+        }));
+        return response.data || null;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erro de comunicação');
         return null;
       }
-      setState((prev) => ({
-        ...prev,
-        loading: false,
-        selectedTeam: response.data || null,
-      }));
-      return response.data || null;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro de comunicação');
-      return null;
-    }
-  }, []);
+    },
+    [setLoading, setError],
+  );
 
   const addMember = useCallback(
     async (teamId: number, memberId: number): Promise<boolean> => {
@@ -163,7 +169,7 @@ export function useTeams() {
         return false;
       }
     },
-    [],
+    [setLoading, setError],
   );
 
   const removeMember = useCallback(
@@ -185,52 +191,58 @@ export function useTeams() {
         return false;
       }
     },
-    [],
+    [setLoading, setError],
   );
 
-  const activate = useCallback(async (id: number): Promise<Team | null> => {
-    setLoading(true);
-    try {
-      const response = await window.electronAPI.team.activate(id);
-      if (!response.success) {
-        setError(response.error || 'Erro ao ativar equipe');
+  const activate = useCallback(
+    async (id: number): Promise<Team | null> => {
+      setLoading(true);
+      try {
+        const response = await window.electronAPI.team.activate(id);
+        if (!response.success) {
+          setError(response.error || 'Erro ao ativar equipe');
+          return null;
+        }
+        setState((prev) => ({
+          ...prev,
+          loading: false,
+          teams: prev.teams.map((t) =>
+            t.id === id && response.data ? response.data : t,
+          ),
+        }));
+        return response.data || null;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erro de comunicação');
         return null;
       }
-      setState((prev) => ({
-        ...prev,
-        loading: false,
-        teams: prev.teams.map((t) =>
-          t.id === id && response.data ? response.data : t,
-        ),
-      }));
-      return response.data || null;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro de comunicação');
-      return null;
-    }
-  }, []);
+    },
+    [setLoading, setError],
+  );
 
-  const deactivate = useCallback(async (id: number): Promise<Team | null> => {
-    setLoading(true);
-    try {
-      const response = await window.electronAPI.team.deactivate(id);
-      if (!response.success) {
-        setError(response.error || 'Erro ao desativar equipe');
+  const deactivate = useCallback(
+    async (id: number): Promise<Team | null> => {
+      setLoading(true);
+      try {
+        const response = await window.electronAPI.team.deactivate(id);
+        if (!response.success) {
+          setError(response.error || 'Erro ao desativar equipe');
+          return null;
+        }
+        setState((prev) => ({
+          ...prev,
+          loading: false,
+          teams: prev.teams.map((t) =>
+            t.id === id && response.data ? response.data : t,
+          ),
+        }));
+        return response.data || null;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erro de comunicação');
         return null;
       }
-      setState((prev) => ({
-        ...prev,
-        loading: false,
-        teams: prev.teams.map((t) =>
-          t.id === id && response.data ? response.data : t,
-        ),
-      }));
-      return response.data || null;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro de comunicação');
-      return null;
-    }
-  }, []);
+    },
+    [setLoading, setError],
+  );
 
   const clearError = useCallback(() => {
     setState((prev) => ({ ...prev, error: null }));

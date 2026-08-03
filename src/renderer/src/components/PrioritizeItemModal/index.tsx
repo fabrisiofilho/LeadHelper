@@ -233,7 +233,12 @@ export function PrioritizeItemModal({
       if (deadlineDate) {
         deadline = new Date(deadlineDate);
         if (deadlineTime) {
-          deadline.setHours(deadlineTime.getHours(), deadlineTime.getMinutes(), 0, 0);
+          deadline.setHours(
+            deadlineTime.getHours(),
+            deadlineTime.getMinutes(),
+            0,
+            0,
+          );
         } else {
           deadline.setHours(17, 30, 0, 0); // Default: end of business day
         }
@@ -430,8 +435,7 @@ export function PrioritizeItemModal({
                 color="text.secondary"
                 mt={0.5}
               >
-                Ao salvar ou remover, esta nota será finalizada
-                automaticamente.
+                Ao salvar ou remover, esta nota será finalizada automaticamente.
               </Typography>
             </Alert>
           )}

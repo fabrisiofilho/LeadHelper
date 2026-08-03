@@ -2,17 +2,16 @@ import {
   Stack,
   TextField,
   MenuItem,
-  InputAdornment,
   ToggleButton,
   ToggleButtonGroup,
   Tooltip,
   Box,
 } from '@mui/material';
 import {
-  Search as SearchIcon,
   ViewList as ListIcon,
   ViewKanban as KanbanIcon,
 } from '@mui/icons-material';
+import { DebouncedSearchInput } from '@renderer/components/DebouncedSearchInput';
 import type {
   TaskPriority,
   TaskType,
@@ -65,18 +64,10 @@ export function TaskBoardFilters({
         flexShrink: 0,
       }}
     >
-      <TextField
-        size="small"
+      <DebouncedSearchInput
         placeholder="Buscar tarefas..."
-        value={filters.search}
-        onChange={(e) => onChange({ ...filters, search: e.target.value })}
-        InputProps={{
-          startAdornment: (
-            <InputAdornment position="start">
-              <SearchIcon fontSize="small" />
-            </InputAdornment>
-          ),
-        }}
+        defaultValue={filters.search}
+        onSearch={(v) => onChange({ ...filters, search: v })}
         sx={{ minWidth: 220, flex: 1, maxWidth: 320 }}
       />
 

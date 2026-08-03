@@ -18,6 +18,7 @@ import {
   ITaskLocalKanbanController,
   ISyncController,
   INoteCardController,
+  ISlaConfigController,
   SyncStatus,
 } from '@shared/interfaces/config/index.types';
 import {
@@ -138,6 +139,9 @@ const syncController = createControllerFromConfig(
 const noteCardController = createControllerFromConfig(
   'noteCard',
 ) as unknown as INoteCardController;
+const slaConfigController = createControllerFromConfig(
+  'slaConfig',
+) as unknown as ISlaConfigController;
 
 const api: CustomElectronAPI = {
   // Team Management Controllers
@@ -158,6 +162,7 @@ const api: CustomElectronAPI = {
   taskLocalKanban: taskLocalKanbanController,
   sync: syncController,
   noteCard: noteCardController,
+  slaConfig: slaConfigController,
 
   // Utility methods
   openExternalUrl: (url: string) => {
@@ -184,9 +189,9 @@ const api: CustomElectronAPI = {
   },
 
   onSyncProgress: (
-    callback: (event: any, progress: any) => void,
+    callback: (event: unknown, progress: unknown) => void,
   ): (() => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, progress: any) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: unknown) => {
       callback(_event, progress);
     };
     ipcRenderer.on('sync:progress', handler);
@@ -195,8 +200,13 @@ const api: CustomElectronAPI = {
     };
   },
 
-  offSyncProgress: (callback: (event: any, progress: any) => void): void => {
-    ipcRenderer.removeListener('sync:progress', callback as any);
+  offSyncProgress: (
+    callback: (event: unknown, progress: unknown) => void,
+  ): void => {
+    ipcRenderer.removeListener(
+      'sync:progress',
+      callback as Parameters<typeof ipcRenderer.removeListener>[1],
+    );
   },
 
   onSyncStatusChanged: (
@@ -222,9 +232,9 @@ const api: CustomElectronAPI = {
   },
 
   onSyncTaskStatusChanges: (
-    callback: (changes: any[]) => void,
+    callback: (changes: unknown[]) => void,
   ): (() => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, changes: any[]) => {
+    const handler = (_event: Electron.IpcRendererEvent, changes: unknown[]) => {
       callback(changes);
     };
     ipcRenderer.on('sync:task-status-changes', handler);
@@ -234,10 +244,7 @@ const api: CustomElectronAPI = {
   },
 
   onSyncOpenTask: (callback: (externalId: string) => void): (() => void) => {
-    const handler = (
-      _event: Electron.IpcRendererEvent,
-      externalId: string,
-    ) => {
+    const handler = (_event: Electron.IpcRendererEvent, externalId: string) => {
       callback(externalId);
     };
     ipcRenderer.on('sync:open-task', handler);

@@ -56,6 +56,7 @@ export const CONTROLLER_CONFIG = {
       'findAll',
       'findByRole',
       'importPositions',
+      'importPositionsWithDeactivation',
     ] as const,
   },
   task: {
@@ -132,6 +133,11 @@ export const CONTROLLER_CONFIG = {
       'fetchIterations',
       'fullSync',
       'proxyImage',
+      'listProjects',
+      'saveProject',
+      'deleteProject',
+      'testConnectionById',
+      'getProjectPat',
     ] as const,
   },
   autoUpdater: {
@@ -197,7 +203,12 @@ export const CONTROLLER_CONFIG = {
       'findById',
       'findAllActive',
       'findAllCompleted',
+      'findForGantt',
     ] as const,
+  },
+  slaConfig: {
+    prefix: 'sla-config',
+    methods: ['getByProject', 'saveRules'] as const,
   },
 } as const;
 

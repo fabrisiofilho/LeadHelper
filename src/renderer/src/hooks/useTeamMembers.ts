@@ -22,17 +22,17 @@ export function useTeamMembers() {
     selectedTeamMember: null,
   });
 
-  const setLoading = (loading: boolean) => {
+  const setLoading = useCallback((loading: boolean) => {
     setState((prev) => ({
       ...prev,
       loading,
       error: loading ? null : prev.error,
     }));
-  };
+  }, []);
 
-  const setError = (error: string | null) => {
+  const setError = useCallback((error: string | null) => {
     setState((prev) => ({ ...prev, error, loading: false }));
-  };
+  }, []);
 
   const create = useCallback(
     async (data: CreateTeamMemberInput): Promise<TeamMember | null> => {
@@ -56,7 +56,7 @@ export function useTeamMembers() {
         return null;
       }
     },
-    [],
+    [setLoading, setError],
   );
 
   const update = useCallback(
@@ -88,52 +88,58 @@ export function useTeamMembers() {
         return null;
       }
     },
-    [],
+    [setLoading, setError],
   );
 
-  const deactivate = useCallback(async (id: number): Promise<boolean> => {
-    setLoading(true);
-    try {
-      const response = await window.electronAPI.teamMember.deactivate(id);
-      if (!response.success) {
-        setError(response.error || 'Erro ao desativar membro da equipe');
+  const deactivate = useCallback(
+    async (id: number): Promise<boolean> => {
+      setLoading(true);
+      try {
+        const response = await window.electronAPI.teamMember.deactivate(id);
+        if (!response.success) {
+          setError(response.error || 'Erro ao desativar membro da equipe');
+          return false;
+        }
+        setState((prev) => ({
+          ...prev,
+          loading: false,
+          teamMembers: prev.teamMembers.map((m) =>
+            m.id === id ? { ...m, isActive: false } : m,
+          ),
+        }));
+        return true;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erro de comunicação');
         return false;
       }
-      setState((prev) => ({
-        ...prev,
-        loading: false,
-        teamMembers: prev.teamMembers.map((m) =>
-          m.id === id ? { ...m, isActive: false } : m,
-        ),
-      }));
-      return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro de comunicação');
-      return false;
-    }
-  }, []);
+    },
+    [setLoading, setError],
+  );
 
-  const activate = useCallback(async (id: number): Promise<boolean> => {
-    setLoading(true);
-    try {
-      const response = await window.electronAPI.teamMember.activate(id);
-      if (!response.success) {
-        setError(response.error || 'Erro ao ativar membro da equipe');
+  const activate = useCallback(
+    async (id: number): Promise<boolean> => {
+      setLoading(true);
+      try {
+        const response = await window.electronAPI.teamMember.activate(id);
+        if (!response.success) {
+          setError(response.error || 'Erro ao ativar membro da equipe');
+          return false;
+        }
+        setState((prev) => ({
+          ...prev,
+          loading: false,
+          teamMembers: prev.teamMembers.map((m) =>
+            m.id === id ? { ...m, isActive: true } : m,
+          ),
+        }));
+        return true;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erro de comunicação');
         return false;
       }
-      setState((prev) => ({
-        ...prev,
-        loading: false,
-        teamMembers: prev.teamMembers.map((m) =>
-          m.id === id ? { ...m, isActive: true } : m,
-        ),
-      }));
-      return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro de comunicação');
-      return false;
-    }
-  }, []);
+    },
+    [setLoading, setError],
+  );
 
   const findById = useCallback(
     async (id: number): Promise<TeamMember | null> => {
@@ -155,7 +161,7 @@ export function useTeamMembers() {
         return null;
       }
     },
-    [],
+    [setLoading, setError],
   );
 
   const findAll = useCallback(
@@ -178,7 +184,7 @@ export function useTeamMembers() {
         return [];
       }
     },
-    [],
+    [setLoading, setError],
   );
 
   const findByRole = useCallback(
@@ -201,7 +207,7 @@ export function useTeamMembers() {
         return [];
       }
     },
-    [],
+    [setLoading, setError],
   );
 
   const clearError = useCallback(() => {

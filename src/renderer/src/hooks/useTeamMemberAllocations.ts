@@ -26,17 +26,17 @@ export function useTeamMemberAllocations() {
     memberAvailability: null,
   });
 
-  const setLoading = (loading: boolean) => {
+  const setLoading = useCallback((loading: boolean) => {
     setState((prev) => ({
       ...prev,
       loading,
       error: loading ? null : prev.error,
     }));
-  };
+  }, []);
 
-  const setError = (error: string | null) => {
+  const setError = useCallback((error: string | null) => {
     setState((prev) => ({ ...prev, error, loading: false }));
-  };
+  }, []);
 
   const create = useCallback(
     async (
@@ -63,7 +63,7 @@ export function useTeamMemberAllocations() {
         return null;
       }
     },
-    [],
+    [setLoading, setError],
   );
 
   const update = useCallback(
@@ -94,28 +94,32 @@ export function useTeamMemberAllocations() {
         return null;
       }
     },
-    [],
+    [setLoading, setError],
   );
 
-  const deleteAllocation = useCallback(async (id: number): Promise<boolean> => {
-    setLoading(true);
-    try {
-      const response = await window.electronAPI.teamMemberAllocation.delete(id);
-      if (!response.success) {
-        setError(response.error || 'Erro ao excluir alocação');
+  const deleteAllocation = useCallback(
+    async (id: number): Promise<boolean> => {
+      setLoading(true);
+      try {
+        const response =
+          await window.electronAPI.teamMemberAllocation.delete(id);
+        if (!response.success) {
+          setError(response.error || 'Erro ao excluir alocação');
+          return false;
+        }
+        setState((prev) => ({
+          ...prev,
+          loading: false,
+          allocations: prev.allocations.filter((a) => a.id !== id),
+        }));
+        return true;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erro de comunicação');
         return false;
       }
-      setState((prev) => ({
-        ...prev,
-        loading: false,
-        allocations: prev.allocations.filter((a) => a.id !== id),
-      }));
-      return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro de comunicação');
-      return false;
-    }
-  }, []);
+    },
+    [setLoading, setError],
+  );
 
   const deactivate = useCallback(
     async (id: number): Promise<TeamMemberAllocation | null> => {
@@ -140,7 +144,7 @@ export function useTeamMemberAllocations() {
         return null;
       }
     },
-    [],
+    [setLoading, setError],
   );
 
   const findById = useCallback(
@@ -164,7 +168,7 @@ export function useTeamMemberAllocations() {
         return null;
       }
     },
-    [],
+    [setLoading, setError],
   );
 
   const findByTeam = useCallback(
@@ -188,7 +192,7 @@ export function useTeamMemberAllocations() {
         return [];
       }
     },
-    [],
+    [setLoading, setError],
   );
 
   const findByTeamMember = useCallback(
@@ -214,7 +218,7 @@ export function useTeamMemberAllocations() {
         return [];
       }
     },
-    [],
+    [setLoading, setError],
   );
 
   const findActiveByTeam = useCallback(
@@ -246,7 +250,7 @@ export function useTeamMemberAllocations() {
         return [];
       }
     },
-    [],
+    [setLoading, setError],
   );
 
   const findAll = useCallback(
@@ -272,7 +276,7 @@ export function useTeamMemberAllocations() {
         return [];
       }
     },
-    [],
+    [setLoading, setError],
   );
 
   const getTeamCapacity = useCallback(

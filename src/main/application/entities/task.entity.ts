@@ -130,6 +130,15 @@ export class TaskEntity extends AuditableEntity {
   @Column({ name: 'work_item_relations', type: 'text', nullable: true })
   workItemRelations?: string; // JSON string with relations data
 
+  @Column({ name: 'azure_devops_config_id', type: 'integer', nullable: true })
+  azureDevOpsConfigId?: number | null;
+
+  @Column({ name: 'is_blocked', type: 'boolean', default: false })
+  isBlocked!: boolean;
+
+  @Column({ name: 'blocked_reason', type: 'text', nullable: true })
+  blockedReason?: string;
+
   @OneToMany('TaskCommentEntity', 'task')
   comments?: TaskCommentEntity[];
 }

@@ -1,19 +1,11 @@
 import { useMemo } from 'react';
-import {
-  Box,
-  Typography,
-  Stack,
-  Chip,
-  LinearProgress,
-  Grid,
-} from '@mui/material';
+import { Box, Typography, Stack, LinearProgress, Grid } from '@mui/material';
 import {
   People as PeopleIcon,
   Assignment as TaskIcon,
   EventNote as AllocationIcon,
   Groups as GroupsIcon,
   CheckCircle as CheckCircleIcon,
-  Schedule as ScheduleIcon,
   PersonOff as PersonOffIcon,
   TrendingUp as TrendingUpIcon,
 } from '@mui/icons-material';
@@ -27,12 +19,55 @@ import type {
   Sprint,
 } from '@shared/interfaces/config/index.types';
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept for interface compatibility
 interface OverviewTabProps {
   period: DashboardPeriod;
   onPeriodChange: (period: DashboardPeriod) => void;
 }
 
-export function OverviewTab({ period }: OverviewTabProps) {
+interface StatCardProps {
+  icon: React.ReactNode;
+  label: string;
+  value: number | string;
+  color: string;
+}
+
+function StatCard({ icon, label, value, color }: StatCardProps) {
+  return (
+    <Box
+      sx={{
+        p: 2,
+        borderRadius: 2,
+        bgcolor: 'background.paper',
+        border: 1,
+        borderColor: 'divider',
+      }}
+    >
+      <Stack direction="row" spacing={2} alignItems="center">
+        <Box
+          sx={{
+            p: 1.5,
+            borderRadius: 2,
+            bgcolor: `${color}.lighter`,
+            color: `${color}.main`,
+          }}
+        >
+          {icon}
+        </Box>
+        <Box>
+          <Typography variant="h4" fontWeight={700}>
+            {value}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {label}
+          </Typography>
+        </Box>
+      </Stack>
+    </Box>
+  );
+}
+
+export function OverviewTab() {
   const { summary, membersWithoutAllocation } = useDashboard();
   const { teams } = useTeams();
   const { sprints } = useSprints();
@@ -74,44 +109,11 @@ export function OverviewTab({ period }: OverviewTabProps) {
     );
   }, [summary, membersWithoutAllocation]);
 
-  const Card = ({ icon, label, value, color }: any) => (
-    <Box
-      sx={{
-        p: 2,
-        borderRadius: 2,
-        bgcolor: 'background.paper',
-        border: 1,
-        borderColor: 'divider',
-      }}
-    >
-      <Stack direction="row" spacing={2} alignItems="center">
-        <Box
-          sx={{
-            p: 1.5,
-            borderRadius: 2,
-            bgcolor: `${color}.lighter`,
-            color: `${color}.main`,
-          }}
-        >
-          {icon}
-        </Box>
-        <Box>
-          <Typography variant="h4" fontWeight={700}>
-            {value}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {label}
-          </Typography>
-        </Box>
-      </Stack>
-    </Box>
-  );
-
   return (
     <Stack spacing={3}>
       <Grid container spacing={2}>
         <Grid item xs={12} sm={6} md={3}>
-          <Card
+          <StatCard
             icon={<PeopleIcon />}
             label="Membros Ativos"
             value={summary?.activeMembers ?? 0}
@@ -119,7 +121,7 @@ export function OverviewTab({ period }: OverviewTabProps) {
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <Card
+          <StatCard
             icon={<TaskIcon />}
             label="Tarefas em Andamento"
             value={summary?.tasksInProgress ?? 0}
@@ -127,7 +129,7 @@ export function OverviewTab({ period }: OverviewTabProps) {
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <Card
+          <StatCard
             icon={<AllocationIcon />}
             label="Alocações Ativas"
             value={summary?.totalAllocations ?? 0}
@@ -135,7 +137,7 @@ export function OverviewTab({ period }: OverviewTabProps) {
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <Card
+          <StatCard
             icon={<GroupsIcon />}
             label="Equipes Ativas"
             value={activeTeams.length}

@@ -192,9 +192,12 @@ export function TransactionForm({
     formState: { isSubmitting },
   } = useForm<TransactionFormData>({
     defaultValues,
-    resolver: yupResolver(createValidationSchema(transactionType)) as any,
+    resolver: yupResolver(
+      createValidationSchema(transactionType),
+    ) as Parameters<typeof useForm<TransactionFormData>>[0]['resolver'],
     mode: 'onChange',
   });
+  // eslint-disable-next-line react-hooks/incompatible-library
   const watchType = watch('type');
   const watchAmount = watch('amount');
   const watchHasInstallments = watch('hasInstallments');

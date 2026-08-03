@@ -16,6 +16,7 @@ import {
   CheckCircle as CheckIcon,
   Error as ErrorIcon,
   Edit as EditIcon,
+  PersonOff as DeactivateIcon,
 } from '@mui/icons-material';
 import { Modal } from '@renderer/components/Modal';
 import {
@@ -38,9 +39,6 @@ interface ImportPositionsModalProps {
   onClose: () => void;
   positions: Position[];
   memberEmails: string[];
-  onImport: (
-    rows: Array<{ email: string; positionId: number }>,
-  ) => Promise<void>;
 }
 
 const COLUMNS: StandardColumn[] = [
@@ -57,12 +55,11 @@ function parseCsv(
   const results: Array<{ email: string; positionName: string }> = [];
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    // Try semicolon, comma, tab
     const sep = line.includes(';') ? ';' : line.includes('\t') ? '\t' : ',';
     const parts = line
       .split(sep)
       .map((p) => p.trim().replace(/^["']|["']$/g, ''));
-    if (i === 0 && parts[0]?.toLowerCase().includes('email')) continue; // skip header
+    if (i === 0 && parts[0]?.toLowerCase().includes('email')) continue;
     if (parts.length >= 2) {
       results.push({ email: parts[0], positionName: parts[1] });
     }
@@ -75,12 +72,13 @@ export function ImportPositionsModal({
   onClose,
   positions,
   memberEmails,
-  onImport,
 }: ImportPositionsModalProps) {
   const [rows, setRows] = useState<ImportRow[]>([]);
+  const [allCsvEmails, setAllCsvEmails] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<{
     updated: number;
+    deactivated: number;
     errors: string[];
   } | null>(null);
   const [fileLoaded, setFileLoaded] = useState(false);
@@ -88,6 +86,7 @@ export function ImportPositionsModal({
   useEffect(() => {
     if (!open) {
       setRows([]);
+      setAllCsvEmails([]);
       setResult(null);
       setFileLoaded(false);
     }
@@ -117,6 +116,7 @@ export function ImportPositionsModal({
       if (!file) return;
       const text = await file.text();
       const parsed = parseCsv(text);
+      const csvEmails = parsed.map((r) => r.email);
       const mapped: ImportRow[] = parsed.map((r) => {
         const pos = resolvePosition(r.positionName);
         return {
@@ -129,6 +129,7 @@ export function ImportPositionsModal({
         };
       });
       setRows(mapped);
+      setAllCsvEmails(csvEmails);
       setFileLoaded(true);
       setResult(null);
     };
@@ -166,20 +167,52 @@ export function ImportPositionsModal({
     (r) => r.emailValid && r.positionValid && r.positionId,
   );
 
+  // Members active in the system but absent from the CSV — will always be deactivated
+  const absentCount = useMemo(() => {
+    if (!fileLoaded) return 0;
+    const csvLower = new Set(allCsvEmails.map((e) => e.toLowerCase()));
+    return memberEmails.filter((e) => !csvLower.has(e.toLowerCase())).length;
+  }, [fileLoaded, allCsvEmails, memberEmails]);
+
   const handleImport = useCallback(async () => {
     if (validRows.length === 0) return;
     setImporting(true);
     try {
-      await onImport(
-        validRows.map((r) => ({ email: r.email, positionId: r.positionId! })),
-      );
-      setResult({ updated: validRows.length, errors: [] });
+      // Always deactivate members not present in the CSV
+      const response =
+        await window.electronAPI.teamMember.importPositionsWithDeactivation(
+          validRows.map((r) => ({
+            email: r.email,
+            positionId: r.positionId!,
+          })),
+          allCsvEmails,
+        );
+      if (response.success && response.data) {
+        setResult({
+          updated: response.data.updated,
+          deactivated: response.data.deactivated,
+          errors: response.data.errors,
+        });
+      } else {
+        setResult({
+          updated: 0,
+          deactivated: 0,
+          errors: [response.error ?? 'Erro ao importar'],
+        });
+      }
     } catch {
-      setResult({ updated: 0, errors: ['Erro ao importar'] });
+      setResult({ updated: 0, deactivated: 0, errors: ['Erro ao importar'] });
     } finally {
       setImporting(false);
     }
-  }, [validRows, onImport]);
+  }, [validRows, allCsvEmails]);
+
+  const confirmLabel = useMemo(() => {
+    if (validRows.length === 0) return 'Importar';
+    const parts = [`${validRows.length} atualização(ões)`];
+    if (absentCount > 0) parts.push(`${absentCount} inativação(ões)`);
+    return `Importar — ${parts.join(' + ')}`;
+  }, [validRows.length, absentCount]);
 
   return (
     <Modal
@@ -188,11 +221,13 @@ export function ImportPositionsModal({
       title="Importar Cargos via CSV"
       handleClose={onClose}
       handleConfirm={handleImport}
-      confirmLabel={`Importar (${validRows.length})`}
+      confirmLabel={confirmLabel}
       cancelLabel="Fechar"
       loading={importing}
       setMaxWidth="700px"
       confirmDisabled={validRows.length === 0 || !!result}
+      noFooter={!!(result && result.errors.length === 0)}
+      hasCloseButton={!!(result && result.errors.length === 0)}
     >
       <Stack spacing={2}>
         {!fileLoaded && (
@@ -223,8 +258,7 @@ export function ImportPositionsModal({
               alignItems="center"
             >
               <Typography variant="body2" color="text.secondary">
-                {rows.length} registro(s) encontrado(s) — {validRows.length}{' '}
-                válido(s)
+                {rows.length} registro(s) no CSV — {validRows.length} válido(s)
               </Typography>
               <Button size="small" onClick={handleFileSelect}>
                 Trocar arquivo
@@ -237,6 +271,35 @@ export function ImportPositionsModal({
                 para selecionar um cargo existente.
               </Alert>
             )}
+
+            {/* Fixed deactivation notice — always active */}
+            <Box
+              sx={{
+                p: 1.5,
+                borderRadius: 1.5,
+                border: '1px solid',
+                borderColor: absentCount > 0 ? 'warning.main' : 'success.light',
+                bgcolor:
+                  absentCount > 0
+                    ? 'rgba(255,152,0,0.06)'
+                    : 'rgba(22,163,74,0.04)',
+              }}
+            >
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <DeactivateIcon
+                  fontSize="small"
+                  sx={{
+                    color: absentCount > 0 ? 'warning.main' : 'success.main',
+                    flexShrink: 0,
+                  }}
+                />
+                <Typography variant="body2" fontWeight={500}>
+                  {absentCount > 0
+                    ? `${absentCount} membro(s) ativo(s) ausentes no CSV serão inativados automaticamente.`
+                    : 'Todos os membros ativos estão presentes no CSV. Ninguém será inativado.'}
+                </Typography>
+              </Stack>
+            </Box>
 
             <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
               <StandardTable
@@ -329,22 +392,56 @@ export function ImportPositionsModal({
 
         {result && (
           <Alert severity={result.errors.length > 0 ? 'warning' : 'success'}>
-            {result.updated} cargo(s) atualizado(s) com sucesso.
-            {result.errors.length > 0 && (
-              <Box mt={1}>
-                {result.errors.map((err, i) => (
-                  <Typography
-                    key={i}
-                    variant="caption"
-                    display="block"
-                    color="error.main"
-                  >
-                    {err}
-                  </Typography>
-                ))}
-              </Box>
-            )}
+            <Stack spacing={0.5}>
+              {result.updated > 0 && (
+                <Typography variant="body2">
+                  <strong>{result.updated}</strong> membro(s) com cargo
+                  atualizado.
+                </Typography>
+              )}
+              {result.deactivated > 0 && (
+                <Typography variant="body2">
+                  <strong>{result.deactivated}</strong> membro(s) inativado(s)
+                  por ausência no CSV.
+                </Typography>
+              )}
+              {result.updated === 0 && result.deactivated === 0 && (
+                <Typography variant="body2">
+                  Nenhuma alteração realizada.
+                </Typography>
+              )}
+              {result.errors.length > 0 && (
+                <Box mt={1}>
+                  {result.errors.map((err, i) => (
+                    <Typography
+                      key={i}
+                      variant="caption"
+                      display="block"
+                      color="error.main"
+                    >
+                      {err}
+                    </Typography>
+                  ))}
+                </Box>
+              )}
+            </Stack>
           </Alert>
+        )}
+
+        {/* Success footer — green "Concluído" button closes the modal */}
+        {result && result.errors.length === 0 && (
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', pt: 1 }}>
+            <Button
+              variant="contained"
+              color="success"
+              size="large"
+              onClick={onClose}
+              startIcon={<CheckIcon />}
+              sx={{ minWidth: 160, fontWeight: 700 }}
+            >
+              Concluído
+            </Button>
+          </Box>
         )}
       </Stack>
     </Modal>

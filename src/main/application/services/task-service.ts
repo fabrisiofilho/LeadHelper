@@ -63,6 +63,8 @@ export interface Task {
   children?: Task[];
   createdAt?: Date;
   updatedAt?: Date;
+  isBlocked?: boolean;
+  blockedReason?: string;
 }
 
 export class TaskService {
@@ -72,6 +74,7 @@ export class TaskService {
     this.repository = repository ?? new TaskRepository();
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async create(_input: CreateTaskInput): Promise<Task> {
     throw new Error(
       'Criação manual de tarefas não é permitida. Todas as tarefas são gerenciadas no Azure DevOps.',
@@ -153,7 +156,7 @@ export class TaskService {
       );
     }
 
-    await this.repository.delete({ id } as any);
+    await this.repository.delete({ id } as Record<string, unknown>);
   }
 
   async findByStatus(status: TaskStatus): Promise<Task[]> {
@@ -272,6 +275,8 @@ export class TaskService {
         : undefined,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
+      isBlocked: entity.isBlocked ?? false,
+      blockedReason: entity.blockedReason,
     };
   }
 }

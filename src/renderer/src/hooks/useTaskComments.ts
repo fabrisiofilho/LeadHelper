@@ -22,7 +22,7 @@ export function useTaskComments() {
         setError(response.error || 'Erro ao carregar comentários');
         return [];
       }
-    } catch (err) {
+    } catch {
       setError('Erro ao carregar comentários');
       return [];
     } finally {
@@ -42,7 +42,7 @@ export function useTaskComments() {
         setError(response.error || 'Erro ao criar comentário');
         return null;
       }
-    } catch (err) {
+    } catch {
       setError('Erro ao criar comentário');
       return null;
     } finally {
@@ -64,7 +64,7 @@ export function useTaskComments() {
           setError(response.error || 'Erro ao atualizar comentário');
           return null;
         }
-      } catch (err) {
+      } catch {
         setError('Erro ao atualizar comentário');
         return null;
       }
@@ -83,7 +83,7 @@ export function useTaskComments() {
         setError(response.error || 'Erro ao excluir comentário');
         return false;
       }
-    } catch (err) {
+    } catch {
       setError('Erro ao excluir comentário');
       return false;
     }

@@ -1,5 +1,5 @@
-import { type FC, type ReactNode, useEffect } from 'react';
-import { Box, Button, Stack } from '@mui/material';
+import { type FC, type ReactNode } from 'react';
+import { Box, Button } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import styled from 'styled-components';
 import { Task, BreadcrumbItem } from '@shared/interfaces/config/index.types';
@@ -112,7 +112,6 @@ const ErrorContainer = styled(Box)`
  */
 export const DrillDownNavigation: FC<Readonly<DrillDownNavigationProps>> = ({
   children,
-  onItemClick,
   emptyMessage = 'Não há itens filhos para exibir.',
 }) => {
   const {

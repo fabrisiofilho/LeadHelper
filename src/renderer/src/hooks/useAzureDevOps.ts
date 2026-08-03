@@ -64,6 +64,7 @@ export function useAzureDevOps() {
         return false;
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 
@@ -92,6 +93,7 @@ export function useAzureDevOps() {
         return null;
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 
@@ -112,6 +114,7 @@ export function useAzureDevOps() {
       setState((prev) => ({ ...prev, isConnected: false }));
       return false;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchWorkItems = useCallback(
@@ -132,6 +135,7 @@ export function useAzureDevOps() {
         return [];
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 
@@ -149,6 +153,7 @@ export function useAzureDevOps() {
       setError(err instanceof Error ? err.message : 'Erro de comunicação');
       return [];
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const clearError = useCallback(() => {

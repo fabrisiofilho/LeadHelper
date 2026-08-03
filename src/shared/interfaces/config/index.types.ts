@@ -225,6 +225,11 @@ export interface Task {
   parent?: Task;
   children?: Task[];
   workItemRelations?: WorkItemRelation[];
+  azureDevOpsConfigId?: number | null;
+  /** Resolved display name of the Azure project — populated by DashboardService/TaskService, not stored */
+  azureProjectDisplayName?: string;
+  isBlocked?: boolean;
+  blockedReason?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -436,15 +441,46 @@ export interface SprintDashboard {
 export const DEFAULT_SUSTENTACAO_AREA_PATH = 'Tribo SEIF\\Sustentação';
 export const DEFAULT_PROJETOS_AREA_PATH = 'Tribo SEIF\\Projetos';
 
-export interface AzureDevOpsConfig {
+/**
+ * Public configuration of a single Azure DevOps project (no PAT).
+ * Used in list views, selectors, and task indicators.
+ */
+export interface AzureDevOpsProjectConfig {
+  id: number;
+  displayName: string;
   organizationUrl: string;
   projectName: string;
   isConfigured: boolean;
-  pat?: string; // Optional decrypted PAT for display purposes
+  isActive: boolean;
   sustentacaoAreaPath?: string;
   projetosAreaPath?: string;
 }
 
+/**
+ * Input for creating or editing an Azure DevOps project configuration.
+ * `pat` is required on creation, optional on update (omit to keep existing).
+ */
+export interface AzureDevOpsProjectInput {
+  id?: number;
+  displayName: string;
+  organizationUrl: string;
+  projectName: string;
+  pat?: string;
+  sustentacaoAreaPath?: string;
+  projetosAreaPath?: string;
+}
+
+/** @deprecated Use AzureDevOpsProjectConfig. Kept for backward-compatibility. */
+export interface AzureDevOpsConfig {
+  organizationUrl: string;
+  projectName: string;
+  isConfigured: boolean;
+  pat?: string;
+  sustentacaoAreaPath?: string;
+  projetosAreaPath?: string;
+}
+
+/** @deprecated Use AzureDevOpsProjectInput. Kept for backward-compatibility. */
 export interface AzureDevOpsConfigInput {
   organizationUrl: string;
   projectName: string;
@@ -567,7 +603,17 @@ export interface NoteCard {
   id: number;
   title: string;
   body: string; // Conteúdo HTML gerado pelo TipTap (rich text)
+  /** Explicit date mode: 'none' | 'single' | 'period' */
+  dateMode?: 'none' | 'single' | 'period';
+  /** Start of the period. When null, the note has no timeline entry. */
+  startDate?: string | null;
+  /** End of the period (or single deadline when used without startDate). */
   deadline?: string | null;
+  /**
+   * When true (default), only dates matter — times are not shown.
+   * When false, start/end times are displayed and used for duration calculation.
+   */
+  allDay?: boolean;
   completedAt?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -582,17 +628,53 @@ export interface NoteLink {
   entityName?: string; // Resolvido no service ao carregar
 }
 
+/** Input for date range queries on the Gantt */
+export interface NoteGanttFilters {
+  startDate: Date;
+  endDate: Date;
+  memberIds?: number[];
+  teamIds?: number[];
+  search?: string;
+  includeCompleted?: boolean;
+}
+
+/**
+ * A note card projected as a Gantt item.
+ * One entry per member linked to the note (so a note with 2 members = 2 rows in Gantt).
+ */
+export interface NoteGanttItem {
+  noteId: number;
+  noteTitle: string;
+  noteBody?: string; // sanitized HTML body for preview
+  dateMode?: 'none' | 'single' | 'period';
+  /** If null, the item appears in the "Sem membro" row */
+  memberId: number | null;
+  memberName: string | null;
+  start: Date;
+  end: Date;
+  allDay: boolean;
+  color: string;
+  completedAt: string | null;
+  links: NoteLink[];
+}
+
 export interface CreateNoteCardInput {
   title: string;
-  body: string; // HTML string do TipTap
+  body?: string; // HTML string do TipTap — now optional
+  dateMode?: 'none' | 'single' | 'period';
+  startDate?: string | null;
   deadline?: string | null;
+  allDay?: boolean;
   links?: { entityType: string; entityId: number }[];
 }
 
 export interface UpdateNoteCardInput {
   title?: string;
   body?: string; // HTML string do TipTap
+  dateMode?: 'none' | 'single' | 'period';
+  startDate?: string | null;
   deadline?: string | null;
+  allDay?: boolean;
   links?: { entityType: string; entityId: number }[];
 }
 
@@ -649,6 +731,12 @@ export interface ITeamMemberController {
   importPositions(
     rows: Array<{ email: string; positionId: number }>,
   ): Promise<ApiResponse<{ updated: number; errors: string[] }>>;
+  importPositionsWithDeactivation(
+    rows: Array<{ email: string; positionId: number }>,
+    allCsvEmails: string[],
+  ): Promise<
+    ApiResponse<{ updated: number; deactivated: number; errors: string[] }>
+  >;
 }
 
 export interface ITaskController {
@@ -679,15 +767,20 @@ export interface IDashboardController {
   // Extended dashboard methods
   getSustentacaoItems(
     options?: SustentacaoOptions,
+    configId?: number,
   ): Promise<ApiResponse<SustentacaoItemWithSLA[]>>;
   getSustentacaoMetrics(
     statuses?: string[],
+    configId?: number,
   ): Promise<ApiResponse<SustentacaoMetrics>>;
-  getSustentacaoMembersWithCards(): Promise<
-    ApiResponse<SustentacaoMemberWithCards[]>
-  >;
+  getSustentacaoMembersWithCards(
+    configId?: number,
+  ): Promise<ApiResponse<SustentacaoMemberWithCards[]>>;
   getTaskAllocationData(): Promise<ApiResponse<TaskAllocationMember[]>>;
-  getProjetosItems(sprintId: number): Promise<ApiResponse<ProjetosResult>>;
+  getProjetosItems(
+    sprintId: number,
+    configId?: number,
+  ): Promise<ApiResponse<ProjetosResult>>;
   getTaskUpdateHistory(
     taskId: number,
   ): Promise<ApiResponse<TaskUpdateRecord[]>>;
@@ -720,7 +813,9 @@ export interface FullSyncResult {
 }
 
 export interface IAzureDevOpsController {
+  /** @deprecated Use saveProject. Kept for backward-compatibility. */
   saveConfig(config: AzureDevOpsConfigInput): Promise<ApiResponse<void>>;
+  /** @deprecated Use listProjects. Kept for backward-compatibility. */
   getConfig(
     includePat?: boolean,
   ): Promise<ApiResponse<AzureDevOpsConfig | null>>;
@@ -729,6 +824,15 @@ export interface IAzureDevOpsController {
   fetchIterations(): Promise<ApiResponse<IterationNode[]>>;
   fullSync(): Promise<ApiResponse<FullSyncResult>>;
   proxyImage(imageUrl: string): Promise<ApiResponse<string>>;
+
+  // Multi-project methods
+  listProjects(): Promise<ApiResponse<AzureDevOpsProjectConfig[]>>;
+  saveProject(
+    input: AzureDevOpsProjectInput,
+  ): Promise<ApiResponse<AzureDevOpsProjectConfig>>;
+  deleteProject(id: number): Promise<ApiResponse<void>>;
+  testConnectionById(id: number): Promise<ApiResponse<boolean>>;
+  getProjectPat(id: number): Promise<ApiResponse<string>>;
 }
 
 export interface IAllocationController {
@@ -1139,6 +1243,43 @@ export interface INoteCardController {
   findById(id: number): Promise<ApiResponse<NoteCard>>;
   findAllActive(): Promise<ApiResponse<NoteCard[]>>;
   findAllCompleted(): Promise<ApiResponse<NoteCard[]>>;
+  findForGantt(
+    filters: NoteGanttFilters,
+  ): Promise<ApiResponse<NoteGanttItem[]>>;
+}
+
+// ============================================================================
+// SLA Configuration Types
+// ============================================================================
+
+export type SlaSubArea = 'gestao_terceiros' | 'chamada_tecnologica' | 'outros';
+
+export const SLA_SUB_AREA_LABELS: Record<SlaSubArea, string> = {
+  gestao_terceiros: 'Gestão de Terceiros',
+  chamada_tecnologica: 'Chamada Tecnológica',
+  outros: 'Sustentação Geral',
+};
+
+export interface SlaConfigEntry {
+  subArea: SlaSubArea;
+  priority: TaskPriority;
+  /** Business hours before SLA is considered violated */
+  hoursLimit: number;
+}
+
+export interface SlaProjectConfig {
+  configId: number;
+  entries: SlaConfigEntry[];
+}
+
+export interface SaveSlaRulesInput {
+  configId: number;
+  entries: SlaConfigEntry[];
+}
+
+export interface ISlaConfigController {
+  getByProject(configId: number): Promise<ApiResponse<SlaProjectConfig>>;
+  saveRules(input: SaveSlaRulesInput): Promise<ApiResponse<SlaProjectConfig>>;
 }
 
 // ============================================================================
@@ -1164,13 +1305,18 @@ export interface CustomElectronAPI {
   taskLocalKanban: ITaskLocalKanbanController;
   sync: ISyncController;
   noteCard: INoteCardController;
+  slaConfig: ISlaConfigController;
 
   // Utility methods
   openExternalUrl: (url: string) => void;
   onIpcResult: (callback: (event: IpcResultEvent) => void) => () => void;
   onAutoUpdaterStatus: (callback: (state: UpdateState) => void) => () => void;
-  onSyncProgress: (callback: (event: any, progress: any) => void) => () => void;
-  offSyncProgress?: (callback: (event: any, progress: any) => void) => void;
+  onSyncProgress: (
+    callback: (event: unknown, progress: unknown) => void,
+  ) => () => void;
+  offSyncProgress?: (
+    callback: (event: unknown, progress: unknown) => void,
+  ) => void;
   onSyncStatusChanged: (callback: (status: SyncStatus) => void) => () => void;
   onSyncCompleted: (callback: () => void) => () => void;
   onSyncTaskStatusChanges: (

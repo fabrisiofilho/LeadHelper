@@ -68,6 +68,9 @@ export function NotesBoardPage() {
   // Count state for tab badges (keep separate counts for active/inactive)
   const [activeCount, setActiveCount] = useState(0);
   const [inactiveCount, setInactiveCount] = useState(0);
+  // Always-current list of ALL active notes — used for allocation badge & modal
+  // regardless of which tab is currently displayed
+  const [allActiveNoteCards, setAllActiveNoteCards] = useState<NoteCard[]>([]);
 
   // Hooks
   const {
@@ -98,19 +101,26 @@ export function NotesBoardPage() {
   // Load note cards for the current tab and update both counts
   const loadNoteCards = useCallback(
     async (tab: TabValue = activeTab) => {
-      // Load current tab data (this updates noteCards in the hook)
+      // Always refresh all active notes for the allocation badge/modal
+      const activeResponse = await window.electronAPI.noteCard.findAllActive();
+      const activeData = activeResponse.success
+        ? (activeResponse.data ?? [])
+        : [];
+      setAllActiveNoteCards(activeData);
+      setActiveCount(activeData.length);
+
       if (tab === 0) {
-        const active = await findAllActive();
-        setActiveCount(active.length);
-        // Fetch inactive count without overwriting noteCards
-        const response = await window.electronAPI.noteCard.findAllCompleted();
-        if (response.success) setInactiveCount(response.data?.length ?? 0);
+        // Tab 0: active notes are already loaded — push them to the hook state
+        await findAllActive();
+        // Fetch inactive count
+        const completedResponse =
+          await window.electronAPI.noteCard.findAllCompleted();
+        if (completedResponse.success)
+          setInactiveCount(completedResponse.data?.length ?? 0);
       } else {
+        // Tab 1 or 2: load completed for the tab
         const completed = await findAllCompleted();
         setInactiveCount(completed.length);
-        // Fetch active count without overwriting noteCards
-        const response = await window.electronAPI.noteCard.findAllActive();
-        if (response.success) setActiveCount(response.data?.length ?? 0);
       }
     },
     [activeTab, findAllActive, findAllCompleted],
@@ -239,7 +249,8 @@ export function NotesBoardPage() {
 
   const isLoading = noteCardsLoading && noteCards.length === 0;
 
-  // Count active members with no note allocation today (for the badge)
+  // Count active members with no note allocation today — uses allActiveNoteCards
+  // so the badge is always correct regardless of which tab is shown
   const unallocatedTodayCount = useMemo(() => {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
@@ -248,7 +259,7 @@ export function NotesBoardPage() {
 
     return teamMembers.filter((m) => {
       if (!m.isActive) return false;
-      const memberNotes = noteCards.filter((n) =>
+      const memberNotes = allActiveNoteCards.filter((n) =>
         n.links.some(
           (l) => l.entityType === 'team_member' && l.entityId === m.id,
         ),
@@ -261,7 +272,7 @@ export function NotesBoardPage() {
       });
       return !hasActiveToday;
     }).length;
-  }, [teamMembers, noteCards]);
+  }, [teamMembers, allActiveNoteCards]);
 
   return (
     <Box
@@ -482,7 +493,7 @@ export function NotesBoardPage() {
         open={allocationStatusOpen}
         onClose={() => setAllocationStatusOpen(false)}
         members={teamMembers}
-        activeNoteCards={noteCards}
+        activeNoteCards={allActiveNoteCards}
       />
     </Box>
   );

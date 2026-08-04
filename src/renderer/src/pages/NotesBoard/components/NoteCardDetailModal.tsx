@@ -154,6 +154,9 @@ export function NoteCardDetailModal({
             sx={{
               fontSize: '0.95rem',
               lineHeight: 1.7,
+              pr: 1,
+              wordBreak: 'break-word',
+              overflowWrap: 'break-word',
               '& p': { mt: 0, mb: 1 },
               '& h1': { fontSize: '1.5rem', mt: 0, mb: 1 },
               '& h2': { fontSize: '1.25rem', mt: 0, mb: 1 },

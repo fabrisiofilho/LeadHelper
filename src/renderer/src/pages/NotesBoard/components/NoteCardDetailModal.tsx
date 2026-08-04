@@ -6,12 +6,14 @@ import {
   Divider,
   Stack,
   Grid,
+  Tooltip,
 } from '@mui/material';
 import {
   Warning as WarningIcon,
   CalendarToday as CalendarIcon,
   AccessTime as TimeIcon,
   Link as LinkIcon,
+  OpenInNew as OpenInNewIcon,
 } from '@mui/icons-material';
 import DOMPurify from 'dompurify';
 import { Modal } from '@renderer/components/Modal';
@@ -39,6 +41,22 @@ const ENTITY_TYPE_COLORS: Record<
   position: 'success',
   task: 'warning',
 };
+
+const AZURE_BASE =
+  'https://dev.azure.com/senaisc-solucoes-digitais/Tribo%20SEIF/_workitems/edit/';
+
+async function openTaskInAzure(entityId: number): Promise<void> {
+  try {
+    const res = await window.electronAPI.task.findById(entityId);
+    if (res.success && res.data?.externalId) {
+      window.electronAPI.openExternalUrl(
+        `${AZURE_BASE}${res.data.externalId}/`,
+      );
+    }
+  } catch {
+    /* silent */
+  }
+}
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('pt-BR');
@@ -131,26 +149,32 @@ export function NoteCardDetailModal({
         <Divider />
 
         {/* Body */}
-        <Box
-          sx={{
-            fontSize: '0.95rem',
-            lineHeight: 1.7,
-            '& p': { mt: 0, mb: 1 },
-            '& h1': { fontSize: '1.5rem', mt: 0, mb: 1 },
-            '& h2': { fontSize: '1.25rem', mt: 0, mb: 1 },
-            '& h3': { fontSize: '1.1rem', mt: 0, mb: 1 },
-            '& ul, & ol': { pl: 3, my: 0.5 },
-            '& pre': {
-              bgcolor: 'action.hover',
-              p: 1.5,
-              borderRadius: 1,
-              overflow: 'auto',
-              fontSize: '0.85rem',
-            },
-            '& code': { fontSize: '0.85rem' },
-          }}
-          dangerouslySetInnerHTML={{ __html: sanitizedBody }}
-        />
+        {sanitizedBody && sanitizedBody.replace(/<[^>]*>/g, '').trim() ? (
+          <Box
+            sx={{
+              fontSize: '0.95rem',
+              lineHeight: 1.7,
+              '& p': { mt: 0, mb: 1 },
+              '& h1': { fontSize: '1.5rem', mt: 0, mb: 1 },
+              '& h2': { fontSize: '1.25rem', mt: 0, mb: 1 },
+              '& h3': { fontSize: '1.1rem', mt: 0, mb: 1 },
+              '& ul, & ol': { pl: 3, my: 0.5 },
+              '& pre': {
+                bgcolor: 'action.hover',
+                p: 1.5,
+                borderRadius: 1,
+                overflow: 'auto',
+                fontSize: '0.85rem',
+              },
+              '& code': { fontSize: '0.85rem' },
+            }}
+            dangerouslySetInnerHTML={{ __html: sanitizedBody }}
+          />
+        ) : (
+          <Typography variant="body2" color="text.disabled" fontStyle="italic">
+            Sem descrição
+          </Typography>
+        )}
 
         {/* Links */}
         {hasLinks && (
@@ -168,18 +192,34 @@ export function NoteCardDetailModal({
                 </Typography>
               </Stack>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-                {noteCard.links.map((link) => (
-                  <Chip
-                    key={link.id}
-                    label={
-                      link.entityName ||
-                      `${ENTITY_TYPE_LABELS[link.entityType] || link.entityType} #${link.entityId}`
-                    }
-                    size="small"
-                    variant="outlined"
-                    color={ENTITY_TYPE_COLORS[link.entityType] || 'primary'}
-                  />
-                ))}
+                {noteCard.links.map((link) =>
+                  link.entityType === 'task' ? (
+                    <Tooltip key={link.id} title="Abrir no Azure DevOps">
+                      <Chip
+                        label={link.entityName || `Task #${link.entityId}`}
+                        size="small"
+                        variant="outlined"
+                        color="warning"
+                        icon={
+                          <OpenInNewIcon sx={{ fontSize: '14px !important' }} />
+                        }
+                        onClick={() => openTaskInAzure(link.entityId)}
+                        sx={{ cursor: 'pointer' }}
+                      />
+                    </Tooltip>
+                  ) : (
+                    <Chip
+                      key={link.id}
+                      label={
+                        link.entityName ||
+                        `${ENTITY_TYPE_LABELS[link.entityType] || link.entityType} #${link.entityId}`
+                      }
+                      size="small"
+                      variant="outlined"
+                      color={ENTITY_TYPE_COLORS[link.entityType] || 'primary'}
+                    />
+                  ),
+                )}
               </Box>
             </Box>
           </>

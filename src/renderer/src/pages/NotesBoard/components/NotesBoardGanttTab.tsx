@@ -38,6 +38,7 @@ import {
   Assignment as TaskIcon,
   Schedule as ScheduleIcon,
   Notes as NotesIcon,
+  OpenInNew as OpenInNewIcon,
 } from '@mui/icons-material';
 import { GanttChart } from '@renderer/components/GanttChart';
 import { DebouncedSearchInput } from '@renderer/components/DebouncedSearchInput';
@@ -116,6 +117,22 @@ function DateModeLabel({ mode }: { mode?: string }) {
   );
 }
 
+const AZURE_BASE =
+  'https://dev.azure.com/senaisc-solucoes-digitais/Tribo%20SEIF/_workitems/edit/';
+
+async function openTaskInAzure(entityId: number): Promise<void> {
+  try {
+    const res = await window.electronAPI.task.findById(entityId);
+    if (res.success && res.data?.externalId) {
+      window.electronAPI.openExternalUrl(
+        `${AZURE_BASE}${res.data.externalId}/`,
+      );
+    }
+  } catch {
+    /* silent */
+  }
+}
+
 function LinkSection({ links }: { links: NoteLink[] }) {
   if (links.length === 0) return null;
 
@@ -150,16 +167,32 @@ function LinkSection({ links }: { links: NoteLink[] }) {
               </Typography>
             </Stack>
             <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-              {items.map((l) => (
-                <Chip
-                  key={l.id}
-                  label={l.entityName ?? `#${l.entityId}`}
-                  size="small"
-                  color={ENTITY_COLORS[type] ?? 'default'}
-                  variant="outlined"
-                  sx={{ maxWidth: 260 }}
-                />
-              ))}
+              {items.map((l) =>
+                type === 'task' ? (
+                  <Tooltip key={l.id} title="Abrir no Azure DevOps">
+                    <Chip
+                      label={l.entityName ?? `#${l.entityId}`}
+                      size="small"
+                      color="warning"
+                      variant="outlined"
+                      icon={
+                        <OpenInNewIcon sx={{ fontSize: '14px !important' }} />
+                      }
+                      onClick={() => openTaskInAzure(l.entityId)}
+                      sx={{ cursor: 'pointer', maxWidth: 260 }}
+                    />
+                  </Tooltip>
+                ) : (
+                  <Chip
+                    key={l.id}
+                    label={l.entityName ?? `#${l.entityId}`}
+                    size="small"
+                    color={ENTITY_COLORS[type] ?? 'default'}
+                    variant="outlined"
+                    sx={{ maxWidth: 260 }}
+                  />
+                ),
+              )}
             </Stack>
           </Box>
         ))}
@@ -339,7 +372,7 @@ function NoteDetailDialog({
           </Box>
 
           {/* Body preview */}
-          {item.noteBody && (
+          {item.noteBody ? (
             <>
               <Divider />
               <Box>
@@ -379,6 +412,17 @@ function NoteDetailDialog({
                   </Typography>
                 </Paper>
               </Box>
+            </>
+          ) : (
+            <>
+              <Divider />
+              <Typography
+                variant="body2"
+                color="text.disabled"
+                fontStyle="italic"
+              >
+                Sem descrição
+              </Typography>
             </>
           )}
 

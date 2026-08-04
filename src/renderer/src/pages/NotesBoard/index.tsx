@@ -398,8 +398,10 @@ export function NotesBoardPage() {
 
       {/* Content */}
       <Box sx={{ flex: 1, overflow: 'auto' }}>
-        {/* Gantt tab */}
-        {activeTab === 2 && <NotesBoardGanttTab members={teamMembers} />}
+        {/* Gantt tab — always mounted, hidden when not active to preserve filter state */}
+        <Box sx={{ display: activeTab === 2 ? 'block' : 'none' }}>
+          <NotesBoardGanttTab members={teamMembers} />
+        </Box>
 
         {/* Active / Completed tabs */}
         {activeTab !== 2 && (

@@ -1144,6 +1144,9 @@ export function DashboardSustentacaoPage() {
   const [busyItems, setBusyItems] = useState<Set<string>>(new Set());
   const [metricsLoading, setMetricsLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
+  const [areaFilter, setAreaFilter] = useState<'all' | 'gestao' | 'chamada'>(
+    'all',
+  );
   const [activeTab, setActiveTab] = useState(0);
   const [copySelectionOpen, setCopySelectionOpen] = useState(false);
   const [slaOrderModal, setSlaOrderModal] = useState<{
@@ -1386,14 +1389,26 @@ export function DashboardSustentacaoPage() {
   // ── derived data ──
 
   const filteredItems = useMemo(() => {
-    if (!searchText.trim()) return items;
-    const term = searchText.trim().toLowerCase();
-    return items.filter((item) => {
-      const id = (item.task.externalId ?? String(item.task.id)).toLowerCase();
-      const title = (item.task.title ?? '').toLowerCase();
-      return id.includes(term) || title.includes(term);
-    });
-  }, [items, searchText]);
+    let result = items;
+    // Area filter
+    if (areaFilter !== 'all') {
+      result = result.filter((i) =>
+        areaFilter === 'gestao'
+          ? isGestao(i.task.areaPath)
+          : !isGestao(i.task.areaPath),
+      );
+    }
+    // Text search
+    if (searchText.trim()) {
+      const term = searchText.trim().toLowerCase();
+      result = result.filter((item) => {
+        const id = (item.task.externalId ?? String(item.task.id)).toLowerCase();
+        const title = (item.task.title ?? '').toLowerCase();
+        return id.includes(term) || title.includes(term);
+      });
+    }
+    return result;
+  }, [items, searchText, areaFilter]);
 
   const { devItems, auditItems, analysisItems } = useMemo(() => {
     const dev: SustentacaoItemWithSLA[] = [];
@@ -1412,9 +1427,10 @@ export function DashboardSustentacaoPage() {
   }, [filteredItems]);
 
   // Count items with wrong position (assignee's cargo doesn't match the status lane)
+  // Uses filteredItems so it respects the area filter
   const wrongPositionCount = useMemo(() => {
     let count = 0;
-    for (const item of items) {
+    for (const item of filteredItems) {
       if (item.isHidden) continue;
       const t = item.task;
       if (!t.assignedToName || !t.assignedToEmail || !t.status) continue;
@@ -1423,7 +1439,78 @@ export function DashboardSustentacaoPage() {
       if (!allowed.includes(t.status.toLowerCase())) count++;
     }
     return count;
-  }, [items, positionMap]);
+  }, [filteredItems, positionMap]);
+
+  // When area filter is active, compute metrics from filteredItems directly
+  // so the cards stay in sync with the list
+  const derivedMetrics = useMemo((): SustentacaoMetrics | null => {
+    if (areaFilter === 'all') return null; // use backend metrics when no filter
+    if (!metrics) return null;
+
+    const visible = filteredItems.filter((i) => !i.isHidden);
+    const openTickets = visible.filter((i) => i.task.type === 'Ticket').length;
+    const openImprovements = visible.filter(
+      (i) => i.task.type === 'Improvement',
+    ).length;
+
+    const ticketsWithSla = visible.filter(
+      (i) => i.task.type === 'Ticket' && !i.slaExcluded,
+    );
+    const slaViolated = ticketsWithSla.filter((i) => i.slaViolated);
+    const slaUrgent = ticketsWithSla.filter(
+      (i) =>
+        !i.slaViolated &&
+        i.businessHoursRemaining > 0 &&
+        i.businessHoursRemaining <= 8,
+    );
+    const unassigned = visible.filter((i) => !i.task.assignedToName).length;
+
+    const avgAge =
+      ticketsWithSla.length > 0
+        ? ticketsWithSla.reduce((sum, i) => sum + i.businessHoursElapsed, 0) /
+          ticketsWithSla.length
+        : 0;
+
+    let oldestHours: number | null = null;
+    let oldestExternalId: string | null = null;
+    for (const t of ticketsWithSla) {
+      if (oldestHours === null || t.businessHoursElapsed > oldestHours) {
+        oldestHours = t.businessHoursElapsed;
+        oldestExternalId = t.task.externalId ?? null;
+      }
+    }
+
+    const byPriority = Array.from(
+      visible.reduce((m, i) => {
+        const p = i.task.priority ?? 'medium';
+        m.set(p, (m.get(p) ?? 0) + 1);
+        return m;
+      }, new Map<string, number>()),
+    ).map(([priority, count]) => ({ priority, count }));
+
+    return {
+      ...metrics, // keep closedTicketsLast30Days, avgCloseTime from backend
+      totalOpen: visible.length,
+      openTickets,
+      openImprovements,
+      slaViolatedCount: slaViolated.length,
+      slaViolatedPercent:
+        ticketsWithSla.length > 0
+          ? Math.round((slaViolated.length / ticketsWithSla.length) * 100)
+          : 0,
+      slaWarningCount: ticketsWithSla.filter((i) => i.slaWarning).length,
+      slaUrgentCount: slaUrgent.length,
+      unassignedCount: unassigned,
+      avgAgeBusinessHours: Math.round(avgAge * 10) / 10,
+      oldestOpenTicketHours:
+        oldestHours !== null ? Math.round(oldestHours * 10) / 10 : null,
+      oldestOpenTicketExternalId: oldestExternalId,
+      byPriority,
+    };
+  }, [areaFilter, filteredItems, metrics]);
+
+  // Active metrics: derived (filtered) when area filter is on, backend otherwise
+  const activeMetrics = derivedMetrics ?? metrics;
 
   // ── loading / error states ──
   if (loading && items.length === 0) {
@@ -1530,11 +1617,32 @@ export function DashboardSustentacaoPage() {
         fullWidth
         placeholder="Buscar por código ou descrição da tarefa..."
         onSearch={setSearchText}
-        sx={{ mb: 2 }}
+        sx={{ mb: 1 }}
       />
 
+      {/* Area Filter */}
+      <Stack direction="row" spacing={0.75} mb={2} flexWrap="wrap" useFlexGap>
+        {(
+          [
+            { value: 'all', label: 'Todos' },
+            { value: 'gestao', label: 'Gestão de Terceiros' },
+            { value: 'chamada', label: 'Chamada Tecnológica' },
+          ] as const
+        ).map((opt) => (
+          <Chip
+            key={opt.value}
+            label={opt.label}
+            size="small"
+            variant={areaFilter === opt.value ? 'filled' : 'outlined'}
+            color={areaFilter === opt.value ? 'primary' : 'default'}
+            onClick={() => setAreaFilter(opt.value)}
+            sx={{ fontWeight: areaFilter === opt.value ? 700 : 400 }}
+          />
+        ))}
+      </Stack>
+
       {/* Metric Cards */}
-      {metrics && (
+      {activeMetrics && (
         <Box
           sx={{
             display: 'grid',
@@ -1556,35 +1664,39 @@ export function DashboardSustentacaoPage() {
           <MetricCard
             icon={<TicketIcon fontSize="inherit" />}
             label="Tickets abertos"
-            value={metrics.openTickets}
+            value={activeMetrics.openTickets}
             color="#16A34A"
             tooltip="Tickets em Desenvolvimento ou Auditoria na área de Sustentação (exclui ocultos)."
           />
           <MetricCard
             icon={<ImprovementIcon fontSize="inherit" />}
             label="Melhorias abertas"
-            value={metrics.openImprovements}
+            value={activeMetrics.openImprovements}
             color="#DB2777"
             tooltip="Improvements em Desenvolvimento ou Auditoria na área de Sustentação (exclui ocultos)."
           />
           <MetricCard
             icon={<ViolatedIcon fontSize="inherit" />}
             label="SLA estourado"
-            value={metrics.slaViolatedCount}
-            subtitle={`${metrics.slaViolatedPercent}% dos tickets`}
+            value={activeMetrics.slaViolatedCount}
+            subtitle={`${activeMetrics.slaViolatedPercent}% dos tickets`}
             color="#DC2626"
             bgColor={
-              metrics.slaViolatedCount > 0 ? 'rgba(220,38,38,0.06)' : undefined
+              activeMetrics.slaViolatedCount > 0
+                ? 'rgba(220,38,38,0.06)'
+                : undefined
             }
             tooltip="Tickets cuja data de término (TÉRMINO) definida no Azure já foi ultrapassada."
           />
           <MetricCard
             icon={<WarningIcon fontSize="inherit" />}
             label="SLA urgente (≤8h)"
-            value={metrics.slaUrgentCount}
+            value={activeMetrics.slaUrgentCount}
             color="#D97706"
             bgColor={
-              metrics.slaUrgentCount > 0 ? 'rgba(217,119,6,0.06)' : undefined
+              activeMetrics.slaUrgentCount > 0
+                ? 'rgba(217,119,6,0.06)'
+                : undefined
             }
             tooltip="Tickets com 8 horas úteis ou menos para estourar o SLA (1 dia útil). Requer atenção imediata."
           />
@@ -1592,15 +1704,15 @@ export function DashboardSustentacaoPage() {
           <MetricCard
             icon={<UnassignedIcon fontSize="inherit" />}
             label="Sem responsável / cargo incorreto"
-            value={metrics.unassignedCount + wrongPositionCount}
+            value={activeMetrics.unassignedCount + wrongPositionCount}
             subtitle={
               wrongPositionCount > 0
-                ? `${metrics.unassignedCount} sem resp. · ${wrongPositionCount} cargo incorreto`
+                ? `${activeMetrics.unassignedCount} sem resp. · ${wrongPositionCount} cargo incorreto`
                 : undefined
             }
             color="#7C3AED"
             bgColor={
-              metrics.unassignedCount + wrongPositionCount > 0
+              activeMetrics.unassignedCount + wrongPositionCount > 0
                 ? 'rgba(124,58,237,0.06)'
                 : undefined
             }
@@ -1609,10 +1721,10 @@ export function DashboardSustentacaoPage() {
           <MetricCard
             icon={<ClosedIcon fontSize="inherit" />}
             label="Fechados (30 dias)"
-            value={metrics.closedTicketsLast30Days}
+            value={activeMetrics.closedTicketsLast30Days}
             subtitle={
-              metrics.avgCloseTimeBusinessHours !== null
-                ? `Média: ${formatBusinessHours(metrics.avgCloseTimeBusinessHours)}`
+              activeMetrics.avgCloseTimeBusinessHours !== null
+                ? `Média: ${formatBusinessHours(activeMetrics.avgCloseTimeBusinessHours)}`
                 : undefined
             }
             color="#15803D"
@@ -1621,23 +1733,23 @@ export function DashboardSustentacaoPage() {
           <MetricCard
             icon={<AvgTimeIcon fontSize="inherit" />}
             label="Idade média (Tickets)"
-            value={formatBusinessHours(metrics.avgAgeBusinessHours)}
+            value={formatBusinessHours(activeMetrics.avgAgeBusinessHours)}
             color="#0891B2"
             tooltip="Média de horas úteis desde a criação dos Tickets abertos com SLA ativo. 1d = 8h úteis."
           />
           <MetricCard
             icon={<OldestIcon fontSize="inherit" />}
             label="Ticket mais antigo (SLA)"
-            value={formatBusinessHours(metrics.oldestOpenTicketHours)}
+            value={formatBusinessHours(activeMetrics.oldestOpenTicketHours)}
             subtitle={
-              metrics.oldestOpenTicketExternalId
-                ? `#${metrics.oldestOpenTicketExternalId}`
+              activeMetrics.oldestOpenTicketExternalId
+                ? `#${activeMetrics.oldestOpenTicketExternalId}`
                 : undefined
             }
             color="#EA580C"
             bgColor={
-              metrics.oldestOpenTicketHours !== null &&
-              metrics.oldestOpenTicketHours > 40
+              activeMetrics.oldestOpenTicketHours !== null &&
+              activeMetrics.oldestOpenTicketHours > 40
                 ? 'rgba(234,88,12,0.06)'
                 : undefined
             }

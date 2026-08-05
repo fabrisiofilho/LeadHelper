@@ -71,11 +71,32 @@ export function CopySelectionModal({
   const [extraSelected, setExtraSelected] = useState<Set<string>>(new Set());
   const [copied, setCopied] = useState(false);
   const [generatingPng, setGeneratingPng] = useState(false);
+  // 'all' | 'gestao' | 'chamada'
+  const [areaFilter, setAreaFilter] = useState<'all' | 'gestao' | 'chamada'>(
+    'all',
+  );
   const previewRef = useRef<HTMLDivElement>(null);
 
+  // Filter items by selected area
+  const filterByArea = useCallback(
+    (items: SustentacaoItemWithSLA[]) => {
+      if (areaFilter === 'all') return items;
+      return items.filter((i) =>
+        areaFilter === 'gestao'
+          ? isGestao(i.task.areaPath)
+          : !isGestao(i.task.areaPath),
+      );
+    },
+    [areaFilter],
+  );
+
   const laneItems: Record<LaneKey, SustentacaoItemWithSLA[]> = useMemo(
-    () => ({ dev: devItems, audit: auditItems, analysis: analysisItems }),
-    [devItems, auditItems, analysisItems],
+    () => ({
+      dev: filterByArea(devItems),
+      audit: filterByArea(auditItems),
+      analysis: filterByArea(analysisItems),
+    }),
+    [devItems, auditItems, analysisItems, filterByArea],
   );
 
   // Other lanes (not the base)
@@ -121,6 +142,14 @@ export function CopySelectionModal({
       });
     },
     [laneItems],
+  );
+
+  const handleAreaFilterChange = useCallback(
+    (val: 'all' | 'gestao' | 'chamada') => {
+      setAreaFilter(val);
+      setExtraSelected(new Set());
+    },
+    [],
   );
 
   // Combined items: base lane items + selected extras, sorted: base first (in priority order), extras injected by priority
@@ -258,6 +287,7 @@ export function CopySelectionModal({
 
   const handleClose = useCallback(() => {
     setExtraSelected(new Set());
+    setAreaFilter('all');
     setCopied(false);
     onClose();
   }, [onClose]);
@@ -303,6 +333,38 @@ export function CopySelectionModal({
               </ToggleButton>
             ))}
           </ToggleButtonGroup>
+        </Box>
+
+        {/* ── Area filter ── */}
+        <Box>
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            fontWeight={600}
+            display="block"
+            mb={0.75}
+          >
+            FILTRAR POR ÁREA
+          </Typography>
+          <Stack direction="row" spacing={0.75}>
+            {(
+              [
+                { value: 'all', label: 'Todos' },
+                { value: 'gestao', label: 'Gestão de Terceiros' },
+                { value: 'chamada', label: 'Chamada Tecnológica' },
+              ] as const
+            ).map((opt) => (
+              <Chip
+                key={opt.value}
+                label={opt.label}
+                size="small"
+                variant={areaFilter === opt.value ? 'filled' : 'outlined'}
+                color={areaFilter === opt.value ? 'primary' : 'default'}
+                onClick={() => handleAreaFilterChange(opt.value)}
+                sx={{ fontWeight: areaFilter === opt.value ? 700 : 400 }}
+              />
+            ))}
+          </Stack>
         </Box>
 
         <Divider />

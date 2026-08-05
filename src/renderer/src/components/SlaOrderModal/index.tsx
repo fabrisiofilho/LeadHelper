@@ -77,9 +77,32 @@ export function SlaOrderModal({
     showHidden ? items : items.filter((i) => !i.isHidden)
   ).filter((i) => i.task.type === 'Ticket' && !i.slaExcluded);
 
+  // Tickets sorted by: violated first (most overdue), then closest deadline
   const sorted = [...visible].sort((a, b) => {
-    // Most consumed SLA first (highest businessHoursElapsed = most urgent)
-    return b.businessHoursElapsed - a.businessHoursElapsed;
+    const aViolated = a.slaViolated ? 1 : 0;
+    const bViolated = b.slaViolated ? 1 : 0;
+    if (aViolated !== bViolated) return bViolated - aViolated;
+    // Both violated → most overdue first
+    if (aViolated && bViolated)
+      return a.businessHoursRemaining - b.businessHoursRemaining;
+    // Neither violated → closest deadline first
+    const aExp = a.expirationDate
+      ? new Date(a.expirationDate).getTime()
+      : Infinity;
+    const bExp = b.expirationDate
+      ? new Date(b.expirationDate).getTime()
+      : Infinity;
+    if (aExp !== bExp) return aExp - bExp;
+    // No deadline → Ticket GT=0, Ticket CT=1, Improvement GT=2, Improvement CT=3
+    const typeAreaW = (i: SustentacaoItemWithSLA): number => {
+      const gt = i.task.areaPath?.includes('Gestão de Terceiros') ?? false;
+      const isT = i.task.type === 'Ticket';
+      if (isT && gt) return 0;
+      if (isT && !gt) return 1;
+      if (!isT && gt) return 2;
+      return 3;
+    };
+    return typeAreaW(a) - typeAreaW(b);
   });
 
   return (
@@ -129,8 +152,8 @@ export function SlaOrderModal({
         </Stack>
 
         <Typography variant="body2" color="text.secondary" mb={2}>
-          Tickets ordenados pelo consumo de SLA — do maior tempo decorrido para
-          o menor.
+          Tickets ordenados por prioridade: vencidos primeiro, depois pelo prazo
+          mais próximo.
         </Typography>
 
         {/* Table */}

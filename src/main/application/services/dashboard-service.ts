@@ -1092,45 +1092,58 @@ export class DashboardService {
       };
     });
 
-    // Sort rules (in order of precedence):
-    // 1. Blocked items (impedimento) go to the BOTTOM — they can't progress
-    // 2. Violated SLA first (now > endDate), most overdue first
-    // 3. Local priority (manual prioritization) DESC
-    // 4. SLA remaining ASC — closest deadline first
-    // 5. Tasks with no SLA — by azure priority then staleness
+    // Canonical sort for Sustentação items:
+    // 1. Violated SLA first (past deadline), most overdue first
+    // 2. Has any effective deadline (expiration OR local priority) → earliest first
+    // 3. No deadline → Ticket > Improvement, Gestão > Chamada
+    // 4. Azure priority tiebreak, then staleness
+    // NOTE: Blocked items are NOT sinked — impedimento label is shown inline.
+    //       Unallocated items have the same position rules — the copy layer separates them.
+    const effectiveDeadlineMs = (item: SustentacaoItemWithSLA): number => {
+      if (item.expirationDate) return new Date(item.expirationDate).getTime();
+      if (item.localPriorityDeadline)
+        return new Date(item.localPriorityDeadline).getTime();
+      if (item.localPriorityCreatedAt)
+        return new Date(item.localPriorityCreatedAt).getTime();
+      return Infinity;
+    };
+
+    const typeAreaW = (item: SustentacaoItemWithSLA): number => {
+      const gt = item.task.areaPath?.includes('Gestão de Terceiros') ?? false;
+      const isTicket = item.task.type === 'Ticket';
+      if (isTicket && gt) return 0;
+      if (isTicket && !gt) return 1;
+      if (!isTicket && gt) return 2;
+      return 3;
+    };
+
     items.sort((a, b) => {
-      const aBlocked = a.task.isBlocked ? 1 : 0;
-      const bBlocked = b.task.isBlocked ? 1 : 0;
-
-      // Blocked always sinks to bottom
-      if (aBlocked !== bBlocked) return aBlocked - bBlocked;
-
       const aViolated = a.slaViolated ? 1 : 0;
       const bViolated = b.slaViolated ? 1 : 0;
-      const aHasSla = a.expirationDate != null ? 1 : 0;
-      const bHasSla = b.expirationDate != null ? 1 : 0;
 
-      // Violated always comes before non-violated
+      // 1. Violated SLA top
       if (aViolated !== bViolated) return bViolated - aViolated;
-
-      // Both violated → most overdue first (most negative remaining)
-      if (aViolated && bViolated) {
+      if (aViolated && bViolated)
         return a.businessHoursRemaining - b.businessHoursRemaining;
+
+      // 2. Effective deadline ASC
+      const aDeadline = effectiveDeadlineMs(a);
+      const bDeadline = effectiveDeadlineMs(b);
+      const aHasDeadline = aDeadline !== Infinity ? 1 : 0;
+      const bHasDeadline = bDeadline !== Infinity ? 1 : 0;
+
+      if (aHasDeadline !== bHasDeadline) return bHasDeadline - aHasDeadline;
+      if (aHasDeadline && bHasDeadline) {
+        const diff = aDeadline - bDeadline;
+        if (diff !== 0) return diff;
       }
 
-      // Local priority beats everything else (manual overrides)
-      if (a.localPriority !== b.localPriority)
-        return b.localPriority - a.localPriority;
+      // 3. Type × Area weight (Ticket GT=0, Improvement GT=1, Ticket CT=2, Improvement CT=3)
+      const wa = typeAreaW(a);
+      const wb = typeAreaW(b);
+      if (wa !== wb) return wa - wb;
 
-      // Items with SLA (endDate set) before items without
-      if (aHasSla !== bHasSla) return bHasSla - aHasSla;
-
-      // Both have SLA → closest deadline first
-      if (aHasSla && bHasSla) {
-        return a.businessHoursRemaining - b.businessHoursRemaining;
-      }
-
-      // Both have no SLA → sort by azure priority then staleness (older first)
+      // 4. Azure priority level
       const priorityOrder: Record<string, number> = {
         critical: 0,
         high: 1,
@@ -1140,7 +1153,9 @@ export class DashboardService {
       const aPrio = priorityOrder[a.task.priority] ?? 99;
       const bPrio = priorityOrder[b.task.priority] ?? 99;
       if (aPrio !== bPrio) return aPrio - bPrio;
-      return b.daysSinceUpdate - a.daysSinceUpdate; // most stale first
+
+      // 5. Staleness tiebreak
+      return b.daysSinceUpdate - a.daysSinceUpdate;
     });
 
     this._sustentacaoCache = { data: items, ts: Date.now(), configId };
@@ -1229,34 +1244,48 @@ export class DashboardService {
           updatedAt: new Date(),
         } as TeamMemberEntity);
 
-      // Sort cards: blocked to bottom, then violated first, then local priority, then closest deadline
+      // Canonical sort — same rules as getSustentacaoItems
+      const effDeadlineMs = (item: SustentacaoItemWithSLA): number => {
+        if (item.expirationDate) return new Date(item.expirationDate).getTime();
+        if (item.localPriorityDeadline)
+          return new Date(item.localPriorityDeadline).getTime();
+        if (item.localPriorityCreatedAt)
+          return new Date(item.localPriorityCreatedAt).getTime();
+        return Infinity;
+      };
+      const typeAreaWCard = (item: SustentacaoItemWithSLA): number => {
+        const gt = item.task.areaPath?.includes('Gestão de Terceiros') ?? false;
+        const isTicket = item.task.type === 'Ticket';
+        if (isTicket && gt) return 0;
+        if (isTicket && !gt) return 1;
+        if (!isTicket && gt) return 2;
+        return 3;
+      };
       const sortedCards = [...data.cards].sort((a, b) => {
-        const aBlocked = a.task.isBlocked ? 1 : 0;
-        const bBlocked = b.task.isBlocked ? 1 : 0;
-        if (aBlocked !== bBlocked) return aBlocked - bBlocked;
-
         const aViolated = a.slaViolated ? 1 : 0;
         const bViolated = b.slaViolated ? 1 : 0;
-        const aHasSla = a.expirationDate != null ? 1 : 0;
-        const bHasSla = b.expirationDate != null ? 1 : 0;
-
         if (aViolated !== bViolated) return bViolated - aViolated;
         if (aViolated && bViolated)
           return a.businessHoursRemaining - b.businessHoursRemaining;
-        if (a.localPriority !== b.localPriority)
-          return b.localPriority - a.localPriority;
-        if (aHasSla !== bHasSla) return bHasSla - aHasSla;
-        if (aHasSla && bHasSla)
-          return a.businessHoursRemaining - b.businessHoursRemaining;
-        const priorityOrder: Record<string, number> = {
+
+        const aD = effDeadlineMs(a);
+        const bD = effDeadlineMs(b);
+        const aH = aD !== Infinity ? 1 : 0;
+        const bH = bD !== Infinity ? 1 : 0;
+        if (aH !== bH) return bH - aH;
+        if (aH && bH && aD !== bD) return aD - bD;
+
+        const wa = typeAreaWCard(a);
+        const wb = typeAreaWCard(b);
+        if (wa !== wb) return wa - wb;
+
+        const pOrd: Record<string, number> = {
           critical: 0,
           high: 1,
           medium: 2,
           low: 3,
         };
-        const aPrio = priorityOrder[a.task.priority] ?? 99;
-        const bPrio = priorityOrder[b.task.priority] ?? 99;
-        return aPrio - bPrio;
+        return (pOrd[a.task.priority] ?? 99) - (pOrd[b.task.priority] ?? 99);
       });
 
       result.push({

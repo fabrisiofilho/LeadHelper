@@ -1,4 +1,11 @@
-import { app, BrowserWindow, globalShortcut, Menu, MenuItem } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  globalShortcut,
+  Menu,
+  MenuItem,
+  shell,
+} from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { logger } from '@main/infrastructure/log/logger';
@@ -102,6 +109,42 @@ export const createMainWindow = (): BrowserWindow => {
   });
 
   mainWindow.setMenu(null);
+
+  // ── External link interception ─────────────────────────────────────────────
+  // Any URL that is NOT the local dev server or the local renderer file is
+  // considered external and must open in the system browser instead of
+  // navigating the Electron window itself.
+  const isInternalUrl = (url: string): boolean => {
+    if (process.env.NODE_ENV === 'development') {
+      const devUrl =
+        process.env.ELECTRON_RENDERER_URL || 'http://localhost:5173';
+      return url.startsWith(devUrl);
+    }
+    // Production: only local file:// URLs are internal
+    return url.startsWith('file://');
+  };
+
+  // Prevent the window from navigating away from the app
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (!isInternalUrl(url)) {
+      event.preventDefault();
+      shell.openExternal(url);
+      logger.debug(
+        '[window] External navigation intercepted → system browser:',
+        url,
+      );
+    }
+  });
+
+  // Prevent target="_blank" and window.open() from opening inside Electron
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (!isInternalUrl(url)) {
+      shell.openExternal(url);
+      logger.debug('[window] window.open intercepted → system browser:', url);
+    }
+    return { action: 'deny' }; // always deny opening a new Electron window
+  });
+  // ───────────────────────────────────────────────────────────────────────────
 
   // Apply Windows drag/resize freeze fix
   applyWindowDragFix(mainWindow);

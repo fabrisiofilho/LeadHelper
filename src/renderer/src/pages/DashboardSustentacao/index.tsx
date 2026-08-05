@@ -52,6 +52,7 @@ import { WorkItemTypeChip } from '@renderer/components/WorkItemTypeChip';
 import { SlaOrderModal } from '@renderer/components/SlaOrderModal';
 import { PrioritizeItemModal } from '@renderer/components/PrioritizeItemModal';
 import { CopySelectionModal } from './components/CopySelectionModal';
+import { buildPriorityList, copyToClipboard } from './utils/copyPriorityList';
 import { useSyncRefresh } from '@renderer/hooks/useSyncRefresh';
 import type {
   SustentacaoItemWithSLA,
@@ -123,13 +124,13 @@ function areaLabel(areaPath?: string): string {
   return isGestao(areaPath) ? 'Gestão de Terceiros' : 'Chamada Tecnológica';
 }
 
-/** Sort weight: Ticket GT=0, Improvement GT=1, Ticket CT=2, Improvement CT=3 */
+/** Sort weight: Ticket GT=0, Ticket CT=1, Improvement GT=2, Improvement CT=3 */
 function typeAreaWeight(item: SustentacaoItemWithSLA): number {
   const gt = isGestao(item.task.areaPath);
   const isTicket = item.task.type === 'Ticket';
-  if (gt && isTicket) return 0;
-  if (gt && !isTicket) return 1;
-  if (!gt && isTicket) return 2;
+  if (isTicket && gt) return 0;
+  if (isTicket && !gt) return 1;
+  if (!isTicket && gt) return 2;
   return 3;
 }
 
@@ -137,43 +138,42 @@ function dashboardSort(
   a: SustentacaoItemWithSLA,
   b: SustentacaoItemWithSLA,
 ): number {
-  const aBlocked = a.task.isBlocked ? 1 : 0;
-  const bBlocked = b.task.isBlocked ? 1 : 0;
+  const effectiveDeadlineMs = (i: SustentacaoItemWithSLA): number => {
+    if (i.expirationDate) return new Date(i.expirationDate).getTime();
+    if (i.localPriorityDeadline)
+      return new Date(i.localPriorityDeadline).getTime();
+    if (i.localPriorityCreatedAt)
+      return new Date(i.localPriorityCreatedAt).getTime();
+    return Infinity;
+  };
 
-  // Blocked items always sink to the bottom
-  if (aBlocked !== bBlocked) return aBlocked - bBlocked;
-
+  // 1. Violated SLA top, most overdue first
   const aViolated = a.slaViolated ? 1 : 0;
   const bViolated = b.slaViolated ? 1 : 0;
-  const aHasSla = a.expirationDate != null ? 1 : 0;
-  const bHasSla = b.expirationDate != null ? 1 : 0;
-
-  // 1. Violated SLA always floats to the top, most overdue first
   if (aViolated !== bViolated) return bViolated - aViolated;
   if (aViolated && bViolated)
     return a.businessHoursRemaining - b.businessHoursRemaining;
 
-  // 2. Local priority (manual priorização) — higher number = more urgent
-  const aLocal = a.localPriority ?? 0;
-  const bLocal = b.localPriority ?? 0;
-  if (aLocal !== bLocal) return bLocal - aLocal;
-
-  // 3. Items with SLA (endDate set) before items without
-  if (aHasSla !== bHasSla) return bHasSla - aHasSla;
-
-  // 4. Both have SLA → closest deadline first (tomorrow before 4 days)
-  if (aHasSla && bHasSla) {
-    return a.businessHoursRemaining - b.businessHoursRemaining;
+  // 2. Effective deadline ASC (expirationDate OR localPriority deadline)
+  const aDeadline = effectiveDeadlineMs(a);
+  const bDeadline = effectiveDeadlineMs(b);
+  const aHasDeadline = aDeadline !== Infinity ? 1 : 0;
+  const bHasDeadline = bDeadline !== Infinity ? 1 : 0;
+  if (aHasDeadline !== bHasDeadline) return bHasDeadline - aHasDeadline;
+  if (aHasDeadline && bHasDeadline) {
+    const diff = aDeadline - bDeadline;
+    if (diff !== 0) return diff;
   }
 
-  // 5. No SLA — sort by area/type weight then azure priority
+  // 3. Type × Area weight: Ticket GT=0, Improvement GT=1, Ticket CT=2, Improvement CT=3
   const wa = typeAreaWeight(a);
   const wb = typeAreaWeight(b);
   if (wa !== wb) return wa - wb;
+
+  // 4. Azure priority tiebreak
   const pa = PRIO_ORDER[a.task.priority] ?? 99;
   const pb = PRIO_ORDER[b.task.priority] ?? 99;
-  if (pa !== pb) return pa - pb;
-  return 0;
+  return pa - pb;
 }
 
 function formatSlaRemaining(hours: number): string {
@@ -1351,139 +1351,15 @@ export function DashboardSustentacaoPage() {
         ? sectionItems
         : sectionItems.filter((i) => !i.isHidden);
 
-      if (visible.length === 0) {
-        const html = `<b>${sectionTitle}</b><br/><br/><span style="color:#64748B;">Nenhuma tarefa encontrada nesta etapa.</span>`;
-        const text = `${sectionTitle}\n\nNenhuma tarefa encontrada nesta etapa.`;
-        const blob = new Blob([html], { type: 'text/html' });
-        const textBlob = new Blob([text], { type: 'text/plain' });
-        const emptyItem = new ClipboardItem({
-          'text/html': blob,
-          'text/plain': textBlob,
-        });
-        navigator.clipboard.write([emptyItem]).catch(() => {
-          navigator.clipboard.writeText(text).catch(() => {});
-        });
-        return;
-      }
-
-      const buildUrl = (id: string | number) =>
-        `https://dev.azure.com/senaisc-solucoes-digitais/Tribo%20SEIF/_workitems/edit/${id}/`;
-
-      const areaTagStr = (areaPath?: string) =>
-        areaPath?.includes('Gestão de Terceiros') ? '[Gestão]' : '[Chamada]';
-
-      const formatItemHtml = (item: SustentacaoItemWithSLA, idx: number) => {
-        const t = item.task;
-        const id = t.externalId ?? String(t.id);
-        const url = buildUrl(id);
-        const tag = `<span style="color:#94A3B8;font-size:0.8em;">${areaTagStr(t.areaPath)}</span>`;
-
-        let dateInfo = '';
-        if (item.expirationDate) {
-          const d = new Date(item.expirationDate);
-          const label = item.slaViolated ? 'Término (vencido)' : 'Término';
-          const color = item.slaViolated ? '#DC2626' : '#0369A1';
-          dateInfo = ` | <span style="color:${color};">${label}: ${d.toLocaleDateString('pt-BR')}</span>`;
-        } else if (item.localPriority > 0) {
-          const ds = item.localPriorityDeadline ?? item.localPriorityCreatedAt;
-          if (ds)
-            dateInfo = ` | <span style="color:#7C3AED;">Priorizado para: ${new Date(ds).toLocaleDateString('pt-BR')}</span>`;
-        }
-
-        let blocked = '';
-        if (t.isBlocked) {
-          blocked = ` | <span style="color:#DC2626;font-weight:700;">⚠ Impedimento${t.blockedReason ? `: ${t.blockedReason}` : ''}</span>`;
-        }
-
-        return `${idx + 1}. ${tag} <b><a href="${url}">#${id}</a></b> - ${t.type}${dateInfo}${blocked}`;
-      };
-
-      const formatItemText = (item: SustentacaoItemWithSLA, idx: number) => {
-        const t = item.task;
-        const id = t.externalId ?? String(t.id);
-        const url = buildUrl(id);
-        const tag = areaTagStr(t.areaPath);
-
-        let dateInfo = '';
-        if (item.expirationDate) {
-          const d = new Date(item.expirationDate);
-          const label = item.slaViolated ? 'Término (vencido)' : 'Término';
-          dateInfo = ` | ${label}: ${d.toLocaleDateString('pt-BR')}`;
-        } else if (item.localPriority > 0) {
-          const ds = item.localPriorityDeadline ?? item.localPriorityCreatedAt;
-          if (ds)
-            dateInfo = ` | Priorizado para: ${new Date(ds).toLocaleDateString('pt-BR')}`;
-        }
-
-        let blocked = '';
-        if (t.isBlocked) {
-          blocked = ` | ⚠ Impedimento${t.blockedReason ? `: ${t.blockedReason}` : ''}`;
-        }
-
-        return `${idx + 1}. ${tag} #${id} (${url}) - ${t.type}${dateInfo}${blocked}`;
-      };
-
-      const htmlLines: string[] = [];
-      const textLines: string[] = [];
-
-      htmlLines.push(`<b>${sectionTitle} - Ordem de Prioridade</b><br/><br/>`);
-      textLines.push(`${sectionTitle} - Ordem de Prioridade`, '');
-
-      let counter = 0;
-
-      const hasPrioFn = (item: SustentacaoItemWithSLA) =>
-        !!item.expirationDate || item.localPriority > 0;
-
-      const renderGroup = (
-        items: SustentacaoItemWithSLA[],
-        groupLabel: string,
-      ) => {
-        if (items.length === 0) return;
-        htmlLines.push(`<b>${groupLabel} (${items.length})</b><br/>`);
-        textLines.push(`${groupLabel} (${items.length})`);
-        items.forEach((item) => {
-          htmlLines.push(formatItemHtml(item, counter) + '<br/>');
-          textLines.push(formatItemText(item, counter));
-          counter++;
-        });
-        htmlLines.push('<br/>');
-        textLines.push('');
-      };
-
-      // Flat structure: blocked last, no GT/CT sub-headers
-      const blockedItems = visible.filter((i) => i.task.isBlocked);
-      const unblockedItems = visible.filter((i) => !i.task.isBlocked);
-      const withPrio = unblockedItems.filter(hasPrioFn);
-      const withoutPrio = unblockedItems
-        .filter((i) => !hasPrioFn(i))
-        .sort((a, b) => {
-          const aT = a.task.type === 'Ticket' ? 0 : 1;
-          const bT = b.task.type === 'Ticket' ? 0 : 1;
-          if (aT !== bT) return aT - bT;
-          const aG = isGestao(a.task.areaPath) ? 0 : 1;
-          const bG = isGestao(b.task.areaPath) ? 0 : 1;
-          return aG - bG;
-        });
-
-      renderGroup(withPrio, 'Com prioridade/SLA');
-      renderGroup(withoutPrio, 'Sem prioridade');
-      renderGroup(blockedItems, 'Com impedimento');
-
-      const html = htmlLines.join('');
-      const text = textLines.join('\n');
-
-      const blob = new Blob([html], { type: 'text/html' });
-      const textBlob = new Blob([text], { type: 'text/plain' });
-      const item = new ClipboardItem({
-        'text/html': blob,
-        'text/plain': textBlob,
+      const { htmlLines, textLines } = buildPriorityList({
+        title: sectionTitle,
+        items: visible,
+        positionMap,
       });
-      navigator.clipboard.write([item]).catch(() => {
-        // Fallback: copia só texto puro
-        navigator.clipboard.writeText(text).catch(() => {});
-      });
+
+      copyToClipboard(htmlLines, textLines);
     },
-    [showHidden],
+    [showHidden, positionMap],
   );
 
   const handleRowClick = useCallback((task: Task) => {
@@ -1925,6 +1801,7 @@ export function DashboardSustentacaoPage() {
         devItems={devItems}
         auditItems={auditItems}
         analysisItems={analysisItems}
+        positionMap={positionMap}
       />
 
       <SlaOrderModal

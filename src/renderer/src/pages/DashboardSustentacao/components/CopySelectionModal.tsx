@@ -24,6 +24,12 @@ import {
 } from '@mui/material';
 import { Modal } from '@renderer/components/Modal';
 import type { SustentacaoItemWithSLA } from '@main/application/services/dashboard-service';
+import {
+  buildPriorityList,
+  copyToClipboard,
+  isGestaoArea as isGestao,
+  hasPriorityDate as hasPriority,
+} from '../utils/copyPriorityList';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -34,9 +40,6 @@ const LANES = [
 ] as const;
 type LaneKey = (typeof LANES)[number]['key'];
 
-const AZURE_BASE =
-  'https://dev.azure.com/senaisc-solucoes-digitais/Tribo%20SEIF/_workitems/edit/';
-
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface CopySelectionModalProps {
@@ -45,146 +48,13 @@ interface CopySelectionModalProps {
   devItems: SustentacaoItemWithSLA[];
   auditItems: SustentacaoItemWithSLA[];
   analysisItems: SustentacaoItemWithSLA[];
+  positionMap: Map<string, string[]>;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function itemKey(item: SustentacaoItemWithSLA): string {
   return item.task.externalId ?? String(item.task.id);
-}
-
-function isGestao(areaPath?: string): boolean {
-  return !!areaPath?.includes('Gestão de Terceiros');
-}
-
-function hasPriority(item: SustentacaoItemWithSLA): boolean {
-  return !!item.expirationDate || item.localPriority > 0;
-}
-
-function buildUrl(id: string | number) {
-  return `${AZURE_BASE}${id}/`;
-}
-
-function formatDateInfo(item: SustentacaoItemWithSLA, html: boolean): string {
-  if (item.expirationDate) {
-    const d = new Date(item.expirationDate);
-    const label = item.slaViolated ? 'Término (vencido)' : 'Término';
-    if (html) {
-      const color = item.slaViolated ? '#DC2626' : '#0369A1';
-      return ` | <span style="color:${color};">${label}: ${d.toLocaleDateString('pt-BR')}</span>`;
-    }
-    return ` | ${label}: ${d.toLocaleDateString('pt-BR')}`;
-  }
-  if (item.localPriority > 0) {
-    const dateStr = item.localPriorityDeadline ?? item.localPriorityCreatedAt;
-    if (dateStr) {
-      const d = new Date(dateStr);
-      if (html)
-        return ` | <span style="color:#7C3AED;">Priorizado para: ${d.toLocaleDateString('pt-BR')}</span>`;
-      return ` | Priorizado para: ${d.toLocaleDateString('pt-BR')}`;
-    }
-  }
-  return '';
-}
-
-function formatBlockedInfo(
-  item: SustentacaoItemWithSLA,
-  html: boolean,
-): string {
-  const t = item.task;
-  if (!t.isBlocked) return '';
-  const motivo = t.blockedReason ? `: ${t.blockedReason}` : '';
-  if (html)
-    return ` | <span style="color:#DC2626;font-weight:700;">⚠ Impedimento${motivo}</span>`;
-  return ` | ⚠ Impedimento${motivo}`;
-}
-
-/** Returns area label: Gestão or Chamada */
-function areaTag(areaPath?: string): string {
-  return isGestao(areaPath) ? '[Gestão]' : '[Chamada]';
-}
-
-function formatLaneWarning(laneLabel: string, html: boolean): string {
-  if (html)
-    return ` | <span style="color:#D97706;font-weight:600;">⚠ ${laneLabel}</span>`;
-  return ` | ⚠ ${laneLabel}`;
-}
-
-function formatLine(
-  item: SustentacaoItemWithSLA,
-  idx: number,
-  html: boolean,
-  laneWarning?: string,
-): string {
-  const t = item.task;
-  const id = t.externalId ?? String(t.id);
-  const url = buildUrl(id);
-  const warning = laneWarning ? formatLaneWarning(laneWarning, html) : '';
-  const tag = areaTag(t.areaPath);
-  const tagPart = html
-    ? ` <span style="color:#64748B;font-size:0.8em;">${tag}</span>`
-    : ` ${tag}`;
-  const line = `${idx + 1}.${tagPart} ${html ? `<b><a href="${url}">#${id}</a></b>` : `#${id} (${url})`} - ${t.type}${formatDateInfo(item, html)}${formatBlockedInfo(item, html)}${warning}`;
-  return line;
-}
-
-/** Renders items into the new flat structure:
- *  Com prioridade/SLA → Sem prioridade → Com impedimento
- *  Each item gets a Gestão/Chamada tag inline. No sub-headers.
- */
-function buildOutput(
-  title: string,
-  items: SustentacaoItemWithSLA[],
-  extraLaneMap: Map<string, string>,
-  counterStart: number,
-): { html: string[]; text: string[]; newCounter: number } {
-  const html: string[] = [];
-  const text: string[] = [];
-  let counter = counterStart;
-
-  if (items.length === 0) return { html, text, newCounter: counter };
-
-  html.push(`<b>${title} - Ordem de Prioridade</b><br/><br/>`);
-  text.push(`${title} - Ordem de Prioridade`, '');
-
-  // Blocked → always last
-  const blocked = items.filter((i) => i.task.isBlocked);
-  const unblocked = items.filter((i) => !i.task.isBlocked);
-
-  // Com prioridade: sorted by effective deadline ASC
-  const withPrio = unblocked.filter(hasPriority);
-  // Sem prioridade: Ticket before Improvement, then GT before CT within same type
-  const withoutPrio = unblocked
-    .filter((i) => !hasPriority(i))
-    .sort((a, b) => {
-      const aIsTicket = a.task.type === 'Ticket' ? 0 : 1;
-      const bIsTicket = b.task.type === 'Ticket' ? 0 : 1;
-      if (aIsTicket !== bIsTicket) return aIsTicket - bIsTicket;
-      // Same type → GT before CT
-      const aIsGt = isGestao(a.task.areaPath) ? 0 : 1;
-      const bIsGt = isGestao(b.task.areaPath) ? 0 : 1;
-      return aIsGt - bIsGt;
-    });
-
-  const appendGroup = (subItems: SustentacaoItemWithSLA[], label: string) => {
-    if (subItems.length === 0) return;
-    html.push(`<b>${label} (${subItems.length})</b><br/>`);
-    text.push(`${label} (${subItems.length})`);
-    subItems.forEach((item) => {
-      const laneWarning = extraLaneMap.get(itemKey(item));
-      html.push(formatLine(item, counter, true, laneWarning) + '<br/>');
-      text.push(formatLine(item, counter, false, laneWarning));
-      counter++;
-    });
-    html.push('<br/>');
-    text.push('');
-  };
-
-  appendGroup(withPrio, 'Com prioridade/SLA');
-  appendGroup(withoutPrio, 'Sem prioridade');
-  appendGroup(blocked, 'Com impedimento');
-
-  return { html, text, newCounter: counter };
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -195,6 +65,7 @@ export function CopySelectionModal({
   devItems,
   auditItems,
   analysisItems,
+  positionMap,
 }: CopySelectionModalProps) {
   const [baseLane, setBaseLane] = useState<LaneKey>('audit');
   const [extraSelected, setExtraSelected] = useState<Set<string>>(new Set());
@@ -262,46 +133,51 @@ export function CopySelectionModal({
     // Merge: interleave extras into base by priority (same sort as dashboard)
     const all = [...base, ...extras];
 
-    // Effective deadline: the single date used for sorting all prioritized items
-    const effectiveDeadlineMs = (i: SustentacaoItemWithSLA): number => {
+    // Canonical sort — identical to backend and dashboardSort:
+    // Violated → effective deadline ASC → Ticket>Improvement + GT>CT → azure priority
+    // Blocked items are NOT sinked — impedimento label shown inline.
+    const effDeadlineMs = (i: SustentacaoItemWithSLA): number => {
       if (i.expirationDate) return new Date(i.expirationDate).getTime();
-      const d = i.localPriorityDeadline ?? i.localPriorityCreatedAt;
-      if (d) return new Date(d).getTime();
+      if (i.localPriorityDeadline)
+        return new Date(i.localPriorityDeadline).getTime();
+      if (i.localPriorityCreatedAt)
+        return new Date(i.localPriorityCreatedAt).getTime();
       return Infinity;
     };
+    const typeAreaW = (i: SustentacaoItemWithSLA): number => {
+      const gt = isGestao(i.task.areaPath);
+      const isT = i.task.type === 'Ticket';
+      if (isT && gt) return 0;
+      if (isT && !gt) return 1;
+      if (!isT && gt) return 2;
+      return 3;
+    };
 
-    // Sort: blocked last → violated (most overdue) → prioritized (earliest deadline) → unprioritized (Ticket>Improvement, GT>CT)
     all.sort((a, b) => {
-      // Blocked always last
-      const aBlocked = a.task.isBlocked ? 1 : 0;
-      const bBlocked = b.task.isBlocked ? 1 : 0;
-      if (aBlocked !== bBlocked) return aBlocked - bBlocked;
-
       const aViolated = a.slaViolated ? 1 : 0;
       const bViolated = b.slaViolated ? 1 : 0;
       if (aViolated !== bViolated) return bViolated - aViolated;
       if (aViolated && bViolated)
         return a.businessHoursRemaining - b.businessHoursRemaining;
 
-      const aHasPrio = a.expirationDate != null || a.localPriority > 0 ? 1 : 0;
-      const bHasPrio = b.expirationDate != null || b.localPriority > 0 ? 1 : 0;
+      const aD = effDeadlineMs(a);
+      const bD = effDeadlineMs(b);
+      const aH = aD !== Infinity ? 1 : 0;
+      const bH = bD !== Infinity ? 1 : 0;
+      if (aH !== bH) return bH - aH;
+      if (aH && bH && aD !== bD) return aD - bD;
 
-      // Prioritized always before unprioritized
-      if (aHasPrio !== bHasPrio) return bHasPrio - aHasPrio;
+      const wa = typeAreaW(a);
+      const wb = typeAreaW(b);
+      if (wa !== wb) return wa - wb;
 
-      // Both prioritized → earliest effective deadline first
-      if (aHasPrio && bHasPrio) {
-        const diff = effectiveDeadlineMs(a) - effectiveDeadlineMs(b);
-        if (diff !== 0) return diff;
-      }
-
-      // Both unprioritized → Ticket before Improvement, then GT before CT
-      const aIsTicket = a.task.type === 'Ticket' ? 0 : 1;
-      const bIsTicket = b.task.type === 'Ticket' ? 0 : 1;
-      if (aIsTicket !== bIsTicket) return aIsTicket - bIsTicket;
-      const aIsGt = isGestao(a.task.areaPath) ? 0 : 1;
-      const bIsGt = isGestao(b.task.areaPath) ? 0 : 1;
-      return aIsGt - bIsGt;
+      const pOrd: Record<string, number> = {
+        critical: 0,
+        high: 1,
+        medium: 2,
+        low: 3,
+      };
+      return (pOrd[a.task.priority] ?? 99) - (pOrd[b.task.priority] ?? 99);
     });
 
     return all;
@@ -323,30 +199,17 @@ export function CopySelectionModal({
   const baseTitle = `${baseLaneLabel} - Sustentação`;
 
   const handleCopy = useCallback(() => {
-    const { html, text } = buildOutput(
-      baseTitle,
-      combinedItems,
-      extraLaneMap,
-      0,
-    );
-    if (html.length === 0) return;
-
-    const htmlStr = html.join('');
-    const textStr = text.join('\n');
-
-    const blob = new Blob([htmlStr], { type: 'text/html' });
-    const textBlob = new Blob([textStr], { type: 'text/plain' });
-    const clipItem = new ClipboardItem({
-      'text/html': blob,
-      'text/plain': textBlob,
+    const { htmlLines, textLines } = buildPriorityList({
+      title: baseTitle,
+      items: combinedItems,
+      positionMap,
+      laneWarningMap: extraLaneMap,
+      counterStart: 1,
     });
-    navigator.clipboard.write([clipItem]).catch(() => {
-      navigator.clipboard.writeText(textStr).catch(() => {});
-    });
-
+    copyToClipboard(htmlLines, textLines);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
-  }, [baseTitle, combinedItems, extraLaneMap]);
+  }, [baseTitle, combinedItems, extraLaneMap, positionMap]);
 
   const handleGeneratePng = useCallback(async () => {
     if (!previewRef.current) return;

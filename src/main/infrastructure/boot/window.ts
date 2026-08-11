@@ -236,12 +236,12 @@ export const createMainWindow = (): BrowserWindow => {
     const devServerUrl =
       process.env.ELECTRON_RENDERER_URL || 'http://localhost:5173';
     logger.info(`Development mode - loading from ${devServerUrl}`);
-    mainWindow.loadURL(devServerUrl).catch(logger.error);
+    mainWindow.loadURL(devServerUrl).catch((e) => logger.error(e));
     mainWindow.webContents.openDevTools();
   } else {
     logger.info('Production mode - loading local file');
     const indexPath = path.join(__dirname, '../renderer/index.html');
-    mainWindow.loadFile(indexPath).catch(logger.error);
+    mainWindow.loadFile(indexPath).catch((e) => logger.error(e));
   }
 
   return mainWindow;

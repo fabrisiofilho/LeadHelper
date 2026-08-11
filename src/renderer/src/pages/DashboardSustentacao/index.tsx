@@ -1426,11 +1426,18 @@ export function DashboardSustentacaoPage() {
     return { devItems: dev, auditItems: audit, analysisItems: analysis };
   }, [filteredItems]);
 
-  // Count items with wrong position (assignee's cargo doesn't match the status lane)
-  // Uses filteredItems so it respects the area filter
+  // Count items with wrong position — respects area filter, uses full items scope (not tab-filtered)
   const wrongPositionCount = useMemo(() => {
     let count = 0;
-    for (const item of filteredItems) {
+    const source =
+      areaFilter === 'all'
+        ? items
+        : items.filter((i) =>
+            areaFilter === 'gestao'
+              ? isGestao(i.task.areaPath)
+              : !isGestao(i.task.areaPath),
+          );
+    for (const item of source) {
       if (item.isHidden) continue;
       const t = item.task;
       if (!t.assignedToName || !t.assignedToEmail || !t.status) continue;
@@ -1439,21 +1446,37 @@ export function DashboardSustentacaoPage() {
       if (!allowed.includes(t.status.toLowerCase())) count++;
     }
     return count;
-  }, [filteredItems, positionMap]);
+  }, [items, areaFilter, positionMap]);
 
-  // When area filter is active, compute metrics from filteredItems directly
+  // When area filter is active, compute metrics from area-filtered items directly
   // so the cards stay in sync with the list
   const derivedMetrics = useMemo((): SustentacaoMetrics | null => {
     if (areaFilter === 'all') return null; // use backend metrics when no filter
     if (!metrics) return null;
 
-    const visible = filteredItems.filter((i) => !i.isHidden);
-    const openTickets = visible.filter((i) => i.task.type === 'Ticket').length;
-    const openImprovements = visible.filter(
+    // Apply the same status filter as the backend metrics call
+    const metricStatuses = new Set([
+      ...DEV_STATUSES,
+      ...AUDIT_STATUSES,
+      ...(includeAnalysis ? ANALYSIS_STATUSES : []),
+    ]);
+
+    // Use the full items list filtered by area (same scope as backend metrics)
+    const areaFiltered = items.filter((i) => {
+      if (i.isHidden) return false;
+      if (!metricStatuses.has(i.task.status)) return false;
+      return areaFilter === 'gestao'
+        ? isGestao(i.task.areaPath)
+        : !isGestao(i.task.areaPath);
+    });
+    const openTickets = areaFiltered.filter(
+      (i) => i.task.type === 'Ticket',
+    ).length;
+    const openImprovements = areaFiltered.filter(
       (i) => i.task.type === 'Improvement',
     ).length;
 
-    const ticketsWithSla = visible.filter(
+    const ticketsWithSla = areaFiltered.filter(
       (i) => i.task.type === 'Ticket' && !i.slaExcluded,
     );
     const slaViolated = ticketsWithSla.filter((i) => i.slaViolated);
@@ -1463,7 +1486,9 @@ export function DashboardSustentacaoPage() {
         i.businessHoursRemaining > 0 &&
         i.businessHoursRemaining <= 8,
     );
-    const unassigned = visible.filter((i) => !i.task.assignedToName).length;
+    const unassigned = areaFiltered.filter(
+      (i) => !i.task.assignedToName,
+    ).length;
 
     const avgAge =
       ticketsWithSla.length > 0
@@ -1481,7 +1506,7 @@ export function DashboardSustentacaoPage() {
     }
 
     const byPriority = Array.from(
-      visible.reduce((m, i) => {
+      areaFiltered.reduce((m, i) => {
         const p = i.task.priority ?? 'medium';
         m.set(p, (m.get(p) ?? 0) + 1);
         return m;
@@ -1490,7 +1515,7 @@ export function DashboardSustentacaoPage() {
 
     return {
       ...metrics, // keep closedTicketsLast30Days, avgCloseTime from backend
-      totalOpen: visible.length,
+      totalOpen: areaFiltered.length,
       openTickets,
       openImprovements,
       slaViolatedCount: slaViolated.length,
@@ -1507,7 +1532,7 @@ export function DashboardSustentacaoPage() {
       oldestOpenTicketExternalId: oldestExternalId,
       byPriority,
     };
-  }, [areaFilter, filteredItems, metrics]);
+  }, [areaFilter, items, metrics, includeAnalysis]);
 
   // Active metrics: derived (filtered) when area filter is on, backend otherwise
   const activeMetrics = derivedMetrics ?? metrics;

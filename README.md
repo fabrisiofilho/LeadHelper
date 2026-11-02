@@ -89,3 +89,20 @@ leadhelper/
 ## 📝 Licença
 
 Versão: 1.0.0
+
+---
+
+<!-- github-standardizer:start -->
+## Overview
+
+Desktop application for technical leadership and team management.
+
+## Technology indicators
+
+- Node.js ecosystem
+
+## Getting started
+
+Check the project manifests and existing documentation for supported setup commands. No installation instructions were inferred.
+
+<!-- github-standardizer:end -->
